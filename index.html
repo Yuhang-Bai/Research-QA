@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>科研管理器 v13 (搜索替换增强版)</title>
+    <title>科研管理器 v15</title>
     
     <!-- 依赖库 -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -27,18 +27,15 @@
     </script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
     
-    <!-- CodeMirror 核心与样式 -->
+    <!-- CodeMirror & Plugins -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/hint/show-hint.min.css">
-    <!-- [新增] 搜索对话框样式 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/dialog/dialog.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/search/matchesonscrollbar.min.css">
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/markdown/markdown.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/hint/show-hint.min.js"></script>
-    
-    <!-- [新增] 搜索与替换插件 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/dialog/dialog.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/search/searchcursor.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/search/search.min.js"></script>
@@ -53,8 +50,8 @@
         .bar-btn.primary { background: #0366d6; border-color: #0366d6; }
         .bar-btn.warn { background: #d73a49; border-color: #d73a49; }
 
-        /* 顶部栏 */
-        #status-bar { position: absolute; top: 0; left: 0; width: 100%; height: 40px; background: #24292e; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 15px; box-sizing: border-box; z-index: 100; }
+        /* 顶部栏 (App Header) */
+        #status-bar { position: absolute; top: 0; left: 0; width: 100%; height: 40px; background: #24292e; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 15px; box-sizing: border-box; z-index: 1000; }
 
         /* 布局 */
         #container { display: flex; width: 100%; height: 100%; padding-top: 40px; box-sizing: border-box; }
@@ -63,9 +60,8 @@
         #resizer:hover, #resizer.resizing { background: #0366d6; }
         #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: white; position: relative; }
 
-        /* 列表 */
+        /* 列表与搜索 */
         .sidebar-header { padding: 10px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; background: #fff;}
-        /* [新增] 搜索框样式 */
         .search-box { padding: 8px 10px; border-bottom: 1px solid #ddd; background: #fff; }
         .search-inp { width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 13px; }
         .search-inp:focus { border-color: #0366d6; outline: none; }
@@ -81,12 +77,29 @@
         .item.shared .share-icon { display: inline; }
 
         /* 详情区 */
-        #detail-view { display: none; width: 100%; height: 100%; flex-direction: column; overflow-y: auto; }
+        #detail-view { display: none; width: 100%; height: 100%; flex-direction: column; overflow-y: auto; position: relative; }
+        
+        /* [核心修改] 吸顶工具栏样式 */
+        #detail-toolbar {
+            position: sticky;
+            top: 0;
+            z-index: 90;
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(8px);
+            border-bottom: 1px solid #eee;
+            padding: 12px 50px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+        }
+
         .content-wrap { padding: 30px 50px; max-width: 900px; margin: 0 auto; width: 100%; box-sizing: border-box; }
         .markdown-body { line-height: 1.7; font-size: 16px; color: #24292e; }
         .markdown-body pre { background: #f6f8fa; padding: 15px; border-radius: 6px; overflow: auto; }
         
-        /* 编辑器通用样式 */
+        /* 编辑器样式 */
         .CodeMirror { height: 100%; font-family: "SFMono-Regular", Consolas, monospace; font-size: 15px; }
         .CodeMirror-hints { z-index: 6000; }
         .CodeMirror-dialog { font-size: 13px; padding: 5px 10px; background: #fcfcfc; border-bottom: 1px solid #eee; }
@@ -107,15 +120,17 @@
         .embedded-editor .pane { width: 50%; height: 100%; overflow-y: auto; }
         .embedded-editor .preview-pane { padding: 20px; background: #fff; border-left: 1px solid #eee; }
 
-        /* LaTeX 环境 */
-        .env-block { margin: 1em 0; padding: 15px; border-radius: 4px; border-left: 4px solid #555; background: #f9f9f9; }
+        /* LaTeX 环境样式 */
+        .env-block { margin: 1em 0; padding: 15px; border-radius: 4px; border-left: 4px solid #555; background: #f9f9f9; position: relative; }
         .env-thm { background: #e6effc; border-left-color: #0052cc; } .env-thm .env-title { color: #0052cc; font-weight: bold; }
         .env-conj { background: #fff7e6; border-left-color: #ff9900; } .env-conj .env-title { color: #d97706; }
         .env-lemma { background: #f4f5f7; border-left-color: #5e6c84; } .env-lemma .env-title { color: #42526e; font-weight: bold; }
         .env-defn { background: #e3fcef; border-left-color: #00875a; } .env-defn .env-title { color: #006644; font-weight: bold; }
         .env-problem { background: #fff0f0; border-left-color: #d73a49; } .env-problem .env-title { color: #d73a49; font-weight: bold; }
-        .env-proof { background: #fff; border-left: 2px solid #ddd; color: #333; font-style: normal; } 
+        .env-proof { background: #fff; border-left: 2px solid #ddd; color: #333; font-style: normal; margin: 1em 0; padding-left: 15px;} 
         .env-proof .env-title { font-style: italic; font-weight: bold; color:#555; }
+        .latex-ref { color: #0052cc; cursor: pointer; text-decoration: none; border-bottom: 1px dotted #0052cc; }
+        .latex-ref:hover { background: #e6effc; }
 
         /* 其他 */
         #collab-banner { display: none; background: #e6ffed; color: #0052cc; padding: 8px; text-align: center; border-bottom: 1px solid #bfebbb; font-size: 13px; }
@@ -138,7 +153,7 @@
 
 <div id="status-bar">
     <div style="display:flex; align-items:center; gap:10px;">
-        <span id="app-title" style="font-weight:bold;">科研管理器 v13 (搜索替换增强版)</span>
+        <span id="app-title" style="font-weight:bold;">科研管理器 v15 (吸顶导航版)</span>
         <span id="sync-status" style="font-size:12px; color:#aaa;">⚪ 就绪</span>
     </div>
     <div id="auth-controls">
@@ -153,7 +168,6 @@
             <h3>📚 问题库</h3>
             <button class="bar-btn primary" onclick="createNewLocal()">+</button>
         </div>
-        <!-- [新增] 侧边栏搜索框 -->
         <div class="search-box">
             <input id="search-input" class="search-inp" placeholder="🔍 搜索标题或内容..." oninput="renderList()">
         </div>
@@ -166,17 +180,18 @@
         <div id="empty-msg" style="text-align:center; color:#888; margin-top:20vh;"><h2>请选择一个问题</h2></div>
 
         <div id="detail-view">
-            <!-- 问题区 -->
-            <div class="content-wrap">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding-bottom:10px; border-bottom:1px solid #eee;">
-                    <span id="d-date" style="color:#888; font-size:12px;"></span>
-                    <div style="display:flex; gap:10px;">
-                        <button class="bar-btn only-owner" id="btn-share" onclick="manageCollaboration()">🔗 管理协作</button>
-                        <button class="bar-btn" onclick="openProblemEditor()">✏️ 编辑问题</button>
-                        <button class="bar-btn warn only-owner" onclick="deleteItem()">🗑️</button>
-                    </div>
+            <!-- [新增] 吸顶工具栏 -->
+            <div id="detail-toolbar">
+                <span id="d-date" style="color:#888; font-size:12px;"></span>
+                <div style="display:flex; gap:10px;">
+                    <button class="bar-btn only-owner" id="btn-share" onclick="manageCollaboration()">🔗 管理协作</button>
+                    <button class="bar-btn" onclick="openProblemEditor()">✏️ 编辑问题</button>
+                    <button class="bar-btn warn only-owner" onclick="deleteItem()">🗑️</button>
                 </div>
+            </div>
 
+            <!-- 问题内容区 -->
+            <div class="content-wrap" style="padding-top: 20px;">
                 <div id="problem-display-area">
                     <h1 id="d-title" style="color:#0052cc; margin-top:0;"></h1>
                     <div id="d-desc" class="markdown-body"></div>
@@ -187,12 +202,12 @@
                     <div class="toolbar">
                         <div style="display:flex; align-items:center; gap:10px; width: 60%;">
                             <input id="prob-title-inp" class="inp" style="flex:1; border:1px solid #ccc; padding:6px;" placeholder="问题标题">
-                            <span style="font-size:11px; color:#666;">(Ctrl-F 查找, Shift-Ctrl-R 替换)</span>
+                            <span style="font-size:11px; color:#666;">(Ctrl-F 查找)</span>
                         </div>
                         <div style="display:flex; align-items:center;">
                             <button class="bar-btn" onclick="toggleFullscreen('problem-editor-wrapper')">⛶ 全屏</button>
                             <button class="bar-btn" onclick="closeProblemEditor()" style="margin-left:10px;">取消</button>
-                            <button class="bar-btn primary" onclick="saveProblem()">💾 保存 (Ctrl+S)</button>
+                            <button class="bar-btn primary" onclick="saveProblem()">💾 保存</button>
                         </div>
                     </div>
                     <div class="editor-area">
@@ -219,12 +234,12 @@
                         <div class="toolbar">
                             <div style="display:flex; align-items:center; gap:10px;">
                                 <span style="font-weight:bold;">📝 新笔记</span>
-                                <span style="font-size:11px; color:#666;">(Ctrl-F 查找, Shift-Ctrl-R 替换)</span>
+                                <span style="font-size:11px; color:#666;">(Ctrl-F 查找)</span>
                             </div>
                             <div>
                                 <button class="bar-btn" onclick="toggleFullscreen('note-editor-wrapper')">⛶ 全屏</button>
                                 <button class="bar-btn" onclick="closeNoteEditor()" style="margin-left:10px;">取消</button>
-                                <button class="bar-btn primary" onclick="saveNote()">💾 提交 (Ctrl+S)</button>
+                                <button class="bar-btn primary" onclick="saveNote()">💾 提交</button>
                             </div>
                         </div>
                         <div class="editor-area">
@@ -261,42 +276,28 @@
 </div>
 
 <script>
-    // --- 核心变量 ---
     const CFG_KEY = 'v7_config';
     let ghConfig = JSON.parse(localStorage.getItem(CFG_KEY)) || { token: '', mainGistId: '' };
     
-    // LaTeX 补全词库 (扩充)
     const LATEX_KEYWORDS = [
-        { text: "\\begin{thm}\n\n\\end{thm}", displayText: "thm (定理)" },
+        { text: "\\begin{thm}\\label{thm:}\n\n\\end{thm}", displayText: "thm (定理)" },
         { text: "\\begin{proof}\n\n\\end{proof}", displayText: "proof (证明)" },
-        { text: "\\begin{lemma}\n\n\\end{lemma}", displayText: "lemma (引理)" },
-        { text: "\\begin{lem}\n\n\\end{lem}", displayText: "lem (引理简写)" },
-        { text: "\\begin{defn}\n\n\\end{defn}", displayText: "defn (定义)" },
-        { text: "\\begin{problem}\n\n\\end{problem}", displayText: "problem (问题)" },
-        { text: "\\begin{conj}\n\n\\end{conj}", displayText: "conj (猜想)" },
+        { text: "\\begin{lemma}\\label{lem:}\n\n\\end{lemma}", displayText: "lemma (引理)" },
+        { text: "\\begin{defn}\\label{def:}\n\n\\end{defn}", displayText: "defn (定义)" },
+        { text: "\\begin{problem}\\label{prob:}\n\n\\end{problem}", displayText: "problem (问题)" },
+        { text: "\\begin{conj}\\label{conj:}\n\n\\end{conj}", displayText: "conj (猜想)" },
         { text: "\\begin{align}\n\n\\end{align}", displayText: "align (多行公式)" },
-        { text: "\\begin{align*}\n\n\\end{align*}", displayText: "align* (不编号公式)" },
         { text: "\\begin{itemize}\n\\item \n\\end{itemize}", displayText: "itemize (列表)" },
         { text: "\\begin{enumerate}\n\\item \n\\end{enumerate}", displayText: "enumerate (序号列表)" },
-        { text: "\\begin{bmatrix}\n\n\\end{bmatrix}", displayText: "bmatrix (矩阵)" },
         { text: "\\frac{}{}", displayText: "\\frac (分数)" },
-        { text: "\\sqrt{}", displayText: "\\sqrt (根号)" },
-        { text: "\\sum_{}^{}", displayText: "\\sum (求和)" },
-        { text: "\\prod_{}^{}", displayText: "\\prod (乘积)" },
-        { text: "\\int_{}^{}", displayText: "\\int (积分)" },
-        { text: "\\lim_{ \\to }", displayText: "\\lim (极限)" },
-        "\\ex", "\\PP", "\\cM", "\\cT", "\\cS", "\\cong",
-        "\\alpha", "\\beta", "\\gamma", "\\Gamma", "\\delta", "\\Delta", "\\epsilon", "\\varepsilon", "\\zeta", "\\eta", 
-        "\\theta", "\\Theta", "\\iota", "\\kappa", "\\lambda", "\\Lambda", "\\mu", "\\nu", "\\xi", "\\Xi", "\\pi", "\\Pi", 
-        "\\rho", "\\sigma", "\\Sigma", "\\tau", "\\upsilon", "\\phi", "\\Phi", "\\chi", "\\psi", "\\Psi", "\\omega", "\\Omega",
-        "\\in", "\\notin", "\\subset", "\\subseteq", "\\cup", "\\cap", "\\setminus", "\\emptyset", "\\forall", "\\exists", "\\implies", "\\iff",
-        "\\mathbb{}", "\\mathcal{}", "\\mathbf{}", "\\mathrm{}", "\\text{}", "\\hat{}", "\\bar{}", "\\tilde{}", "\\vec{}"
+        "\\alpha", "\\beta", "\\gamma", "\\lambda", "\\sum", "\\prod", "\\int", "\\infty", "\\ex", "\\PP"
     ];
 
     let db = { items: [] };
     let currentId = null;
     let currentItemData = null; 
     let probCm, noteCm;
+    let docState = { counters: {}, labels: {} };
 
     const urlParams = new URLSearchParams(window.location.search);
     const visitorGistId = urlParams.get('gist');
@@ -311,10 +312,10 @@
         const cmConfig = { mode: "markdown", lineNumbers: true, lineWrapping: true, extraKeys: { "Ctrl-Space": "autocomplete" } };
         
         probCm = CodeMirror.fromTextArea(document.getElementById("prob-code-editor"), { ...cmConfig, extraKeys: { ...cmConfig.extraKeys, "Ctrl-S": saveProblem } });
-        setupCmEvents(probCm, 'prob-live-preview');
+        setupCmEvents(probCm, 'prob-live-preview', false); 
 
         noteCm = CodeMirror.fromTextArea(document.getElementById("note-code-editor"), { ...cmConfig, extraKeys: { ...cmConfig.extraKeys, "Ctrl-S": saveNote } });
-        setupCmEvents(noteCm, 'note-live-preview');
+        setupCmEvents(noteCm, 'note-live-preview', false);
 
         CodeMirror.registerHelper("hint", "markdown", function(editor) {
             var cur = editor.getCursor(), token = editor.getTokenAt(cur), start = token.start, end = cur.ch, word = token.string.slice(0, end - start);
@@ -323,13 +324,13 @@
             var hintResult = { list: list, from: CodeMirror.Pos(cur.line, start), to: CodeMirror.Pos(cur.line, end) };
             CodeMirror.on(hintResult, "pick", function(completion) {
                 var text = (typeof completion === "string") ? completion : completion.text;
-                var braceIdx = text.indexOf("{}");
+                var braceIdx = text.indexOf("}{");
+                if (braceIdx === -1) braceIdx = text.indexOf("{}");
                 if (braceIdx !== -1) { editor.setCursor({ line: cur.line, ch: start + braceIdx + 1 }); }
             });
             return hintResult;
         });
 
-        // 侧边栏拖拽
         const resizer = document.getElementById('resizer');
         const sidebar = document.getElementById('sidebar');
         resizer.addEventListener('mousedown', () => { document.addEventListener('mousemove', resize, false); document.addEventListener('mouseup', stopResize, false); });
@@ -337,49 +338,77 @@
         function stopResize() { document.removeEventListener('mousemove', resize, false); document.removeEventListener('mouseup', stopResize, false); }
     }
 
-    function setupCmEvents(cm, previewId) {
+    function setupCmEvents(cm, previewId, isGlobal) {
         cm.on("inputRead", function(cm, change) { if (change.text[0].match(/[\\a-zA-Z]/)) { CodeMirror.commands.autocomplete(cm, null, { completeSingle: false }); } });
         cm.on("change", () => {
             const val = cm.getValue();
-            document.getElementById(previewId).innerHTML = renderContent(val);
+            if(!isGlobal) resetDocState();
+            document.getElementById(previewId).innerHTML = renderContent(val, isGlobal);
             if(window.MathJax) MathJax.typesetPromise([document.getElementById(previewId)]);
         });
     }
 
-    function renderContent(text) {
+    function resetDocState() {
+        docState = { counters: { thm: 0, lemma: 0, defn: 0, conj: 0, problem: 0 }, labels: {} };
+    }
+
+    function renderContent(text, isGlobal) {
         if (!text) return "";
         let html = marked.parse(text);
         const envs = [ 
-            { tags: ['thm','theorem'], name: 'Theorem', class: 'env-thm' }, 
-            { tags: ['conjecture','conj'], name: 'Conjecture', class: 'env-conj' }, 
-            { tags: ['lemma','lem'], name: 'Lemma', class: 'env-lemma' }, 
-            { tags: ['defn','definition'], name: 'Definition', class: 'env-defn' },
-            { tags: ['problem'], name: 'Problem', class: 'env-problem' },
-            { tags: ['proof'], name: 'Proof', class: 'env-proof', isProof: true } 
+            { tags: ['thm','theorem'], name: 'Theorem', key: 'thm', class: 'env-thm' }, 
+            { tags: ['conjecture','conj'], name: 'Conjecture', key: 'conj', class: 'env-conj' }, 
+            { tags: ['lemma','lem'], name: 'Lemma', key: 'lemma', class: 'env-lemma' }, 
+            { tags: ['defn','definition'], name: 'Definition', key: 'defn', class: 'env-defn' },
+            { tags: ['problem'], name: 'Problem', key: 'problem', class: 'env-problem' },
+            { tags: ['proof'], name: 'Proof', key: null, class: 'env-proof', isProof: true } 
         ];
+
         envs.forEach(env => {
             env.tags.forEach(tag => {
                 const regex = new RegExp(`\\\\begin\\{${tag}\\}([\\s\\S]*?)\\\\end\\{${tag}\\}`, 'gi');
                 html = html.replace(regex, (m, c) => {
+                    let numStr = ""; let anchorId = "";
+                    if (env.key) {
+                        docState.counters[env.key] = (docState.counters[env.key] || 0) + 1;
+                        const num = docState.counters[env.key];
+                        numStr = ` ${num}`; anchorId = `env-${env.key}-${num}`;
+                        const labelRegex = /\\label\{([^}]+)\}/g; let match;
+                        while ((match = labelRegex.exec(c)) !== null) {
+                            const labelName = match[1]; docState.labels[labelName] = { num: num, id: anchorId };
+                        }
+                        c = c.replace(labelRegex, ''); 
+                    }
                     c = c.replace(/^\s*<p>|<\/p>\s*$/g, '');
-                    let blockHtml = env.isProof ? `<div class="${env.class}"><span class="env-title">${env.name}.</span> <span class="env-content">${c}</span> <span style="float:right">◼</span></div>` : `<div class="env-block ${env.class}"><span class="env-title">${env.name}.</span> <span class="env-content">${c}</span></div>`;
-                    return blockHtml;
+                    if (env.isProof) {
+                        return `<div class="${env.class}"><span class="env-title">${env.name}.</span> <span class="env-content">${c}</span> <span style="float:right">◼</span></div>`;
+                    } else {
+                        return `<div id="${anchorId}" class="env-block ${env.class}"><span class="env-title">${env.name}${numStr}.</span> <span class="env-content">${c}</span></div>`;
+                    }
                 });
             });
         });
+        
+        html = html.replace(/\\ref\{([^}]+)\}/g, (m, labelName) => { return `<a class="latex-ref" data-ref="${labelName}">[?]</a>`; });
         html = html.replace(/<p>(\\begin{align\*?}[\s\S]*?\\end{align\*?})<\/p>/gi, '$1');
         html = html.replace(/<p>(<div class="env-.*?>[\s\S]*?<\/div>)<\/p>/gi, '$1');
         return html;
     }
 
-    function toggleFullscreen(wrapperId) {
-        const el = document.getElementById(wrapperId);
-        el.classList.toggle('fullscreen');
-        const cm = wrapperId.includes('prob') ? probCm : noteCm;
-        cm.refresh(); 
+    function resolveReferences() {
+        document.querySelectorAll('.latex-ref').forEach(el => {
+            const refKey = el.getAttribute('data-ref');
+            const target = docState.labels[refKey];
+            if (target) { el.innerHTML = target.num; el.href = "#" + target.id; } 
+            else { el.innerHTML = "<strong>?</strong>"; el.title = "未找到引用"; el.style.color = "red"; }
+        });
     }
 
-    // 编辑器开闭逻辑
+    function toggleFullscreen(wrapperId) {
+        const el = document.getElementById(wrapperId); el.classList.toggle('fullscreen');
+        const cm = wrapperId.includes('prob') ? probCm : noteCm; cm.refresh(); 
+    }
+
     function openProblemEditor() {
         document.getElementById('problem-display-area').style.display = 'none';
         document.getElementById('problem-editor-wrapper').style.display = 'flex';
@@ -392,7 +421,6 @@
         el.style.display = 'none'; el.classList.remove('fullscreen'); 
         document.getElementById('problem-display-area').style.display = 'block';
     }
-    
     function openNoteEditor() {
         document.getElementById('note-trigger-btn').style.display = 'none';
         document.getElementById('note-editor-wrapper').style.display = 'flex';
@@ -405,7 +433,6 @@
         document.getElementById('note-trigger-btn').style.display = 'block';
     }
 
-    // 保存逻辑
     async function saveProblem() {
         currentItemData.title = document.getElementById('prob-title-inp').value;
         currentItemData.desc = probCm.getValue();
@@ -425,7 +452,6 @@
         renderDetailView();
     }
 
-    // 同步与渲染核心
     async function syncPull() {
         if (visitorGistId) {
             document.getElementById('loading').style.display = 'flex';
@@ -484,25 +510,29 @@
         if(!currentId) currentId = currentItemData.id;
         renderDetailView();
     }
+
     function renderDetailView() {
+        resetDocState();
         const d = currentItemData;
         document.getElementById('d-title').innerText = d.title;
         document.getElementById('d-date').innerText = new Date(d.date).toLocaleDateString();
-        document.getElementById('d-desc').innerHTML = renderContent(d.desc || "");
+        document.getElementById('d-desc').innerHTML = renderContent(d.desc || "", true);
         document.getElementById('problem-display-area').style.display = 'block';
         document.getElementById('problem-editor-wrapper').style.display = 'none';
         document.getElementById('ans-list').innerHTML = (d.answers || []).map((a, i) => `
             <div style="background:#fafbfc; border:1px solid #eee; padding:15px; margin-bottom:10px; border-radius:5px;">
-                <div class="markdown-body">${renderContent(a.text)}</div>
+                <div class="markdown-body">${renderContent(a.text, true)}</div>
                 <div style="font-size:12px; color:#aaa; margin-top:5px; display:flex; justify-content:space-between;">
                     <span>${new Date(a.date).toLocaleString()}</span>
                     <button class="bar-btn warn" onclick="deleteAns(${i})">删除</button>
                 </div>
             </div>
         `).join('');
+        resolveReferences();
         if(!visitorGistId) renderList(); 
         if(window.MathJax) MathJax.typesetPromise();
     }
+
     async function performSave() {
         setMsg("正在保存...");
         try {
@@ -523,35 +553,20 @@
     async function handleApiError(res) { if (res.ok) return; throw new Error(`Error ${res.status}: ${res.statusText}`); }
     function handleNetworkError(e) { alert("⚠️ " + e.message); setMsg("❌ 失败"); openConfig(); }
     
-    // [修改] 渲染列表逻辑，支持搜索
     function renderList() { 
         const term = document.getElementById('search-input') ? document.getElementById('search-input').value.toLowerCase() : "";
         const isSearching = term.length > 0;
-        
         let displayItems = db.items;
         if(isSearching) {
-            displayItems = db.items.filter(item => 
-                (item.title && item.title.toLowerCase().includes(term)) || 
-                (item.desc && item.desc.toLowerCase().includes(term))
-            );
+            displayItems = db.items.filter(item => (item.title && item.title.toLowerCase().includes(term)) || (item.desc && item.desc.toLowerCase().includes(term)));
         }
-
         document.getElementById('list').innerHTML = displayItems.map((item) => {
-            // 注意：搜索状态下禁用拖拽，防止索引错乱
             const idx = db.items.indexOf(item); 
             const activeClass = item.id === currentId ? 'active' : '';
             const sharedClass = item.shareId ? 'shared' : '';
             const pinnedClass = item.isPinned ? 'pinned' : '';
             const draggableAttr = isSearching ? '' : `draggable="true" ondragstart="dragStart(event, ${idx})" ondrop="dragDrop(event, ${idx})" ondragover="event.preventDefault()"`;
-            
-            return `
-            <li class="item ${activeClass} ${sharedClass}" 
-                ${draggableAttr}
-                onclick="loadItem(${item.id})">
-                <span class="pin-icon ${pinnedClass}" onclick="togglePin(event, ${idx})">📌</span>
-                <span class="item-title">${item.title}</span>
-                <span class="share-icon" title="协作中">🔗</span>
-            </li>`;
+            return `<li class="item ${activeClass} ${sharedClass}" ${draggableAttr} onclick="loadItem(${item.id})"><span class="pin-icon ${pinnedClass}" onclick="togglePin(event, ${idx})">📌</span><span class="item-title">${item.title}</span><span class="share-icon" title="协作中">🔗</span></li>`;
         }).join(''); 
     }
 
@@ -565,7 +580,6 @@
     async function stopCollaboration(item) { if(!confirm("停止协作并存回本地?")) return; try { item.desc=currentItemData.desc; item.answers=currentItemData.answers; delete item.shareId; await saveMainDB(true); alert("已停止"); loadItem(item.id); } catch(e){alert(e.message);} }
     async function convertToShared() { const item = db.items.find(x => x.id === currentId); if(!confirm("开启协作?")) return; try { const res = await fetch("https://api.github.com/gists", { method: "POST", headers: { "Authorization": `token ${ghConfig.token}` }, body: JSON.stringify({ description: `[Shared] ${item.title}`, public: false, files: { "shared_item.json": { content: JSON.stringify(item, null, 2) } } }) }); const json = await res.json(); item.shareId = json.id; await saveMainDB(true); alert("已开启"); loadItem(currentId); } catch(e){alert(e.message);} }
 
-    // Config
     function openConfig() { document.getElementById('cfg-token').value = ghConfig.token; document.getElementById('cfg-id').value = ghConfig.mainGistId; document.getElementById('config-modal').style.display = 'flex'; }
     function setMsg(t) { document.getElementById('sync-status').innerText = t; }
     async function saveConfig() {
