@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>科研管理器 v6</title>
+    <title>科研管理器</title>
     
+    <!-- 依赖库 -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script>
         MathJax = {
@@ -14,43 +15,29 @@
     </script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/hint/show-hint.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/markdown/markdown.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/stex/stex.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/hint/show-hint.min.js"></script>
     
     <style>
         body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; height: 100vh; background: #f4f5f7; overflow: hidden; color: #333; }
         
-        /* 1. 顶部栏 */
-        #status-bar {
-            position: absolute; top: 0; left: 0; width: 100%; height: 40px; background: #24292e; color: #fff;
-            display: flex; align-items: center; justify-content: space-between; padding: 0 15px; box-sizing: border-box; z-index: 100;
-        }
+        /* UI 基础 */
         .bar-btn { background: #444; border: 1px solid #666; color: white; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-left: 8px;}
         .bar-btn:hover { background: #666; }
         .bar-btn.primary { background: #0366d6; border-color: #0366d6; }
         .bar-btn.warn { background: #d73a49; border-color: #d73a49; }
 
-        /* 2. 主布局与拖拽条 */
+        /* 顶部栏 */
+        #status-bar { position: absolute; top: 0; left: 0; width: 100%; height: 40px; background: #24292e; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 15px; box-sizing: border-box; z-index: 100; }
+
+        /* 布局 */
         #container { display: flex; width: 100%; height: 100%; padding-top: 40px; box-sizing: border-box; }
-        
-        #sidebar { 
-            width: 280px; background: #f9f9f9; display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; 
-            border-right: 1px solid #ddd; /* 默认边框，会被resizer覆盖 */
-        }
-        
-        /* 可拖动分割线 */
-        #resizer {
-            width: 5px; background: #ddd; cursor: col-resize; z-index: 10; transition: background 0.2s;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-        }
+        #sidebar { width: 280px; background: #f9f9f9; display: flex; flex-direction: column; flex-shrink: 0; border-right: 1px solid #ddd; }
+        #resizer { width: 5px; background: #ddd; cursor: col-resize; z-index: 10; transition: background 0.2s; }
         #resizer:hover, #resizer.resizing { background: #0366d6; }
+        #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: white; position: relative; }
 
-        #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: white; position: relative; min-width: 0; }
-
-        /* 3. 侧边栏列表 */
+        /* 列表 */
         .sidebar-header { padding: 10px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; background: #fff;}
         #list { flex: 1; overflow-y: auto; list-style: none; padding: 0; margin: 0; }
         .item { padding: 12px 10px; border-bottom: 1px solid #eee; cursor: pointer; border-left: 4px solid transparent; display: flex; align-items: flex-start; gap: 8px; user-select: none;}
@@ -58,84 +45,70 @@
         .item.active { background: #e6effc; border-left: 4px solid #0052cc; }
         .item.dragging { opacity: 0.5; background: #ccc; }
         
-        .pin-icon { color: #ccc; font-size: 12px; cursor: pointer; margin-top: 2px;}
+        .pin-icon { color: #ccc; font-size: 12px; cursor: pointer; }
         .pin-icon.pinned { color: #d97706; }
-        .item-content { flex: 1; overflow: hidden; }
-        .item-title { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .item-date { font-size: 11px; color: #888; margin-top: 2px;}
+        .share-icon { font-size: 12px; margin-left: 5px; color: #00875a; display:none; } /* 共享标识 */
+        .item.shared .share-icon { display: inline; }
 
-        /* 4. 内容区域 */
+        .item-title { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+
+        /* 详情与编辑 */
         #detail-view { display: none; width: 100%; height: 100%; flex-direction: column; overflow-y: auto; }
         .content-wrap { padding: 30px 50px; max-width: 900px; margin: 0 auto; width: 100%; box-sizing: border-box; }
-        
         .markdown-body { line-height: 1.7; font-size: 16px; color: #24292e; }
-        .markdown-body h1 { border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
         .markdown-body pre { background: #f6f8fa; padding: 15px; border-radius: 6px; overflow: auto; }
-        .markdown-body blockquote { border-left: 4px solid #dfe2e5; padding-left: 15px; color: #6a737d; }
-
-        /* 笔记区域 */
-        .ans-item { border: 1px solid #eee; padding: 20px; border-radius: 8px; margin-bottom: 15px; background: #fafbfc; position: relative; }
-        .ans-meta { font-size: 12px; color: #aaa; margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px; display: flex; justify-content: space-between;}
-
-        /* 5. 全屏编辑器 */
+        
         #editor-layer { display: none; position: fixed; inset: 0; background: white; z-index: 200; flex-direction: column; }
-        .editor-header { height: 50px; border-bottom: 1px solid #ddd; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; background: #f4f5f7; }
-        .editor-body { flex: 1; display: flex; overflow: hidden; }
-        .editor-col { width: 50%; height: 100%; display: flex; flex-direction: column; border-right: 1px solid #ddd; }
-        .preview-pane { padding: 20px 40px; overflow-y: auto; background: #fff; }
-        .CodeMirror { height: 100%; font-family: "SFMono-Regular", Consolas, monospace; font-size: 15px; line-height: 1.6; }
+        .CodeMirror { height: 100%; font-family: "SFMono-Regular", Consolas, monospace; font-size: 15px; }
 
-        /* 自定义 LaTeX 环境样式 */
-        .env-block { margin: 1em 0; padding: 15px; border-radius: 4px; border-left: 4px solid #555; background: #f9f9f9; }
-        .env-thm { background: #e6effc; border-left-color: #0052cc; } .env-thm .t { color: #0052cc; font-weight: bold; }
-        .env-proof { background: #fff; border-left: 2px solid #ddd; color: #333; } .env-proof .t { font-style: italic; font-weight: bold; }
+        /* 协作横幅 */
+        #collab-banner { display: none; background: #e6ffed; color: #0052cc; padding: 8px; text-align: center; border-bottom: 1px solid #bfebbb; font-size: 13px; }
 
-        /* 弹窗与加载 */
+        /* Loading & Modal */
+        #loading { display: flex; position: fixed; inset: 0; background: rgba(255,255,255,0.8); z-index: 2000; justify-content: center; align-items: center; font-weight: bold; font-size: 18px; color: #333; }
         .modal { display: none; position: fixed; inset: 0; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; z-index: 1000; }
         .modal-box { background:white; padding:25px; width:400px; border-radius:8px; display:flex; flex-direction:column; gap:15px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
         .inp { padding: 10px; border: 1px solid #ddd; border-radius: 4px; width: 100%; box-sizing: border-box; }
-        #loading { display: flex; position: fixed; inset: 0; background: rgba(255,255,255,0.8); z-index: 2000; justify-content: center; align-items: center; font-weight: bold; font-size: 18px; color: #333; }
         
-        /* 协作模式下的特殊样式 */
-        body.collab-mode #sidebar { display: none; }
-        body.collab-mode #resizer { display: none; }
-        body.collab-mode .only-owner { display: none !important; }
-        #collab-banner { display: none; background: #fff3cd; color: #856404; padding: 5px 15px; font-size: 13px; text-align: center; border-bottom: 1px solid #ffeeba; }
+        /* 仅所有者可见 */
+        body.visitor-mode .only-owner { display: none !important; }
+        body.visitor-mode #sidebar { display: none; }
+        body.visitor-mode #resizer { display: none; }
     </style>
 </head>
 <body>
 
-<div id="loading">🚀 连接云端数据...</div>
+<div id="loading">🚀 正在连接云端...</div>
 
+<!-- 顶部栏 -->
 <div id="status-bar">
     <div style="display:flex; align-items:center; gap:10px;">
-        <span id="app-title" style="font-weight:bold;">科研管理器 v6</span>
-        <span id="sync-status" style="font-size:12px; color:#aaa;">⚪ 准备就绪</span>
+        <span id="app-title" style="font-weight:bold;">科研管理器 v7</span>
+        <span id="sync-status" style="font-size:12px; color:#aaa;">⚪ 就绪</span>
     </div>
     <div id="auth-controls">
-        <button class="bar-btn" onclick="syncPull()" title="重新拉取">🔄 刷新</button>
-        <button class="bar-btn warn" onclick="openConfig()">⚙️ 密钥配置</button>
+        <button class="bar-btn" onclick="syncPull()">🔄 刷新列表</button>
+        <button class="bar-btn warn" onclick="openConfig()">⚙️ 密钥</button>
     </div>
 </div>
 
-<div id="collab-banner">⚠️ 协作模式：你正在查看和编辑一个独立的分享问题。所有修改将保存回该分享链接。</div>
-
 <div id="container">
+    <!-- 左侧 -->
     <div id="sidebar">
         <div class="sidebar-header">
-            <h3 style="margin:0; font-size:16px;">📚 问题库</h3>
-            <button class="bar-btn primary" onclick="startNewProblem()">+</button>
+            <h3>📚 问题库</h3>
+            <button class="bar-btn primary" onclick="createNewLocal()">+</button>
         </div>
-        <ul id="list">
-            </ul>
+        <ul id="list"></ul>
     </div>
-
     <div id="resizer"></div>
 
+    <!-- 主区域 -->
     <div id="main">
+        <div id="collab-banner">🌐 <b>实时协作中</b>：此内容存储在独立的云端链接，您与合作者的修改将实时互通。</div>
+        
         <div id="empty-msg" style="text-align:center; color:#888; margin-top:20vh;">
-            <h2>请选择或新建问题</h2>
-            <p>数据纯云端同步，无本地缓存</p>
+            <h2>请选择一个问题</h2>
         </div>
 
         <div id="detail-view">
@@ -143,89 +116,89 @@
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding-bottom:10px; border-bottom:1px solid #eee;">
                     <span id="d-date" style="color:#888; font-size:12px;"></span>
                     <div style="display:flex; gap:10px;">
-                        <button class="bar-btn only-owner" onclick="createCollabLink()">🔗 创建协作链接</button>
+                        <button class="bar-btn only-owner" id="btn-share" onclick="convertToShared()">🔗 开启协作/获取链接</button>
                         <button class="bar-btn" onclick="openEditor('problem')">✏️ 编辑问题</button>
-                        <button class="bar-btn warn only-owner" onclick="deleteProblem()">🗑️</button>
+                        <button class="bar-btn warn only-owner" onclick="deleteItem()">🗑️</button>
                     </div>
                 </div>
                 <h1 id="d-title" style="color:#0052cc; margin-top:0;"></h1>
                 <div id="d-desc" class="markdown-body"></div>
             </div>
 
-            <div style="background:#f4f5f7; padding:10px 50px; font-weight:bold; font-size:13px; color:#666; text-transform:uppercase; letter-spacing:1px;">
-                笔记与讨论
+            <div style="background:#f4f5f7; padding:10px 50px; font-weight:bold; font-size:13px; color:#666; margin-top:20px;">
+                笔记 / 讨论
             </div>
 
-            <div class="content-wrap" style="background:#fff;">
+            <div class="content-wrap" style="padding-top:20px; padding-bottom:50px;">
                 <div id="ans-list"></div>
-                <div style="margin-top:30px; text-align:center;">
-                    <button class="bar-btn primary" style="padding:10px 30px; font-size:14px;" onclick="openEditor('note')">➕ 添加全屏笔记</button>
+                <div style="text-align:center; margin-top:30px;">
+                    <button class="bar-btn primary" style="padding:10px 30px;" onclick="openEditor('note')">➕ 添加全屏笔记</button>
                 </div>
-                <div style="height:50px;"></div>
             </div>
         </div>
     </div>
 </div>
 
+<!-- 全屏编辑器 -->
 <div id="editor-layer">
-    <div class="editor-header">
-        <span id="editor-mode-title" style="font-weight:bold;">编辑</span>
-        <input id="editor-title-input" class="inp" style="width:300px; display:none;" placeholder="问题标题">
+    <div style="height:50px; background:#f4f5f7; display:flex; align-items:center; justify-content:space-between; padding:0 20px; border-bottom:1px solid #ddd;">
+        <span id="editor-title-disp" style="font-weight:bold;">编辑</span>
+        <input id="editor-title-inp" class="inp" style="width:300px; display:none;" placeholder="标题">
         <div>
-            <button class="bar-btn" onclick="closeEditor()">取消</button>
-            <button class="bar-btn primary" onclick="saveEditorContent()">💾 保存 (Ctrl+S)</button>
+            <button class="bar-btn" onclick="document.getElementById('editor-layer').style.display='none'">取消</button>
+            <button class="bar-btn primary" onclick="saveEditor()">💾 保存 (Ctrl+S)</button>
         </div>
     </div>
-    <div class="editor-body">
-        <div class="editor-col">
+    <div style="flex:1; display:flex;">
+        <div style="width:50%; height:100%; border-right:1px solid #ddd;">
             <textarea id="code-editor"></textarea>
         </div>
-        <div class="editor-col preview-pane">
+        <div style="width:50%; height:100%; padding:20px; overflow-y:auto; background:#fff;">
             <div id="editor-preview" class="markdown-body"></div>
         </div>
     </div>
 </div>
 
+<!-- Config Modal -->
 <div id="config-modal" class="modal">
     <div class="modal-box">
-        <h3>⚙️ 云端配置 (Gist)</h3>
-        <p style="font-size:12px; color:#666;">请输入具备 <b>gist</b> 权限的 GitHub Token。</p>
-        <input class="inp" id="cfg-token" type="password" placeholder="ghp_xxxxxxxxxxxx">
-        <input class="inp" id="cfg-gist-id" placeholder="Gist ID (留空则自动创建新的)">
+        <h3>⚙️ 设置</h3>
+        <p style="font-size:12px; color:#666;">需要 GitHub Token (权限: gist)</p>
+        <input class="inp" id="cfg-token" type="password" placeholder="Token: ghp_...">
+        <input class="inp" id="cfg-id" placeholder="主数据库 Gist ID (自动生成可留空)">
         <div style="text-align:right;">
             <button class="bar-btn" onclick="document.getElementById('config-modal').style.display='none'">关闭</button>
-            <button class="bar-btn primary" onclick="saveConfig()">保存并连接</button>
+            <button class="bar-btn primary" onclick="saveConfig()">保存</button>
         </div>
     </div>
 </div>
 
 <script>
-    // --- 0. 核心状态与配置 ---
-    const CFG_KEY = 'v6_gh_config'; // 仅存储 Token 和 主GistID
-    let ghConfig = JSON.parse(localStorage.getItem(CFG_KEY)) || { token: '', gistId: '' };
+    // --- 核心变量 ---
+    const CFG_KEY = 'v7_config';
+    let ghConfig = JSON.parse(localStorage.getItem(CFG_KEY)) || { token: '', mainGistId: '' };
     
-    // 内存数据 (无 LocalStorage)
-    let db = { items: [] }; 
+    // DB: { items: [ {id, title, date, isPinned, shareId(可选), content(如果未分享)} ] }
+    // 如果 item.shareId 存在，说明内容在另一个 Gist 里
+    let db = { items: [] };
+    
     let currentId = null;
-    let editorMode = 'problem'; // 'problem' | 'note'
-    
-    // 协作模式状态
-    const urlParams = new URLSearchParams(window.location.search);
-    const collabGistId = urlParams.get('gist'); // 如果 URL 有 ?gist=... 则进入协作模式
-    const isCollabMode = !!collabGistId;
-
-    // 编辑器实例
+    let currentItemData = null; // 存储当前加载的完整数据（包含 content）
+    let editorMode = 'problem'; 
     let cmEditor;
 
-    // --- 1. 初始化 ---
+    // URL 协作模式检测
+    const urlParams = new URLSearchParams(window.location.search);
+    const visitorGistId = urlParams.get('gist'); // 只有合作者通过链接访问时才有这个
+
+    // --- 初始化 ---
     window.onload = async function() {
         initUI();
-        
-        if (isCollabMode) {
-            enterCollabMode();
+        if (visitorGistId) {
+            enterVisitorMode();
         } else {
-            if (ghConfig.token && ghConfig.gistId) {
-                await syncPull();
+            if (ghConfig.token && ghConfig.mainGistId) {
+                await syncPullMain();
             } else {
                 document.getElementById('loading').style.display = 'none';
                 openConfig();
@@ -234,396 +207,346 @@
     };
 
     function initUI() {
-        // CodeMirror
         cmEditor = CodeMirror.fromTextArea(document.getElementById("code-editor"), {
-            mode: "markdown", lineNumbers: true, lineWrapping: true,
-            extraKeys: { "Ctrl-S": saveEditorContent }
+            mode: "markdown", lineNumbers: true, lineWrapping: true, extraKeys: { "Ctrl-S": saveEditor }
         });
         cmEditor.on("change", () => {
-            const val = cmEditor.getValue();
-            document.getElementById('editor-preview').innerHTML = renderContent(val);
+            const html = marked.parse(cmEditor.getValue());
+            document.getElementById('editor-preview').innerHTML = html;
             if(window.MathJax) MathJax.typesetPromise([document.getElementById('editor-preview')]);
         });
 
-        // 拖拽调整宽度
+        // 拖拽分栏
         const resizer = document.getElementById('resizer');
         const sidebar = document.getElementById('sidebar');
-        let isResizing = false;
-
-        resizer.addEventListener('mousedown', (e) => {
-            isResizing = true;
-            resizer.classList.add('resizing');
-            document.body.style.cursor = 'col-resize';
+        resizer.addEventListener('mousedown', () => {
+            document.addEventListener('mousemove', resize, false);
+            document.addEventListener('mouseup', stopResize, false);
         });
-        window.addEventListener('mousemove', (e) => {
-            if (!isResizing) return;
-            let newWidth = e.clientX;
-            if (newWidth < 150) newWidth = 150;
-            if (newWidth > 600) newWidth = 600;
-            sidebar.style.width = newWidth + 'px';
-        });
-        window.addEventListener('mouseup', () => {
-            isResizing = false;
-            resizer.classList.remove('resizing');
-            document.body.style.cursor = 'default';
-        });
+        function resize(e) { sidebar.style.width = Math.max(150, Math.min(600, e.clientX)) + 'px'; }
+        function stopResize() { document.removeEventListener('mousemove', resize, false); document.removeEventListener('mouseup', stopResize, false); }
     }
 
-    // --- 2. 协作模式逻辑 ---
-    async function enterCollabMode() {
-        document.body.classList.add('collab-mode');
-        document.getElementById('collab-banner').style.display = 'block';
-        document.getElementById('app-title').innerText = "协作查看器";
-        document.getElementById('auth-controls').innerHTML = ''; // 隐藏配置按钮
+    // --- 模式 A: 访客模式 (合作者) ---
+    async function enterVisitorMode() {
+        document.body.classList.add('visitor-mode');
+        document.getElementById('auth-controls').innerHTML = ''; // 隐藏配置
+        document.getElementById('app-title').innerText = "协作编辑器 (访客)";
         
-        // 尝试从 URL Hash 或 prompt 获取 Token (如果 Gist 是私有的)
-        // 简单起见，这里假设用户如果也是科研者，有自己的 Token，或者 Gist 是 Public 的
-        // 为了体验，我们这里直接尝试读取。如果失败，提示用户输入 Token。
-        
-        // 实际上，协作需要 Token 才能编辑。
-        // 我们检查本地是否已有 token，如果没有，提示输入一个临时 token。
+        // 访客也需要 Token 才能编辑 (GitHub API 限制)
         if (!ghConfig.token) {
-            const tempToken = prompt("进入协作模式：请输入你的 GitHub Token 以启用编辑功能 (不会保存到服务器)");
-            if(tempToken) ghConfig.token = tempToken;
+            const t = prompt("请输入 GitHub Token 以启用编辑权限：");
+            if(t) ghConfig.token = t;
         }
 
-        await syncPull(collabGistId); // 拉取特定 Gist
-        // 协作模式下 DB 结构可能不同，我们假设每个协作 Gist 只存了一个 Item 对象
-        // 为了复用逻辑，我们将这个单 Item 包装进 db.items
-        if (!Array.isArray(db.items)) {
-            // 说明拉取的是单体对象
-            const singleItem = JSON.parse(JSON.stringify(db)); // db 目前是该对象
-            db = { items: [singleItem] };
-        }
-        
-        renderList();
-        if(db.items.length > 0) loadDetail(db.items[0].id);
+        await loadSharedItem(visitorGistId);
     }
 
-    async function createCollabLink() {
-        const item = db.items.find(x => x.id === currentId);
-        if(!item) return;
-        if(!confirm(`将要把问题 "${item.title}" 发布为一个独立的 Gist 以便分享吗？`)) return;
-        
-        setMsg("正在创建分享链接...");
+    // --- 模式 B: 主人模式 (你) ---
+    async function syncPullMain() {
+        if(!ghConfig.token || !ghConfig.mainGistId) return;
+        setMsg("正在同步列表...");
         try {
-            // 发布单体对象
-            const res = await fetch("https://api.github.com/gists", {
-                method: "POST",
-                headers: { "Authorization": `token ${ghConfig.token}`, "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    description: `[Shared] ${item.title}`,
-                    public: false, // 设为私有链接
-                    files: { "problem_shared.json": { content: JSON.stringify(item, null, 2) } }
-                })
+            const res = await fetch(`https://api.github.com/gists/${ghConfig.mainGistId}`, {
+                headers: { "Authorization": `token ${ghConfig.token}`, "Cache-Control": "no-cache" }
             });
-            if(!res.ok) throw new Error("创建失败");
+            if(!res.ok) throw new Error("无法连接主库");
             const json = await res.json();
-            const shareUrl = `${window.location.origin}${window.location.pathname}?gist=${json.id}`;
-            
-            prompt("🔗 链接已生成！\n将此链接发送给合作者，他们可以直接查看并编辑此问题：", shareUrl);
-            setMsg("分享链接创建成功");
+            const content = json.files["main_db.json"].content;
+            db = JSON.parse(content);
+            if(!db.items) db = { items: [] };
+            renderList();
+            setMsg("就绪");
         } catch(e) {
             alert(e.message);
-            setMsg("创建失败");
-        }
-    }
-
-    // --- 3. 数据同步 (核心) ---
-    async function syncPull(targetGistId = null) {
-        const gid = targetGistId || ghConfig.gistId;
-        if (!ghConfig.token || !gid) return;
-        
-        document.getElementById('loading').style.display = 'flex';
-        setMsg("正在同步...");
-        
-        try {
-            const res = await fetch(`https://api.github.com/gists/${gid}`, {
-                headers: { "Authorization": `token ${ghConfig.token}` },
-                cache: "no-store"
-            });
-            if(!res.ok) throw new Error("无法连接 Gist，请检查 Token 或 ID");
-            const json = await res.json();
-            const filename = Object.keys(json.files)[0];
-            const content = json.files[filename].content;
-            
-            db = JSON.parse(content);
-            if(!db.items) db = { items: [] }; // 初始保护
-
-            renderList();
-            // 如果不在协作模式且有选中ID，刷新详情
-            if(!isCollabMode && currentId) {
-                // 检查该ID是否还存在
-                if(db.items.find(x=>x.id === currentId)) loadDetail(currentId);
-                else document.getElementById('detail-view').style.display = 'none';
-            }
-            
-            setMsg("✅ 同步完成");
-        } catch(e) {
-            alert("同步错误: " + e.message);
-            setMsg("❌ 同步失败");
         } finally {
             document.getElementById('loading').style.display = 'none';
         }
     }
 
-    async function syncPush() {
-        const gid = isCollabMode ? collabGistId : ghConfig.gistId;
-        if (!ghConfig.token || !gid) return alert("配置缺失");
-        
-        setMsg("正在保存到云端...");
-        
-        // 如果是协作模式，推送单体；如果是主模式，推送整个DB
-        let contentStr = "";
-        let fileName = "research_data.json";
-
-        if (isCollabMode) {
-            // 协作模式下 db.items[0] 是我们要保存的对象
-            contentStr = JSON.stringify(db.items[0], null, 2);
-            fileName = "problem_shared.json"; // 尝试保持一致，或者是原文件名
-        } else {
-            contentStr = JSON.stringify(db, null, 2);
-        }
-
-        try {
-            const res = await fetch(`https://api.github.com/gists/${gid}`, {
-                method: "PATCH",
-                headers: { "Authorization": `token ${ghConfig.token}`, "Content-Type": "application/json" },
-                body: JSON.stringify({ files: { [fileName]: { content: contentStr } } })
-            });
-            if(!res.ok) throw new Error("保存失败");
-            setMsg("☁️ 保存成功 " + new Date().toLocaleTimeString());
-        } catch(e) {
-            alert(e.message);
-            setMsg("❌ 保存失败");
-        }
-    }
-
-    // --- 4. 业务逻辑与 UI 渲染 ---
-    function renderList() {
-        const ul = document.getElementById('list');
-        ul.innerHTML = '';
-        
-        // 排序逻辑：先 Pin 的，然后按 items 数组顺序
-        // 为了支持自定义排序，我们直接渲染 db.items 的顺序。
-        // 置顶只是视觉上的 "Pin"，或者我们可以把 Pin 的移到数组前面。
-        // 策略：items 数组就是显示顺序。Pin 只是一个标记，我们手动逻辑把 Pin 的排前面显示？
-        // 需求是“自由拉动排序”以及“置顶”。
-        // 简单实现：数据结构中 isPinned 的项总是排在非 isPinned 之前。内部再按 index 排序。
-        
-        // 实际上，为了完全自由，我们不如只用数组顺序。
-        // "置顶" 功能将该 item 移动到数组头部。
-        
-        db.items.forEach((item, index) => {
-            const li = document.createElement('li');
-            li.className = `item ${item.id === currentId ? 'active' : ''}`;
-            li.draggable = true;
-            li.innerHTML = `
-                <div class="pin-icon ${item.isPinned ? 'pinned' : ''}" onclick="togglePin(event, ${index})">📌</div>
-                <div class="item-content">
-                    <div class="item-title">${escapeHtml(item.title)}</div>
-                    <div class="item-date">${new Date(item.date).toLocaleDateString()}</div>
-                </div>
-            `;
-            li.onclick = () => loadDetail(item.id);
-            
-            // 拖拽事件
-            li.addEventListener('dragstart', (e) => {
-                li.classList.add('dragging');
-                e.dataTransfer.setData('text/plain', index);
-            });
-            li.addEventListener('dragend', () => li.classList.remove('dragging'));
-            li.addEventListener('dragover', (e) => e.preventDefault()); // 允许 drop
-            li.addEventListener('drop', (e) => handleDrop(e, index));
-
-            ul.appendChild(li);
-        });
-    }
-
-    function handleDrop(e, targetIndex) {
-        e.preventDefault();
-        const sourceIndex = parseInt(e.dataTransfer.getData('text/plain'));
-        if (sourceIndex === targetIndex) return;
-
-        // 移动数组元素
-        const [movedItem] = db.items.splice(sourceIndex, 1);
-        db.items.splice(targetIndex, 0, movedItem);
-        
-        renderList();
-        syncPush(); // 排序后立即同步
-    }
-
-    function togglePin(e, index) {
-        e.stopPropagation();
-        const item = db.items[index];
-        item.isPinned = !item.isPinned;
-        
-        // 如果置顶，移动到最前；取消置顶，移动到（比如）第二个位置？
-        // 简单处理：置顶=移到 index 0。取消置顶=不移动，只变色。
-        // 或者：每次渲染时，先渲染 Pinned，再渲染其他的。
-        // 为了配合“自由排序”，我们采用：置顶操作 = 物理移动到顶部。
-        if (item.isPinned) {
-            db.items.splice(index, 1);
-            db.items.unshift(item);
-        }
-        renderList();
-        syncPush();
-    }
-
-    function loadDetail(id) {
+    // --- 核心：加载详情 (智能判断是本地还是云端) ---
+    async function loadItem(id) {
         currentId = id;
-        const item = db.items.find(x => x.id === id);
-        if(!item) return;
+        const itemRef = db.items.find(x => x.id === id);
+        if(!itemRef) return;
 
         document.getElementById('empty-msg').style.display = 'none';
         document.getElementById('detail-view').style.display = 'flex';
+        document.getElementById('collab-banner').style.display = 'none';
+        document.getElementById('loading').style.display = 'flex';
+
+        try {
+            if (itemRef.shareId) {
+                // [重点] 如果有 shareId，去远端拉取最新内容
+                document.getElementById('collab-banner').style.display = 'block';
+                setMsg("正在拉取协作内容...");
+                await loadSharedItem(itemRef.shareId); 
+            } else {
+                // 普通本地项目
+                currentItemData = itemRef; // 直接引用本地对象
+                renderDetailView();
+            }
+        } catch (e) {
+            alert("加载失败: " + e.message);
+        } finally {
+            document.getElementById('loading').style.display = 'none';
+            setMsg("就绪");
+        }
+    }
+
+    // 加载单个 Shared Gist
+    async function loadSharedItem(gistId) {
+        const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+            headers: { "Authorization": `token ${ghConfig.token}`, "Cache-Control": "no-cache" }
+        });
+        if(!res.ok) throw new Error("无法加载协作内容");
+        const json = await res.json();
+        const content = json.files["shared_item.json"].content;
+        currentItemData = JSON.parse(content);
+        // 如果是访客模式，手动设置 currentId
+        if(!currentId) currentId = currentItemData.id;
+        renderDetailView();
+    }
+
+    function renderDetailView() {
+        const d = currentItemData;
+        document.getElementById('d-title').innerText = d.title;
+        document.getElementById('d-date').innerText = new Date(d.date).toLocaleDateString();
+        document.getElementById('d-desc').innerHTML = marked.parse(d.desc || "");
         
-        document.getElementById('d-title').innerText = item.title;
-        document.getElementById('d-date').innerText = "更新于: " + new Date(item.date).toLocaleString();
-        document.getElementById('d-desc').innerHTML = renderContent(item.desc);
-        
-        const ansContainer = document.getElementById('ans-list');
-        ansContainer.innerHTML = item.answers.map((a, idx) => `
-            <div class="ans-item">
-                <div class="markdown-body">${renderContent(a.text)}</div>
-                <div class="ans-meta">
+        // 渲染答案
+        const list = document.getElementById('ans-list');
+        list.innerHTML = (d.answers || []).map((a, i) => `
+            <div style="background:#fafbfc; border:1px solid #eee; padding:15px; margin-bottom:10px; border-radius:5px;">
+                <div class="markdown-body">${marked.parse(a.text)}</div>
+                <div style="font-size:12px; color:#aaa; margin-top:5px; display:flex; justify-content:space-between;">
                     <span>${new Date(a.date).toLocaleString()}</span>
-                    <button class="bar-btn warn" style="padding:2px 6px;" onclick="deleteAns(${idx})">删除</button>
+                    <button class="bar-btn warn" onclick="deleteAns(${i})">删除</button>
                 </div>
             </div>
         `).join('');
-
-        renderList();
+        
+        // 列表选中态
+        if(!visitorGistId) renderList(); 
+        
+        // MathJax
         if(window.MathJax) MathJax.typesetPromise();
     }
 
-    // --- 5. 编辑器逻辑 ---
+    // --- 协作转换逻辑 ---
+    async function convertToShared() {
+        const item = db.items.find(x => x.id === currentId);
+        if(!item) return;
+
+        if (item.shareId) {
+            // 已经是共享的，只显示链接
+            const link = `${location.origin}${location.pathname}?gist=${item.shareId}`;
+            prompt("🔗 此问题已处于协作模式。将此链接发给合作者：", link);
+            return;
+        }
+
+        if(!confirm("⚠️ 确定开启协作模式吗？\n\n开启后，此问题的内容将移动到独立的云端空间，以便合作者同步编辑。")) return;
+
+        setMsg("正在初始化协作空间...");
+        document.getElementById('loading').style.display = 'flex';
+
+        try {
+            // 1. 创建新的 Share Gist
+            const payload = {
+                description: `[Shared] ${item.title}`,
+                public: false,
+                files: { "shared_item.json": { content: JSON.stringify(item, null, 2) } }
+            };
+            const res = await fetch("https://api.github.com/gists", {
+                method: "POST",
+                headers: { "Authorization": `token ${ghConfig.token}` },
+                body: JSON.stringify(payload)
+            });
+            const json = await res.json();
+            const newShareId = json.id;
+
+            // 2. 更新本地主库，指向这个 Share ID，并清空本地 content 以减小体积
+            item.shareId = newShareId;
+            // 可选：清空本地的 desc 和 answers，因为以后都去云端读了
+            // item.desc = ""; item.answers = []; 
+
+            await saveMainDB(); // 保存主库结构
+            
+            alert("✅ 协作模式已开启！");
+            loadItem(currentId); // 重新加载（触发远程读取）
+
+        } catch(e) {
+            alert("开启失败: " + e.message);
+        } finally {
+            document.getElementById('loading').style.display = 'none';
+        }
+    }
+
+    // --- 编辑与保存 ---
     function openEditor(mode) {
         editorMode = mode;
         const layer = document.getElementById('editor-layer');
-        const titleInp = document.getElementById('editor-title-input');
-        const item = db.items.find(x => x.id === currentId);
-
         layer.style.display = 'flex';
+        const titleInp = document.getElementById('editor-title-inp');
         
         if (mode === 'problem') {
-            document.getElementById('editor-mode-title').innerText = "编辑问题";
             titleInp.style.display = 'block';
-            titleInp.value = item.title;
-            cmEditor.setValue(item.desc);
+            titleInp.value = currentItemData.title;
+            cmEditor.setValue(currentItemData.desc);
         } else {
-            document.getElementById('editor-mode-title').innerText = "添加笔记";
             titleInp.style.display = 'none';
-            cmEditor.setValue(""); // 清空
-            cmEditor.focus();
+            cmEditor.setValue('');
         }
         setTimeout(() => cmEditor.refresh(), 100);
     }
 
-    function closeEditor() {
-        document.getElementById('editor-layer').style.display = 'none';
-    }
-
-    function saveEditorContent() {
+    async function saveEditor() {
         const val = cmEditor.getValue();
-        const item = db.items.find(x => x.id === currentId);
-        
         if (editorMode === 'problem') {
-            item.title = document.getElementById('editor-title-input').value;
-            item.desc = val;
-            item.date = new Date().toISOString();
+            currentItemData.title = document.getElementById('editor-title-inp').value;
+            currentItemData.desc = val;
         } else {
-            if (!val.trim()) return;
-            item.answers.push({ text: val, date: new Date().toISOString() });
-            item.date = new Date().toISOString(); // 更新主问题时间
+            if(!val.trim()) return;
+            if(!currentItemData.answers) currentItemData.answers = [];
+            currentItemData.answers.push({ text: val, date: new Date().toISOString() });
         }
+        currentItemData.date = new Date().toISOString();
         
-        closeEditor();
-        loadDetail(currentId); // 刷新界面
-        syncPush(); // 同步
-    }
-
-    function startNewProblem() {
-        // 直接新建一个，然后进入编辑模式
-        const newItem = { id: Date.now(), title: "新问题 " + new Date().toLocaleDateString(), desc: "", answers: [], date: new Date().toISOString() };
-        db.items.unshift(newItem);
-        currentId = newItem.id;
-        renderList();
-        loadDetail(newItem.id);
-        openEditor('problem');
-    }
-
-    function deleteProblem() {
-        if(confirm("确定删除此问题吗？无法恢复。")) {
-            db.items = db.items.filter(x => x.id !== currentId);
-            currentId = null;
-            document.getElementById('detail-view').style.display = 'none';
-            document.getElementById('empty-msg').style.display = 'block';
-            renderList();
-            syncPush();
-        }
+        // 执行保存
+        document.getElementById('editor-layer').style.display = 'none';
+        await performSave();
+        renderDetailView();
     }
     
-    function deleteAns(idx) {
-        if(confirm("删除此笔记？")) {
-            const item = db.items.find(x => x.id === currentId);
-            item.answers.splice(idx, 1);
-            loadDetail(currentId);
-            syncPush();
-        }
+    async function deleteAns(idx) {
+        if(!confirm("删除笔记?")) return;
+        currentItemData.answers.splice(idx, 1);
+        await performSave();
+        renderDetailView();
     }
 
-    // --- 6. 辅助 ---
+    // 智能保存：判断是保存到 Share Gist 还是 Main Gist
+    async function performSave() {
+        setMsg("正在保存...");
+        
+        // 场景1: 访客模式 OR 本地项目已转为协作 -> 保存到 Share Gist
+        // 判断依据: visitorGistId 存在，或者 db item 有 shareId
+        let targetShareId = visitorGistId;
+        if (!targetShareId && currentId) {
+            const ref = db.items.find(x => x.id === currentId);
+            if(ref && ref.shareId) targetShareId = ref.shareId;
+        }
+
+        if (targetShareId) {
+            // 保存到独立的 Share Gist
+            await updateGistFile(targetShareId, "shared_item.json", currentItemData);
+            
+            // 如果我是主人，还需要更新一下主库里的标题和时间（元数据）
+            if (!visitorGistId) {
+                const ref = db.items.find(x => x.id === currentId);
+                ref.title = currentItemData.title;
+                ref.date = currentItemData.date;
+                saveMainDB(true); // 静默保存主库
+            }
+        } else {
+            // 场景2: 纯本地项目 -> 直接更新 Main DB
+            // currentItemData 就是 db.items 里的那个对象引用
+            await saveMainDB();
+        }
+        setMsg("已保存");
+    }
+
+    async function saveMainDB(silent = false) {
+        if(!silent) setMsg("同步主库...");
+        await updateGistFile(ghConfig.mainGistId, "main_db.json", db);
+    }
+
+    async function updateGistFile(gistId, filename, dataObj) {
+        await fetch(`https://api.github.com/gists/${gistId}`, {
+            method: "PATCH",
+            headers: { "Authorization": `token ${ghConfig.token}` },
+            body: JSON.stringify({ files: { [filename]: { content: JSON.stringify(dataObj, null, 2) } } })
+        });
+    }
+
+    // --- 列表与基本操作 ---
+    function renderList() {
+        const ul = document.getElementById('list');
+        ul.innerHTML = db.items.map((item, idx) => `
+            <li class="item ${item.id === currentId ? 'active' : ''} ${item.shareId ? 'shared' : ''}" 
+                draggable="true" 
+                onclick="loadItem(${item.id})"
+                ondragstart="dragStart(event, ${idx})" 
+                ondrop="dragDrop(event, ${idx})" 
+                ondragover="event.preventDefault()">
+                <span class="pin-icon ${item.isPinned?'pinned':''}" onclick="togglePin(event, ${idx})">📌</span>
+                <span class="item-title">${item.title}</span>
+                <span class="share-icon" title="协作中">🔗</span>
+            </li>
+        `).join('');
+    }
+
+    function createNewLocal() {
+        const newItem = { id: Date.now(), title: "新问题", desc: "", answers: [], date: new Date().toISOString(), isPinned: false };
+        db.items.unshift(newItem);
+        saveMainDB();
+        loadItem(newItem.id);
+    }
+    
+    async function deleteItem() {
+        if(!confirm("删除此问题？")) return;
+        db.items = db.items.filter(x => x.id !== currentId);
+        await saveMainDB();
+        location.reload();
+    }
+
+    // 拖拽排序
+    function dragStart(e, idx) { e.dataTransfer.setData('idx', idx); }
+    function dragDrop(e, targetIdx) {
+        e.preventDefault();
+        const srcIdx = e.dataTransfer.getData('idx');
+        const [moved] = db.items.splice(srcIdx, 1);
+        db.items.splice(targetIdx, 0, moved);
+        renderList();
+        saveMainDB(true);
+    }
+    
+    function togglePin(e, idx) {
+        e.stopPropagation();
+        db.items[idx].isPinned = !db.items[idx].isPinned;
+        // 简单排序：置顶移到最前
+        if(db.items[idx].isPinned) {
+            const [item] = db.items.splice(idx, 1);
+            db.items.unshift(item);
+        }
+        renderList();
+        saveMainDB(true);
+    }
+
+    // --- 配置 ---
     function openConfig() { document.getElementById('config-modal').style.display = 'flex'; }
+    function setMsg(t) { document.getElementById('sync-status').innerText = t; }
     
     async function saveConfig() {
-        const t = document.getElementById('cfg-token').value.trim();
-        const i = document.getElementById('cfg-gist-id').value.trim();
-        
-        if (!t) return alert("Token 必填");
-        
-        ghConfig.token = t;
-        ghConfig.gistId = i;
-        
-        // 自动创建逻辑
-        if (!i) {
-            try {
-                setMsg("正在创建新数据库...");
-                const res = await fetch("https://api.github.com/gists", {
-                    method: "POST",
-                    headers: { "Authorization": `token ${t}`, "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        description: "Research Manager v6 DB",
-                        public: false,
-                        files: { "research_data.json": { content: JSON.stringify({ items: [] }) } }
-                    })
-                });
-                const json = await res.json();
-                ghConfig.gistId = json.id;
-                alert("已自动创建新数据库 ID: " + json.id);
-            } catch(e) {
-                return alert("创建失败: " + e.message);
-            }
+        const t = document.getElementById('cfg-token').value;
+        let mid = document.getElementById('cfg-id').value;
+        if(!t) return alert("Token 必填");
+
+        if (!mid) {
+            const res = await fetch("https://api.github.com/gists", {
+                method: "POST",
+                headers: { "Authorization": `token ${t}` },
+                body: JSON.stringify({ description: "Research Manager Main DB", public: false, files: { "main_db.json": { content: JSON.stringify({items:[]}) } } })
+            });
+            const json = await res.json();
+            mid = json.id;
+            alert("已自动创建主数据库 ID: " + mid);
         }
-        
+        ghConfig = { token: t, mainGistId: mid };
         localStorage.setItem(CFG_KEY, JSON.stringify(ghConfig));
         document.getElementById('config-modal').style.display = 'none';
-        syncPull();
+        syncPullMain();
     }
-
-    function setMsg(txt) { document.getElementById('sync-status').innerText = txt; }
-    
-    function renderContent(text) {
-        if (!text) return "";
-        let html = marked.parse(text);
-        // 简单的 LaTeX 环境替换
-        html = html.replace(/\\begin\{thm\}([\s\S]*?)\\end\{thm\}/gi, '<div class="env-block env-thm"><span class="t">Theorem.</span> $1</div>');
-        html = html.replace(/\\begin\{proof\}([\s\S]*?)\\end\{proof\}/gi, '<div class="env-block env-proof"><span class="t">Proof.</span> $1 <span style="float:right">◼</span></div>');
-        return html;
-    }
-    
-    function escapeHtml(text) { return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
-
 </script>
 </body>
 </html>
