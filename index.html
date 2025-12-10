@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>科研管理器 v17</title>
+    <title>科研管理器 v20</title>
     
     <!-- 依赖库 -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -56,7 +56,7 @@
         /* 布局 */
         #container { display: flex; width: 100%; height: 100%; padding-top: 40px; box-sizing: border-box; }
         #sidebar { width: 280px; background: #f9f9f9; display: flex; flex-direction: column; flex-shrink: 0; border-right: 1px solid #ddd; }
-        #resizer { width: 5px; background: #ddd; cursor: col-resize; z-index: 10; transition: background 0.2s; }
+        #resizer { width: 5px; background: #ddd; cursor: col-resize; z-index: 10; transition: background 0.2s; user-select: none; }
         #resizer:hover, #resizer.resizing { background: #0366d6; }
         #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: white; position: relative; }
 
@@ -70,10 +70,19 @@
         .item { padding: 12px 10px; border-bottom: 1px solid #eee; cursor: pointer; border-left: 4px solid transparent; display: flex; align-items: flex-start; gap: 8px; user-select: none;}
         .item:hover { background: #eaeaea; }
         .item.active { background: #e6effc; border-left: 4px solid #0052cc; }
-        .item-title { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
-        .pin-icon { color: #ccc; font-size: 12px; cursor: pointer; }
+        
+        .item-title { 
+            font-weight: 600; 
+            font-size: 14px; 
+            white-space: normal; 
+            overflow: visible; 
+            word-break: break-word; 
+            flex: 1; 
+            line-height: 1.4;
+        }
+        .pin-icon { color: #ccc; font-size: 12px; cursor: pointer; flex-shrink: 0; margin-top: 3px; }
         .pin-icon.pinned { color: #d97706; }
-        .share-icon { font-size: 12px; margin-left: 5px; color: #00875a; display:none; }
+        .share-icon { font-size: 12px; margin-left: 5px; color: #00875a; display:none; flex-shrink: 0; margin-top: 3px; }
         .item.shared .share-icon { display: inline; }
 
         /* 详情区 */
@@ -155,7 +164,7 @@
 
 <div id="status-bar">
     <div style="display:flex; align-items:center; gap:10px;">
-        <span id="app-title" style="font-weight:bold;">科研管理器 v17</span>
+        <span id="app-title" style="font-weight:bold;">科研管理器 v20</span>
         <span id="sync-status" style="font-size:12px; color:#aaa;">⚪ 就绪</span>
     </div>
     <div id="auth-controls">
@@ -182,6 +191,7 @@
         <div id="empty-msg" style="text-align:center; color:#888; margin-top:20vh;"><h2>请选择一个问题</h2></div>
 
         <div id="detail-view">
+            <!-- [吸顶工具栏] -->
             <div id="detail-toolbar">
                 <span id="d-date" style="color:#888; font-size:12px;"></span>
                 <div style="display:flex; gap:10px;">
@@ -191,17 +201,19 @@
                 </div>
             </div>
 
+            <!-- 问题内容区 -->
             <div class="content-wrap" style="padding-top: 20px;">
                 <div id="problem-display-area">
                     <h1 id="d-title" style="color:#0052cc; margin-top:0;"></h1>
                     <div id="d-desc" class="markdown-body"></div>
                 </div>
 
+                <!-- 问题编辑器 -->
                 <div id="problem-editor-wrapper" class="embedded-editor">
                     <div class="toolbar">
                         <div style="display:flex; align-items:center; gap:10px; width: 60%;">
                             <input id="prob-title-inp" class="inp" style="flex:1; border:1px solid #ccc; padding:6px;" placeholder="问题标题">
-                            <span style="font-size:11px; color:#666;">(双击右侧预览可跳转)</span>
+                            <span style="font-size:11px; color:#666;">(Ctrl-F 查找)</span>
                         </div>
                         <div style="display:flex; align-items:center;">
                             <button class="bar-btn" onclick="toggleFullscreen('problem-editor-wrapper')">⛶ 全屏</button>
@@ -225,6 +237,7 @@
             <div class="content-wrap" style="padding-top:20px; padding-bottom:50px;">
                 <div id="ans-list"></div>
                 
+                <!-- 笔记编辑器 -->
                 <div id="note-section-footer" style="margin-top:30px;">
                     <div id="note-trigger-btn" style="text-align:center;">
                         <button class="bar-btn primary" style="padding:10px 40px; font-size:14px;" onclick="openNoteEditor()">➕ 添加笔记</button>
@@ -234,7 +247,7 @@
                         <div class="toolbar">
                             <div style="display:flex; align-items:center; gap:10px;">
                                 <span style="font-weight:bold;">📝 新笔记</span>
-                                <span style="font-size:11px; color:#666;">(双击右侧预览可跳转)</span>
+                                <span style="font-size:11px; color:#666;">(Ctrl-F 查找)</span>
                             </div>
                             <div>
                                 <button class="bar-btn" onclick="toggleFullscreen('note-editor-wrapper')">⛶ 全屏</button>
@@ -335,11 +348,41 @@
             return hintResult;
         });
 
+        // [核心优化] 丝滑拖拽逻辑
         const resizer = document.getElementById('resizer');
         const sidebar = document.getElementById('sidebar');
-        resizer.addEventListener('mousedown', () => { document.addEventListener('mousemove', resize, false); document.addEventListener('mouseup', stopResize, false); });
-        function resize(e) { sidebar.style.width = Math.max(150, Math.min(600, e.clientX)) + 'px'; }
-        function stopResize() { document.removeEventListener('mousemove', resize, false); document.removeEventListener('mouseup', stopResize, false); }
+        let isResizing = false;
+        let animationFrameId;
+
+        resizer.addEventListener('mousedown', (e) => {
+            e.preventDefault(); // 关键：防止文本选中导致 mouseup 失效
+            isResizing = true;
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none'; // 强制禁止选中
+            
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', stopResize);
+        });
+
+        function handleMouseMove(e) {
+            if (!isResizing) return;
+            // 使用 requestAnimationFrame 优化渲染性能
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = requestAnimationFrame(() => {
+                let newWidth = e.clientX;
+                if (newWidth < 150) newWidth = 150;
+                if (newWidth > 600) newWidth = 600;
+                sidebar.style.width = newWidth + 'px';
+            });
+        }
+
+        function stopResize() {
+            isResizing = false;
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', stopResize);
+        }
     }
 
     function jumpToSource(cm, event) {
@@ -387,34 +430,32 @@
         docState = { counters: { thm: 0, lemma: 0, defn: 0, conj: 0, problem: 0 }, labels: {} };
     }
 
-    // [核心修复]：保护纯数学环境，防止 marked 破坏换行符
     function renderContent(text, isGlobal) {
         if (!text) return "";
 
-        // 1. 保护数学块
         const mathBlocks = [];
-        const protectMath = (str) => {
-            // 保护 $$...$$
-            str = str.replace(/\$\$([\s\S]*?)\$\$/g, (match) => {
-                mathBlocks.push(match);
-                return `___MATH_BLOCK_${mathBlocks.length - 1}___`;
-            });
-            // 保护 LaTeX 环境 (align, equation, etc)
-            const envsToProtect = ['align', 'align\\*', 'equation', 'equation\\*', 'gather', 'gather\\*', 'alignat', 'alignat\\*', 'xalignat', 'xalignat\\*', 'flalign', 'flalign\\*'];
-            const envRegex = new RegExp(`\\\\begin\\{(${envsToProtect.join('|')})\\}([\\s\\S]*?)\\\\end\\{\\1\\}`, 'g');
-            str = str.replace(envRegex, (match) => {
-                mathBlocks.push(match);
-                return `___MATH_BLOCK_${mathBlocks.length - 1}___`;
-            });
-            return str;
+        const storeMath = (content) => {
+            mathBlocks.push(content);
+            return `MATHBLOCK${mathBlocks.length - 1}ENDMATHBLOCK`;
         };
 
-        let processedText = protectMath(text);
+        let processedText = text;
 
-        // 2. Markdown 渲染
+        processedText = processedText.replace(/\$\$([\s\S]*?)\$\$/g, (match) => {
+            return storeMath(match);
+        });
+
+        const envsToProtect = ['align', 'align\\*', 'equation', 'equation\\*', 'gather', 'gather\\*', 'alignat', 'alignat\\*', 'xalignat', 'xalignat\\*', 'flalign', 'flalign\\*'];
+        const envRegex = new RegExp(`\\\\begin\\{(${envsToProtect.join('|')})\\}([\\s\\S]*?)\\\\end\\{\\1\\}`, 'g');
+        processedText = processedText.replace(envRegex, (match) => {
+            return storeMath(match);
+        });
+
         let html = marked.parse(processedText);
 
-        // 3. 处理自定义环境
+        html = html.replace(/<p>MATHBLOCK(\d+)ENDMATHBLOCK<\/p>/g, (m, id) => mathBlocks[id]);
+        html = html.replace(/MATHBLOCK(\d+)ENDMATHBLOCK/g, (m, id) => mathBlocks[id]);
+
         const envs = [ 
             { tags: ['thm','theorem'], name: 'Theorem', key: 'thm', class: 'env-thm' }, 
             { tags: ['conjecture','conj'], name: 'Conjecture', key: 'conj', class: 'env-conj' }, 
@@ -449,11 +490,6 @@
             });
         });
         
-        // 4. 恢复数学块
-        html = html.replace(/<p>___MATH_BLOCK_(\d+)___<\/p>/g, (m, id) => mathBlocks[id]);
-        html = html.replace(/___MATH_BLOCK_(\d+)___/g, (m, id) => mathBlocks[id]);
-
-        // 5. 引用处理
         html = html.replace(/\\ref\{([^}]+)\}/g, (m, labelName) => { return `<a class="latex-ref" data-ref="${labelName}">[?]</a>`; });
         
         return html;
@@ -665,4 +701,3 @@
 </script>
 </body>
 </html>
-
