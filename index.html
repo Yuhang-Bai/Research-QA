@@ -3,13 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>科研管理器 v7 (修复版)</title>
+    <title>科研管理器 v9 (嵌入式笔记版)</title>
     
     <!-- 依赖库 -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script>
         MathJax = {
-            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']], processEscapes: true },
+            tex: { 
+                inlineMath: [['$', '$'], ['\\(', '\\)']], 
+                displayMath: [['$$', '$$'], ['\\[', '\\]']], 
+                processEscapes: true,
+                tags: 'ams',
+                macros: {
+                    R: "{\\mathbb{R}}", N: "{\\mathbb{N}}", Z: "{\\mathbb{Z}}", Q: "{\\mathbb{Q}}", C: "{\\mathbb{C}}",
+                    P: "{\\mathbb{P}}", E: "{\\mathbb{E}}",
+                    bf: ["{\\mathbf{#1}}", 1], rm: ["{\\mathrm{#1}}", 1], it: ["{\\mathit{#1}}", 1], cal: ["{\\mathcal{#1}}", 1]
+                }
+            },
             startup: { typeset: false }
         };
     </script>
@@ -47,46 +57,75 @@
         .item { padding: 12px 10px; border-bottom: 1px solid #eee; cursor: pointer; border-left: 4px solid transparent; display: flex; align-items: flex-start; gap: 8px; user-select: none;}
         .item:hover { background: #eaeaea; }
         .item.active { background: #e6effc; border-left: 4px solid #0052cc; }
-        .item.dragging { opacity: 0.5; background: #ccc; }
         
         .pin-icon { color: #ccc; font-size: 12px; cursor: pointer; }
         .pin-icon.pinned { color: #d97706; }
         .share-icon { font-size: 12px; margin-left: 5px; color: #00875a; display:none; }
         .item.shared .share-icon { display: inline; }
-
         .item-title { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
 
-        /* 详情与编辑 */
+        /* 详情区 */
         #detail-view { display: none; width: 100%; height: 100%; flex-direction: column; overflow-y: auto; }
         .content-wrap { padding: 30px 50px; max-width: 900px; margin: 0 auto; width: 100%; box-sizing: border-box; }
         .markdown-body { line-height: 1.7; font-size: 16px; color: #24292e; }
         .markdown-body pre { background: #f6f8fa; padding: 15px; border-radius: 6px; overflow: auto; }
         
-        #editor-layer { display: none; position: fixed; inset: 0; background: white; z-index: 200; flex-direction: column; }
+        /* 编辑器通用样式 */
         .CodeMirror { height: 100%; font-family: "SFMono-Regular", Consolas, monospace; font-size: 15px; }
-        .CodeMirror-hints { z-index: 3000; } /* 确保提示框在顶层 */
+        .CodeMirror-hints { z-index: 3000; }
 
-        /* 自定义 LaTeX 环境样式 */
-        .env-block { margin: 1em 0; padding: 15px; border-radius: 4px; border-left: 4px solid #555; background: #f9f9f9; }
+        /* [新] 嵌入式笔记编辑器 */
+        #note-editor-wrapper {
+            display: none; /* 默认隐藏 */
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-top: 20px;
+            background: #fff;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        #note-editor-wrapper .toolbar {
+            padding: 8px 15px;
+            background: #f4f5f7;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        #note-editor-wrapper .editor-area {
+            display: flex;
+            height: 400px; /* 增加高度 */
+        }
+        #note-editor-wrapper .pane {
+            width: 50%;
+            height: 100%;
+            overflow-y: auto;
+        }
+        #note-editor-wrapper .preview-pane {
+            padding: 20px;
+            background: #fff;
+            border-left: 1px solid #eee;
+        }
+
+        /* 全屏问题编辑器 (保持原样) */
+        #problem-editor-layer { display: none; position: fixed; inset: 0; background: white; z-index: 200; flex-direction: column; }
         
+        /* LaTeX 环境 */
+        .env-block { margin: 1em 0; padding: 15px; border-radius: 4px; border-left: 4px solid #555; background: #f9f9f9; }
         .env-thm { background: #e6effc; border-left-color: #0052cc; } .env-thm .env-title { color: #0052cc; font-weight: bold; }
         .env-conj { background: #fff7e6; border-left-color: #ff9900; } .env-conj .env-title { color: #d97706; }
         .env-lemma { background: #f4f5f7; border-left-color: #5e6c84; } .env-lemma .env-title { color: #42526e; font-weight: bold; }
         .env-defn { background: #e3fcef; border-left-color: #00875a; } .env-defn .env-title { color: #006644; font-weight: bold; }
-        
         .env-proof { background: #fff; border-left: 2px solid #ddd; color: #333; font-style: normal; } 
         .env-proof .env-title { font-style: italic; font-weight: bold; color:#555; }
 
-        /* 协作横幅 */
+        /* 其他 */
         #collab-banner { display: none; background: #e6ffed; color: #0052cc; padding: 8px; text-align: center; border-bottom: 1px solid #bfebbb; font-size: 13px; }
-
-        /* Loading & Modal */
         #loading { display: flex; position: fixed; inset: 0; background: rgba(255,255,255,0.8); z-index: 2000; justify-content: center; align-items: center; font-weight: bold; font-size: 18px; color: #333; flex-direction: column; gap: 10px; }
         .modal { display: none; position: fixed; inset: 0; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; z-index: 1000; }
         .modal-box { background:white; padding:25px; width:450px; border-radius:8px; display:flex; flex-direction:column; gap:15px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
         .inp { padding: 10px; border: 1px solid #ddd; border-radius: 4px; width: 100%; box-sizing: border-box; }
         
-        /* 仅所有者可见 */
         body.visitor-mode .only-owner { display: none !important; }
         body.visitor-mode #sidebar { display: none; }
         body.visitor-mode #resizer { display: none; }
@@ -102,7 +141,7 @@
 <!-- 顶部栏 -->
 <div id="status-bar">
     <div style="display:flex; align-items:center; gap:10px;">
-        <span id="app-title" style="font-weight:bold;">科研管理器 v7</span>
+        <span id="app-title" style="font-weight:bold;">科研管理器 v9 (嵌入式笔记版)</span>
         <span id="sync-status" style="font-size:12px; color:#aaa;">⚪ 就绪</span>
     </div>
     <div id="auth-controls">
@@ -124,19 +163,20 @@
 
     <!-- 主区域 -->
     <div id="main">
-        <div id="collab-banner">🌐 <b>实时协作中</b>：此内容存储在独立的云端链接，您与合作者的修改将实时互通。</div>
+        <div id="collab-banner">🌐 <b>实时协作中</b>：内容存储在独立云端链接，修改实时互通。</div>
         
         <div id="empty-msg" style="text-align:center; color:#888; margin-top:20vh;">
             <h2>请选择一个问题</h2>
         </div>
 
         <div id="detail-view">
+            <!-- 问题详情区 -->
             <div class="content-wrap">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding-bottom:10px; border-bottom:1px solid #eee;">
                     <span id="d-date" style="color:#888; font-size:12px;"></span>
                     <div style="display:flex; gap:10px;">
                         <button class="bar-btn only-owner" id="btn-share" onclick="manageCollaboration()">🔗 管理协作</button>
-                        <button class="bar-btn" onclick="openEditor('problem')">✏️ 编辑问题</button>
+                        <button class="bar-btn" onclick="openProblemEditor()">✏️ 编辑问题</button>
                         <button class="bar-btn warn only-owner" onclick="deleteItem()">🗑️</button>
                     </div>
                 </div>
@@ -150,30 +190,54 @@
 
             <div class="content-wrap" style="padding-top:20px; padding-bottom:50px;">
                 <div id="ans-list"></div>
-                <div style="text-align:center; margin-top:30px;">
-                    <button class="bar-btn primary" style="padding:10px 30px;" onclick="openEditor('note')">➕ 添加全屏笔记</button>
+                
+                <!-- [新] 嵌入式笔记编辑器区域 -->
+                <div id="note-section-footer" style="margin-top:30px;">
+                    <!-- 触发按钮 -->
+                    <div id="note-trigger-btn" style="text-align:center;">
+                        <button class="bar-btn primary" style="padding:10px 40px; font-size:14px;" onclick="openNoteEditor()">➕ 添加笔记</button>
+                    </div>
+                    
+                    <!-- 嵌入式编辑器本体 -->
+                    <div id="note-editor-wrapper">
+                        <div class="toolbar">
+                            <span style="font-weight:bold;">📝 新笔记</span>
+                            <div>
+                                <button class="bar-btn" onclick="closeNoteEditor()">取消</button>
+                                <button class="bar-btn primary" onclick="saveNote()">💾 提交笔记 (Ctrl+S)</button>
+                            </div>
+                        </div>
+                        <div class="editor-area">
+                            <div class="pane">
+                                <textarea id="note-code-editor"></textarea>
+                            </div>
+                            <div class="pane preview-pane">
+                                <div id="note-live-preview" class="markdown-body"></div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- 全屏编辑器 -->
-<div id="editor-layer">
+<!-- 全屏问题编辑器 (Overlay) -->
+<div id="problem-editor-layer">
     <div style="height:50px; background:#f4f5f7; display:flex; align-items:center; justify-content:space-between; padding:0 20px; border-bottom:1px solid #ddd;">
-        <span id="editor-title-disp" style="font-weight:bold;">编辑</span>
-        <input id="editor-title-inp" class="inp" style="width:300px; display:none;" placeholder="标题">
+        <span style="font-weight:bold;">编辑问题详情</span>
+        <input id="prob-title-inp" class="inp" style="width:400px;" placeholder="标题">
         <div>
-            <button class="bar-btn" onclick="document.getElementById('editor-layer').style.display='none'">取消</button>
-            <button class="bar-btn primary" onclick="saveEditor()">💾 保存 (Ctrl+S)</button>
+            <button class="bar-btn" onclick="document.getElementById('problem-editor-layer').style.display='none'">取消</button>
+            <button class="bar-btn primary" onclick="saveProblem()">💾 保存 (Ctrl+S)</button>
         </div>
     </div>
     <div style="flex:1; display:flex;">
         <div style="width:50%; height:100%; border-right:1px solid #ddd;">
-            <textarea id="code-editor"></textarea>
+            <textarea id="prob-code-editor"></textarea>
         </div>
         <div style="width:50%; height:100%; padding:20px; overflow-y:auto; background:#fff;">
-            <div id="editor-preview" class="markdown-body"></div>
+            <div id="prob-live-preview" class="markdown-body"></div>
         </div>
     </div>
 </div>
@@ -183,20 +247,19 @@
     <div class="modal-box">
         <h3 style="margin:0">⚙️ 连接设置</h3>
         <div style="background:#fff3cd; color:#856404; padding:10px; font-size:12px; border-radius:4px;">
-            ⚠️ <b>注意：</b> 若出现 "Failed to fetch"，请检查网络连接（需要能访问 GitHub API）或 Token 格式。
+            ⚠️ 若出现 "Failed to fetch"，请检查网络连接（需访问 GitHub API）或 Token。
         </div>
         <div>
             <label style="font-size:12px; font-weight:bold;">GitHub Token (必填):</label>
             <input class="inp" id="cfg-token" type="password" placeholder="格式如: ghp_xxxxxxxxxxxx">
-            <div style="font-size:11px; color:#888; margin-top:3px;">请确保 Token 生成时勾选了 <b>gist</b> 权限。</div>
         </div>
         <div>
             <label style="font-size:12px; font-weight:bold;">主数据库 Gist ID:</label>
-            <input class="inp" id="cfg-id" placeholder="初次使用请留空，系统会自动生成">
+            <input class="inp" id="cfg-id" placeholder="初次使用请留空">
         </div>
         <div style="text-align:right;">
             <button class="bar-btn" onclick="document.getElementById('config-modal').style.display='none'">关闭</button>
-            <button class="bar-btn primary" onclick="saveConfig()">保存并测试连接</button>
+            <button class="bar-btn primary" onclick="saveConfig()">保存并测试</button>
         </div>
     </div>
 </div>
@@ -206,28 +269,43 @@
     const CFG_KEY = 'v7_config';
     let ghConfig = JSON.parse(localStorage.getItem(CFG_KEY)) || { token: '', mainGistId: '' };
     
-    // 补全关键词列表
-    const LATEX_KEYWORDS = [ 
-        { text: "\\begin{thm}\n\n\\end{thm}", displayText: "\\begin{thm} (Theorem)" }, 
-        { text: "\\begin{conj}\n\n\\end{conj}", displayText: "\\begin{conj} (Conjecture)" },
-        { text: "\\begin{defn}\n\n\\end{defn}", displayText: "\\begin{defn} (Definition)" },
-        { text: "\\begin{lemma}\n\n\\end{lemma}", displayText: "\\begin{lemma} (Lemma)" },
-        { text: "\\begin{proof}\n\n\\end{proof}", displayText: "\\begin{proof} (Proof)" },
-        "\\alpha", "\\beta", "\\gamma", "\\delta", "\\epsilon", "\\lambda", "\\sum", "\\prod", "\\int", "\\infty", "\\frac{}{}", "\\sqrt{}"
+    // LaTeX 补全词库
+    const LATEX_KEYWORDS = [
+        { text: "\\begin{thm}\n\n\\end{thm}", displayText: "thm (定理)" },
+        { text: "\\begin{proof}\n\n\\end{proof}", displayText: "proof (证明)" },
+        { text: "\\begin{lemma}\n\n\\end{lemma}", displayText: "lemma (引理)" },
+        { text: "\\begin{defn}\n\n\\end{defn}", displayText: "defn (定义)" },
+        { text: "\\begin{conj}\n\n\\end{conj}", displayText: "conj (猜想)" },
+        { text: "\\begin{align}\n\n\\end{align}", displayText: "align (多行公式)" },
+        { text: "\\begin{itemize}\n\\item \n\\end{itemize}", displayText: "itemize (列表)" },
+        { text: "\\begin{enumerate}\n\\item \n\\end{enumerate}", displayText: "enumerate (序号列表)" },
+        { text: "\\begin{bmatrix}\n\n\\end{bmatrix}", displayText: "bmatrix (矩阵)" },
+        { text: "\\frac{}{}", displayText: "\\frac (分数)" },
+        { text: "\\sqrt{}", displayText: "\\sqrt (根号)" },
+        { text: "\\sum_{}^{}", displayText: "\\sum (求和)" },
+        { text: "\\prod_{}^{}", displayText: "\\prod (乘积)" },
+        { text: "\\int_{}^{}", displayText: "\\int (积分)" },
+        { text: "\\lim_{ \\to }", displayText: "\\lim (极限)" },
+        "\\alpha", "\\beta", "\\gamma", "\\Gamma", "\\delta", "\\Delta", "\\epsilon", "\\varepsilon", "\\zeta", "\\eta", 
+        "\\theta", "\\Theta", "\\iota", "\\kappa", "\\lambda", "\\Lambda", "\\mu", "\\nu", "\\xi", "\\Xi", "\\pi", "\\Pi", 
+        "\\rho", "\\sigma", "\\Sigma", "\\tau", "\\upsilon", "\\phi", "\\Phi", "\\chi", "\\psi", "\\Psi", "\\omega", "\\Omega",
+        "\\in", "\\notin", "\\subset", "\\subseteq", "\\cup", "\\cap", "\\setminus", "\\emptyset", "\\forall", "\\exists", "\\implies", "\\iff",
+        "\\mathbb{}", "\\mathcal{}", "\\mathbf{}", "\\mathrm{}", "\\text{}", "\\hat{}", "\\bar{}", "\\tilde{}", "\\vec{}"
     ];
 
     let db = { items: [] };
     let currentId = null;
     let currentItemData = null; 
-    let editorMode = 'problem'; 
-    let cmEditor;
+    
+    // 两个编辑器实例
+    let probCm, noteCm;
 
     const urlParams = new URLSearchParams(window.location.search);
     const visitorGistId = urlParams.get('gist');
 
     // --- 初始化 ---
     window.onload = async function() {
-        initUI();
+        initEditors();
         if (visitorGistId) {
             enterVisitorMode();
         } else {
@@ -240,26 +318,26 @@
         }
     };
 
-    function initUI() {
-        cmEditor = CodeMirror.fromTextArea(document.getElementById("code-editor"), {
-            mode: "markdown", 
-            lineNumbers: true, 
-            lineWrapping: true, 
-            extraKeys: { "Ctrl-S": saveEditor, "Ctrl-Space": "autocomplete" }
-        });
-        
-        cmEditor.on("inputRead", function(cm, change) { 
-            if (change.text[0].match(/[\\a-zA-Z]/)) {
-                CodeMirror.commands.autocomplete(cm, null, { completeSingle: false }); 
-            }
-        });
+    function initEditors() {
+        // 配置项
+        const cmConfig = {
+            mode: "markdown", lineNumbers: true, lineWrapping: true, 
+            extraKeys: { "Ctrl-Space": "autocomplete" }
+        };
 
-        cmEditor.on("change", () => {
-            const val = cmEditor.getValue();
-            document.getElementById('editor-preview').innerHTML = renderContent(val);
-            if(window.MathJax) MathJax.typesetPromise([document.getElementById('editor-preview')]);
+        // 1. 问题编辑器 (全屏)
+        probCm = CodeMirror.fromTextArea(document.getElementById("prob-code-editor"), {
+            ...cmConfig, extraKeys: { ...cmConfig.extraKeys, "Ctrl-S": saveProblem }
         });
-        
+        setupCmEvents(probCm, 'prob-live-preview');
+
+        // 2. 笔记编辑器 (嵌入式)
+        noteCm = CodeMirror.fromTextArea(document.getElementById("note-code-editor"), {
+            ...cmConfig, extraKeys: { ...cmConfig.extraKeys, "Ctrl-S": saveNote }
+        });
+        setupCmEvents(noteCm, 'note-live-preview');
+
+        // 注册 Hint Helper (通用)
         CodeMirror.registerHelper("hint", "markdown", function(editor) {
             var cur = editor.getCursor(); 
             var token = editor.getTokenAt(cur);
@@ -267,16 +345,20 @@
             var end = cur.ch; 
             var word = token.string.slice(0, end - start);
             
-            if (word === "" && token.string === "\\") {
-                word = "\\";
-                start = token.start;
-            }
+            if (word === "" && token.string === "\\") { word = "\\"; start = token.start; }
 
             var list = LATEX_KEYWORDS.filter(function(item) { 
                 var text = (typeof item === "string") ? item : item.displayText || item.text; 
                 return text.indexOf(word) >= 0; 
             });
-            return { list: list, from: CodeMirror.Pos(cur.line, start), to: CodeMirror.Pos(cur.line, end) };
+            
+            var hintResult = { list: list, from: CodeMirror.Pos(cur.line, start), to: CodeMirror.Pos(cur.line, end) };
+            CodeMirror.on(hintResult, "pick", function(completion) {
+                var text = (typeof completion === "string") ? completion : completion.text;
+                var braceIdx = text.indexOf("{}");
+                if (braceIdx !== -1) { editor.setCursor({ line: cur.line, ch: start + braceIdx + 1 }); }
+            });
+            return hintResult;
         });
 
         // 拖拽分栏
@@ -288,6 +370,17 @@
         });
         function resize(e) { sidebar.style.width = Math.max(150, Math.min(600, e.clientX)) + 'px'; }
         function stopResize() { document.removeEventListener('mousemove', resize, false); document.removeEventListener('mouseup', stopResize, false); }
+    }
+
+    function setupCmEvents(cm, previewId) {
+        cm.on("inputRead", function(cm, change) { 
+            if (change.text[0].match(/[\\a-zA-Z]/)) { CodeMirror.commands.autocomplete(cm, null, { completeSingle: false }); }
+        });
+        cm.on("change", () => {
+            const val = cm.getValue();
+            document.getElementById(previewId).innerHTML = renderContent(val);
+            if(window.MathJax) MathJax.typesetPromise([document.getElementById(previewId)]);
+        });
     }
 
     function renderContent(text) {
@@ -319,7 +412,7 @@
         });
 
         html = html.replace(/<p>(<div class="env-.*?>[\s\S]*?<\/div>)<\/p>/gi, '$1');
-
+        html = html.replace(/<p>(\\begin{align}[\s\S]*?\\end{align})<\/p>/gi, '$1');
         return html;
     }
 
@@ -327,25 +420,18 @@
         if (visitorGistId) {
             document.getElementById('loading').style.display = 'flex';
             document.getElementById('loading-tip').innerText = "刷新协作内容...";
-            try {
-                await loadSharedItem(visitorGistId);
-                setMsg("就绪");
-            } catch(e) {
-                handleNetworkError(e);
-            } finally {
-                document.getElementById('loading').style.display = 'none';
-            }
+            try { await loadSharedItem(visitorGistId); setMsg("就绪"); } 
+            catch(e) { handleNetworkError(e); } 
+            finally { document.getElementById('loading').style.display = 'none'; }
         } else {
             await syncPullMain();
         }
     }
 
-    // --- 模式 A: 访客模式 ---
     async function enterVisitorMode() {
         document.body.classList.add('visitor-mode');
         document.getElementById('auth-controls').innerHTML = ''; 
         document.getElementById('app-title').innerText = "协作编辑器 (访客)";
-        
         if (!ghConfig.token) {
             const t = prompt("请输入 GitHub Token 以启用编辑权限：");
             if(t) ghConfig.token = t;
@@ -353,41 +439,26 @@
         await loadSharedItem(visitorGistId);
     }
 
-    // --- 模式 B: 主人模式 ---
     async function syncPullMain() {
         if(!ghConfig.token || !ghConfig.mainGistId) return;
         setMsg("正在同步列表...");
         document.getElementById('loading').style.display = 'flex';
-        
         try {
-            const res = await fetch(`https://api.github.com/gists/${ghConfig.mainGistId}`, {
-                headers: { "Authorization": `token ${ghConfig.token}` }
-            });
+            const res = await fetch(`https://api.github.com/gists/${ghConfig.mainGistId}`, { headers: { "Authorization": `token ${ghConfig.token}` } });
             await handleApiError(res); 
-
             const json = await res.json();
-            let fileObj = json.files["main_db.json"];
-            if (!fileObj) fileObj = json.files["research_data.json"]; 
+            let fileObj = json.files["main_db.json"] || json.files["research_data.json"];
             if (!fileObj) {
                 const anyJson = Object.keys(json.files).find(k => k.endsWith('.json'));
                 if(anyJson) fileObj = json.files[anyJson];
             }
-
             if (!fileObj) throw new Error("Gist 中未找到有效的数据文件");
-
-            const content = fileObj.content;
-            db = JSON.parse(content);
-            if(!db.items) {
-                if(Array.isArray(db)) db = { items: db };
-                else db = { items: [] };
-            }
+            db = JSON.parse(fileObj.content);
+            if(!db.items) { db = Array.isArray(db) ? { items: db } : { items: [] }; }
             renderList();
             setMsg("就绪");
-        } catch(e) {
-            handleNetworkError(e);
-        } finally {
-            document.getElementById('loading').style.display = 'none';
-        }
+        } catch(e) { handleNetworkError(e); } 
+        finally { document.getElementById('loading').style.display = 'none'; }
     }
 
     async function handleApiError(res) {
@@ -399,14 +470,9 @@
     }
 
     function handleNetworkError(e) {
-        console.error(e);
         let msg = e.message;
-        if (msg.includes("Failed to fetch")) {
-            msg = "连接失败。请检查网络(需访问 GitHub API) 或 Token。";
-        }
-        alert("⚠️ " + msg);
-        setMsg("❌ 连接失败");
-        openConfig(); 
+        if (msg.includes("Failed to fetch")) { msg = "连接失败。请检查网络(需访问 GitHub API) 或 Token。"; }
+        alert("⚠️ " + msg); setMsg("❌ 连接失败"); openConfig(); 
     }
 
     async function loadItem(id) {
@@ -419,6 +485,9 @@
         document.getElementById('collab-banner').style.display = 'none';
         document.getElementById('loading').style.display = 'flex';
         document.getElementById('loading-tip').innerText = "加载内容中...";
+        
+        // 重置笔记编辑器
+        closeNoteEditor(); 
 
         try {
             if (itemRef.shareId) {
@@ -428,22 +497,15 @@
                 currentItemData = itemRef; 
                 renderDetailView();
             }
-        } catch (e) {
-            handleNetworkError(e);
-        } finally {
-            document.getElementById('loading').style.display = 'none';
-            setMsg("就绪");
-        }
+        } catch (e) { handleNetworkError(e); } 
+        finally { document.getElementById('loading').style.display = 'none'; setMsg("就绪"); }
     }
 
     async function loadSharedItem(gistId) {
-        const res = await fetch(`https://api.github.com/gists/${gistId}`, {
-            headers: { "Authorization": `token ${ghConfig.token}` }
-        });
+        const res = await fetch(`https://api.github.com/gists/${gistId}`, { headers: { "Authorization": `token ${ghConfig.token}` } });
         await handleApiError(res);
         const json = await res.json();
-        const content = json.files["shared_item.json"].content;
-        currentItemData = JSON.parse(content);
+        currentItemData = JSON.parse(json.files["shared_item.json"].content);
         if(!currentId) currentId = currentItemData.id;
         renderDetailView();
     }
@@ -454,8 +516,7 @@
         document.getElementById('d-date').innerText = new Date(d.date).toLocaleDateString();
         document.getElementById('d-desc').innerHTML = renderContent(d.desc || "");
         
-        const list = document.getElementById('ans-list');
-        list.innerHTML = (d.answers || []).map((a, i) => `
+        document.getElementById('ans-list').innerHTML = (d.answers || []).map((a, i) => `
             <div style="background:#fafbfc; border:1px solid #eee; padding:15px; margin-bottom:10px; border-radius:5px;">
                 <div class="markdown-body">${renderContent(a.text)}</div>
                 <div style="font-size:12px; color:#aaa; margin-top:5px; display:flex; justify-content:space-between;">
@@ -469,147 +530,51 @@
         if(window.MathJax) MathJax.typesetPromise();
     }
 
-    // [更新] 管理协作的入口函数
-    async function manageCollaboration() {
-        const item = db.items.find(x => x.id === currentId);
-        if(!item) return;
-
-        if (item.shareId) {
-            const action = prompt("⚙️ 协作管理\n请输入对应数字：\n\n1. 📋 获取分享链接\n2. 🔌 停止协作 (断开连接，内容存回本地)", "1");
-            if (action === "1") {
-                const link = `${location.origin}${location.pathname}?gist=${item.shareId}`;
-                prompt("🔗 链接：", link);
-            } else if (action === "2") {
-                await stopCollaboration(item);
-            }
-        } else {
-            await convertToShared();
-        }
+    // --- 编辑器控制 ---
+    
+    // 问题编辑器 (全屏)
+    function openProblemEditor() {
+        document.getElementById('problem-editor-layer').style.display = 'flex';
+        document.getElementById('prob-title-inp').value = currentItemData.title;
+        probCm.setValue(currentItemData.desc);
+        setTimeout(() => probCm.refresh(), 100);
     }
 
-    // [新增] 停止协作功能
-    async function stopCollaboration(item) {
-        if(!confirm("⚠️ 确定停止协作吗？\n\n1. 将断开与云端 Gist 的连接。\n2. 当前显示的最新内容将保存回您的主数据库。\n3. 之前的分享链接将失效（无法再同步）。")) return;
-        
-        setMsg("正在断开...");
-        document.getElementById('loading').style.display = 'flex';
-        document.getElementById('loading-tip').innerText = "正在合并数据回本地...";
-        
-        try {
-            // 1. Merge remote content into local item (currentItemData has the latest from shared Gist)
-            item.desc = currentItemData.desc;
-            item.answers = currentItemData.answers;
-            item.title = currentItemData.title;
-            item.date = currentItemData.date;
-            
-            // 2. Remove shareId
-            delete item.shareId;
-            
-            // 3. Save Main DB
-            await saveMainDB(true);
-            
-            alert("✅ 已关闭协作，内容已完整存回本地。");
-            loadItem(item.id); 
-        } catch(e) {
-            alert("操作失败: " + e.message);
-        } finally {
-            document.getElementById('loading').style.display = 'none';
-        }
+    async function saveProblem() {
+        currentItemData.title = document.getElementById('prob-title-inp').value;
+        currentItemData.desc = probCm.getValue();
+        currentItemData.date = new Date().toISOString();
+        document.getElementById('problem-editor-layer').style.display = 'none';
+        await performSave();
+        renderDetailView();
     }
 
-    // 原开启协作功能
-    async function convertToShared() {
-        const item = db.items.find(x => x.id === currentId);
-        if(!confirm("⚠️ 确定开启协作模式吗？\n\n开启后，此问题的内容将移动到独立的云端空间，以便合作者同步编辑。")) return;
-
-        setMsg("创建协作空间...");
-        document.getElementById('loading').style.display = 'flex';
-
-        try {
-            const payload = {
-                description: `[Shared] ${item.title}`,
-                public: false,
-                files: { "shared_item.json": { content: JSON.stringify(item, null, 2) } }
-            };
-            const res = await fetch("https://api.github.com/gists", {
-                method: "POST",
-                headers: { "Authorization": `token ${ghConfig.token}` },
-                body: JSON.stringify(payload)
-            });
-            await handleApiError(res);
-            const json = await res.json();
-            const newShareId = json.id;
-
-            item.shareId = newShareId;
-            await saveMainDB(true); 
-            
-            alert("✅ 协作模式已开启！");
-            loadItem(currentId); 
-
-        } catch(e) {
-            handleNetworkError(e);
-        } finally {
-            document.getElementById('loading').style.display = 'none';
-        }
+    // 笔记编辑器 (嵌入式)
+    function openNoteEditor() {
+        document.getElementById('note-trigger-btn').style.display = 'none';
+        document.getElementById('note-editor-wrapper').style.display = 'block';
+        noteCm.setValue('');
+        setTimeout(() => { noteCm.refresh(); noteCm.focus(); }, 100);
     }
 
-    function openEditor(mode) {
-        editorMode = mode;
-        const layer = document.getElementById('editor-layer');
-        layer.style.display = 'flex';
-        const titleInp = document.getElementById('editor-title-inp');
-        
-        if (mode === 'problem') {
-            titleInp.style.display = 'block';
-            titleInp.value = currentItemData.title;
-            cmEditor.setValue(currentItemData.desc);
-        } else {
-            titleInp.style.display = 'none';
-            cmEditor.setValue('');
-        }
-        setTimeout(() => cmEditor.refresh(), 100);
+    function closeNoteEditor() {
+        document.getElementById('note-editor-wrapper').style.display = 'none';
+        document.getElementById('note-trigger-btn').style.display = 'block';
     }
 
-    async function saveEditor() {
-        const val = cmEditor.getValue();
-        if (editorMode === 'problem') {
-            currentItemData.title = document.getElementById('editor-title-inp').value;
-            currentItemData.desc = val;
-        } else {
-            if(!val.trim()) return;
-            if(!currentItemData.answers) currentItemData.answers = [];
-            currentItemData.answers.push({ text: val, date: new Date().toISOString() });
-        }
+    async function saveNote() {
+        const val = noteCm.getValue();
+        if(!val.trim()) return;
+        if(!currentItemData.answers) currentItemData.answers = [];
+        currentItemData.answers.push({ text: val, date: new Date().toISOString() });
         currentItemData.date = new Date().toISOString();
         
-        document.getElementById('editor-layer').style.display = 'none';
-        await performSave();
-        renderDetailView();
-    }
-    
-    async function deleteAns(idx) {
-        if(!confirm("删除笔记?")) return;
-        currentItemData.answers.splice(idx, 1);
+        closeNoteEditor();
         await performSave();
         renderDetailView();
     }
 
-    async function deleteItem() {
-        if(!currentId) return;
-        if(!confirm("⚠️ 确定要彻底删除此问题吗？\n操作不可恢复。")) return;
-        
-        document.getElementById('loading').style.display = 'flex';
-        document.getElementById('loading-tip').innerText = "正在云端删除...";
-
-        try {
-            db.items = db.items.filter(x => x.id !== currentId);
-            await saveMainDB(true); 
-            location.reload(); 
-        } catch(e) {
-            document.getElementById('loading').style.display = 'none';
-            alert("❌ 删除失败: " + e.message + "\n可能是网络连接问题或 Token 权限不足。");
-        }
-    }
+    // --- 数据保存与管理 ---
 
     async function performSave() {
         setMsg("正在保存...");
@@ -632,14 +597,7 @@
                 await saveMainDB(true);
             }
             setMsg("✅ 已保存");
-        } catch(e) {
-            handleNetworkError(e);
-        }
-    }
-
-    async function saveMainDB(silent = false) {
-        if(!silent) setMsg("同步主库...");
-        await updateGistFile(ghConfig.mainGistId, "main_db.json", db);
+        } catch(e) { handleNetworkError(e); }
     }
 
     async function updateGistFile(gistId, filename, dataObj) {
@@ -650,16 +608,83 @@
         });
         await handleApiError(res);
     }
+    
+    async function saveMainDB(silent = false) {
+        if(!silent) setMsg("同步主库...");
+        await updateGistFile(ghConfig.mainGistId, "main_db.json", db);
+    }
 
+    async function deleteAns(idx) {
+        if(!confirm("删除笔记?")) return;
+        currentItemData.answers.splice(idx, 1);
+        await performSave();
+        renderDetailView();
+    }
+
+    async function deleteItem() {
+        if(!currentId) return;
+        if(!confirm("⚠️ 确定要彻底删除此问题吗？")) return;
+        document.getElementById('loading').style.display = 'flex';
+        document.getElementById('loading-tip').innerText = "正在云端删除...";
+        try {
+            db.items = db.items.filter(x => x.id !== currentId);
+            await saveMainDB(true); 
+            location.reload(); 
+        } catch(e) {
+            document.getElementById('loading').style.display = 'none';
+            alert("❌ 删除失败: " + e.message);
+        }
+    }
+
+    // 协作管理逻辑
+    async function manageCollaboration() {
+        const item = db.items.find(x => x.id === currentId);
+        if(!item) return;
+
+        if (item.shareId) {
+            const action = prompt("⚙️ 协作管理\n1. 📋 获取分享链接\n2. 🔌 停止协作 (内容存回本地)", "1");
+            if (action === "1") { prompt("🔗 链接：", `${location.origin}${location.pathname}?gist=${item.shareId}`); } 
+            else if (action === "2") { await stopCollaboration(item); }
+        } else { await convertToShared(); }
+    }
+
+    async function stopCollaboration(item) {
+        if(!confirm("确定停止协作吗？内容将存回本地，分享链接将失效。")) return;
+        setMsg("正在断开...");
+        document.getElementById('loading').style.display = 'flex';
+        try {
+            item.desc = currentItemData.desc; item.answers = currentItemData.answers;
+            item.title = currentItemData.title; item.date = currentItemData.date;
+            delete item.shareId;
+            await saveMainDB(true);
+            alert("✅ 已关闭协作"); loadItem(item.id); 
+        } catch(e) { alert("失败: " + e.message); } 
+        finally { document.getElementById('loading').style.display = 'none'; }
+    }
+
+    async function convertToShared() {
+        const item = db.items.find(x => x.id === currentId);
+        if(!confirm("开启协作模式？内容将移动到独立云端空间。")) return;
+        setMsg("创建协作空间...");
+        document.getElementById('loading').style.display = 'flex';
+        try {
+            const payload = { description: `[Shared] ${item.title}`, public: false, files: { "shared_item.json": { content: JSON.stringify(item, null, 2) } } };
+            const res = await fetch("https://api.github.com/gists", { method: "POST", headers: { "Authorization": `token ${ghConfig.token}` }, body: JSON.stringify(payload) });
+            await handleApiError(res);
+            const json = await res.json();
+            item.shareId = json.id;
+            await saveMainDB(true);
+            alert("✅ 协作已开启"); loadItem(currentId); 
+        } catch(e) { handleNetworkError(e); } 
+        finally { document.getElementById('loading').style.display = 'none'; }
+    }
+
+    // 列表相关
     function renderList() {
-        const ul = document.getElementById('list');
-        ul.innerHTML = db.items.map((item, idx) => `
+        document.getElementById('list').innerHTML = db.items.map((item, idx) => `
             <li class="item ${item.id === currentId ? 'active' : ''} ${item.shareId ? 'shared' : ''}" 
-                draggable="true" 
-                onclick="loadItem(${item.id})"
-                ondragstart="dragStart(event, ${idx})" 
-                ondrop="dragDrop(event, ${idx})" 
-                ondragover="event.preventDefault()">
+                draggable="true" onclick="loadItem(${item.id})"
+                ondragstart="dragStart(event, ${idx})" ondrop="dragDrop(event, ${idx})" ondragover="event.preventDefault()">
                 <span class="pin-icon ${item.isPinned?'pinned':''}" onclick="togglePin(event, ${idx})">📌</span>
                 <span class="item-title">${item.title}</span>
                 <span class="share-icon" title="协作中">🔗</span>
@@ -675,72 +700,29 @@
     }
     
     function dragStart(e, idx) { e.dataTransfer.setData('idx', idx); }
-    function dragDrop(e, targetIdx) {
-        e.preventDefault();
-        const srcIdx = e.dataTransfer.getData('idx');
-        const [moved] = db.items.splice(srcIdx, 1);
-        db.items.splice(targetIdx, 0, moved);
-        renderList();
-        saveMainDB(true);
-    }
-    
-    function togglePin(e, idx) {
-        e.stopPropagation();
-        db.items[idx].isPinned = !db.items[idx].isPinned;
-        if(db.items[idx].isPinned) {
-            const [item] = db.items.splice(idx, 1);
-            db.items.unshift(item);
-        }
-        renderList();
-        saveMainDB(true);
-    }
+    function dragDrop(e, targetIdx) { e.preventDefault(); const srcIdx = e.dataTransfer.getData('idx'); const [moved] = db.items.splice(srcIdx, 1); db.items.splice(targetIdx, 0, moved); renderList(); saveMainDB(true); }
+    function togglePin(e, idx) { e.stopPropagation(); db.items[idx].isPinned = !db.items[idx].isPinned; if(db.items[idx].isPinned) { const [item] = db.items.splice(idx, 1); db.items.unshift(item); } renderList(); saveMainDB(true); }
 
-    function openConfig() { 
-        document.getElementById('cfg-token').value = ghConfig.token;
-        document.getElementById('cfg-id').value = ghConfig.mainGistId;
-        document.getElementById('config-modal').style.display = 'flex'; 
-    }
+    // Config
+    function openConfig() { document.getElementById('cfg-token').value = ghConfig.token; document.getElementById('cfg-id').value = ghConfig.mainGistId; document.getElementById('config-modal').style.display = 'flex'; }
     function setMsg(t) { document.getElementById('sync-status').innerText = t; }
     
     async function saveConfig() {
         const t = document.getElementById('cfg-token').value.trim();
         let mid = document.getElementById('cfg-id').value.trim();
-        
         if(!t) return alert("Token 不能为空");
-        
-        if (mid.includes('/')) {
-            const parts = mid.split('/');
-            mid = parts[parts.length - 1];
-            mid = mid.replace('.git', '');
-            alert("检测到粘贴了 URL，已自动提取 ID: " + mid);
-        }
-
+        if (mid.includes('/')) { mid = mid.split('/').pop().replace('.git', ''); alert("已提取 ID: " + mid); }
         ghConfig = { token: t, mainGistId: mid };
-        
         if (!mid) {
-            setMsg("正在初始化数据库...");
-            document.getElementById('loading').style.display = 'flex';
+            setMsg("正在初始化..."); document.getElementById('loading').style.display = 'flex';
             try {
-                const res = await fetch("https://api.github.com/gists", {
-                    method: "POST",
-                    headers: { "Authorization": `token ${t}` },
-                    body: JSON.stringify({ description: "Research Manager Main DB", public: false, files: { "main_db.json": { content: JSON.stringify({items:[]}) } } })
-                });
+                const res = await fetch("https://api.github.com/gists", { method: "POST", headers: { "Authorization": `token ${t}` }, body: JSON.stringify({ description: "Research Manager Main DB", public: false, files: { "main_db.json": { content: JSON.stringify({items:[]}) } } }) });
                 await handleApiError(res);
-                const json = await res.json();
-                mid = json.id;
-                alert("✅ 连接成功！已自动创建新数据库 ID: " + mid);
-                ghConfig.mainGistId = mid;
-            } catch(e) {
-                handleNetworkError(e);
-                document.getElementById('loading').style.display = 'none';
-                return;
-            }
+                ghConfig.mainGistId = (await res.json()).id; alert("✅ 已创建新库 ID: " + ghConfig.mainGistId);
+            } catch(e) { handleNetworkError(e); document.getElementById('loading').style.display = 'none'; return; }
         }
-        
         localStorage.setItem(CFG_KEY, JSON.stringify(ghConfig));
         document.getElementById('config-modal').style.display = 'none';
-        
         syncPullMain();
     }
 </script>
