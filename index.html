@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>科研管理器 v9 (嵌入式笔记版)</title>
+    <title>科研管理器 v10 (全嵌入式编辑版)</title>
     
     <!-- 依赖库 -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -74,17 +74,17 @@
         .CodeMirror { height: 100%; font-family: "SFMono-Regular", Consolas, monospace; font-size: 15px; }
         .CodeMirror-hints { z-index: 3000; }
 
-        /* [新] 嵌入式笔记编辑器 */
-        #note-editor-wrapper {
+        /* [通用] 嵌入式编辑器容器样式 */
+        .embedded-editor {
             display: none; /* 默认隐藏 */
             border: 1px solid #ddd;
             border-radius: 6px;
-            margin-top: 20px;
+            margin-top: 15px;
             background: #fff;
             overflow: hidden;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
-        #note-editor-wrapper .toolbar {
+        .embedded-editor .toolbar {
             padding: 8px 15px;
             background: #f4f5f7;
             border-bottom: 1px solid #ddd;
@@ -92,24 +92,21 @@
             justify-content: space-between;
             align-items: center;
         }
-        #note-editor-wrapper .editor-area {
+        .embedded-editor .editor-area {
             display: flex;
-            height: 400px; /* 增加高度 */
+            height: 400px; /* 统一高度 */
         }
-        #note-editor-wrapper .pane {
+        .embedded-editor .pane {
             width: 50%;
             height: 100%;
             overflow-y: auto;
         }
-        #note-editor-wrapper .preview-pane {
+        .embedded-editor .preview-pane {
             padding: 20px;
             background: #fff;
             border-left: 1px solid #eee;
         }
 
-        /* 全屏问题编辑器 (保持原样) */
-        #problem-editor-layer { display: none; position: fixed; inset: 0; background: white; z-index: 200; flex-direction: column; }
-        
         /* LaTeX 环境 */
         .env-block { margin: 1em 0; padding: 15px; border-radius: 4px; border-left: 4px solid #555; background: #f9f9f9; }
         .env-thm { background: #e6effc; border-left-color: #0052cc; } .env-thm .env-title { color: #0052cc; font-weight: bold; }
@@ -141,7 +138,7 @@
 <!-- 顶部栏 -->
 <div id="status-bar">
     <div style="display:flex; align-items:center; gap:10px;">
-        <span id="app-title" style="font-weight:bold;">科研管理器 v9 (嵌入式笔记版)</span>
+        <span id="app-title" style="font-weight:bold;">科研管理器 v10 (嵌入式编辑版)</span>
         <span id="sync-status" style="font-size:12px; color:#aaa;">⚪ 就绪</span>
     </div>
     <div id="auth-controls">
@@ -180,8 +177,27 @@
                         <button class="bar-btn warn only-owner" onclick="deleteItem()">🗑️</button>
                     </div>
                 </div>
-                <h1 id="d-title" style="color:#0052cc; margin-top:0;"></h1>
-                <div id="d-desc" class="markdown-body"></div>
+
+                <!-- 问题展示模式 -->
+                <div id="problem-display-area">
+                    <h1 id="d-title" style="color:#0052cc; margin-top:0;"></h1>
+                    <div id="d-desc" class="markdown-body"></div>
+                </div>
+
+                <!-- [新] 嵌入式问题编辑器 -->
+                <div id="problem-editor-wrapper" class="embedded-editor">
+                    <div class="toolbar">
+                        <input id="prob-title-inp" class="inp" style="width:60%; border:1px solid #ccc; padding:6px;" placeholder="问题标题">
+                        <div>
+                            <button class="bar-btn" onclick="closeProblemEditor()">取消</button>
+                            <button class="bar-btn primary" onclick="saveProblem()">💾 保存 (Ctrl+S)</button>
+                        </div>
+                    </div>
+                    <div class="editor-area">
+                        <div class="pane"><textarea id="prob-code-editor"></textarea></div>
+                        <div class="pane preview-pane"><div id="prob-live-preview" class="markdown-body"></div></div>
+                    </div>
+                </div>
             </div>
 
             <div style="background:#f4f5f7; padding:10px 50px; font-weight:bold; font-size:13px; color:#666; margin-top:20px;">
@@ -191,15 +207,13 @@
             <div class="content-wrap" style="padding-top:20px; padding-bottom:50px;">
                 <div id="ans-list"></div>
                 
-                <!-- [新] 嵌入式笔记编辑器区域 -->
+                <!-- 嵌入式笔记编辑器区域 -->
                 <div id="note-section-footer" style="margin-top:30px;">
-                    <!-- 触发按钮 -->
                     <div id="note-trigger-btn" style="text-align:center;">
                         <button class="bar-btn primary" style="padding:10px 40px; font-size:14px;" onclick="openNoteEditor()">➕ 添加笔记</button>
                     </div>
                     
-                    <!-- 嵌入式编辑器本体 -->
-                    <div id="note-editor-wrapper">
+                    <div id="note-editor-wrapper" class="embedded-editor">
                         <div class="toolbar">
                             <span style="font-weight:bold;">📝 新笔记</span>
                             <div>
@@ -208,36 +222,12 @@
                             </div>
                         </div>
                         <div class="editor-area">
-                            <div class="pane">
-                                <textarea id="note-code-editor"></textarea>
-                            </div>
-                            <div class="pane preview-pane">
-                                <div id="note-live-preview" class="markdown-body"></div>
-                            </div>
+                            <div class="pane"><textarea id="note-code-editor"></textarea></div>
+                            <div class="pane preview-pane"><div id="note-live-preview" class="markdown-body"></div></div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
-</div>
-
-<!-- 全屏问题编辑器 (Overlay) -->
-<div id="problem-editor-layer">
-    <div style="height:50px; background:#f4f5f7; display:flex; align-items:center; justify-content:space-between; padding:0 20px; border-bottom:1px solid #ddd;">
-        <span style="font-weight:bold;">编辑问题详情</span>
-        <input id="prob-title-inp" class="inp" style="width:400px;" placeholder="标题">
-        <div>
-            <button class="bar-btn" onclick="document.getElementById('problem-editor-layer').style.display='none'">取消</button>
-            <button class="bar-btn primary" onclick="saveProblem()">💾 保存 (Ctrl+S)</button>
-        </div>
-    </div>
-    <div style="flex:1; display:flex;">
-        <div style="width:50%; height:100%; border-right:1px solid #ddd;">
-            <textarea id="prob-code-editor"></textarea>
-        </div>
-        <div style="width:50%; height:100%; padding:20px; overflow-y:auto; background:#fff;">
-            <div id="prob-live-preview" class="markdown-body"></div>
         </div>
     </div>
 </div>
@@ -325,7 +315,7 @@
             extraKeys: { "Ctrl-Space": "autocomplete" }
         };
 
-        // 1. 问题编辑器 (全屏)
+        // 1. 问题编辑器 (嵌入式)
         probCm = CodeMirror.fromTextArea(document.getElementById("prob-code-editor"), {
             ...cmConfig, extraKeys: { ...cmConfig.extraKeys, "Ctrl-S": saveProblem }
         });
@@ -486,8 +476,9 @@
         document.getElementById('loading').style.display = 'flex';
         document.getElementById('loading-tip').innerText = "加载内容中...";
         
-        // 重置笔记编辑器
+        // 重置编辑器状态
         closeNoteEditor(); 
+        closeProblemEditor(); // [新增] 切换问题时关闭编辑
 
         try {
             if (itemRef.shareId) {
@@ -512,10 +503,16 @@
 
     function renderDetailView() {
         const d = currentItemData;
+        
+        // 渲染显示区域
         document.getElementById('d-title').innerText = d.title;
         document.getElementById('d-date').innerText = new Date(d.date).toLocaleDateString();
         document.getElementById('d-desc').innerHTML = renderContent(d.desc || "");
         
+        // 确保显示区域可见
+        document.getElementById('problem-display-area').style.display = 'block';
+        document.getElementById('problem-editor-wrapper').style.display = 'none';
+
         document.getElementById('ans-list').innerHTML = (d.answers || []).map((a, i) => `
             <div style="background:#fafbfc; border:1px solid #eee; padding:15px; margin-bottom:10px; border-radius:5px;">
                 <div class="markdown-body">${renderContent(a.text)}</div>
@@ -532,19 +529,31 @@
 
     // --- 编辑器控制 ---
     
-    // 问题编辑器 (全屏)
+    // [修改] 问题编辑器 (嵌入式)
     function openProblemEditor() {
-        document.getElementById('problem-editor-layer').style.display = 'flex';
+        document.getElementById('problem-display-area').style.display = 'none';
+        document.getElementById('problem-editor-wrapper').style.display = 'block';
+        
         document.getElementById('prob-title-inp').value = currentItemData.title;
         probCm.setValue(currentItemData.desc);
-        setTimeout(() => probCm.refresh(), 100);
+        
+        setTimeout(() => {
+            probCm.refresh();
+            probCm.focus();
+        }, 50);
+    }
+
+    function closeProblemEditor() {
+        document.getElementById('problem-editor-wrapper').style.display = 'none';
+        document.getElementById('problem-display-area').style.display = 'block';
     }
 
     async function saveProblem() {
         currentItemData.title = document.getElementById('prob-title-inp').value;
         currentItemData.desc = probCm.getValue();
         currentItemData.date = new Date().toISOString();
-        document.getElementById('problem-editor-layer').style.display = 'none';
+        
+        closeProblemEditor();
         await performSave();
         renderDetailView();
     }
