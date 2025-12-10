@@ -65,9 +65,9 @@
         #collab-banner { display: none; background: #e6ffed; color: #0052cc; padding: 8px; text-align: center; border-bottom: 1px solid #bfebbb; font-size: 13px; }
 
         /* Loading & Modal */
-        #loading { display: flex; position: fixed; inset: 0; background: rgba(255,255,255,0.8); z-index: 2000; justify-content: center; align-items: center; font-weight: bold; font-size: 18px; color: #333; }
+        #loading { display: flex; position: fixed; inset: 0; background: rgba(255,255,255,0.8); z-index: 2000; justify-content: center; align-items: center; font-weight: bold; font-size: 18px; color: #333; flex-direction: column; gap: 10px; }
         .modal { display: none; position: fixed; inset: 0; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; z-index: 1000; }
-        .modal-box { background:white; padding:25px; width:400px; border-radius:8px; display:flex; flex-direction:column; gap:15px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        .modal-box { background:white; padding:25px; width:450px; border-radius:8px; display:flex; flex-direction:column; gap:15px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
         .inp { padding: 10px; border: 1px solid #ddd; border-radius: 4px; width: 100%; box-sizing: border-box; }
         
         /* 仅所有者可见 */
@@ -78,7 +78,10 @@
 </head>
 <body>
 
-<div id="loading">🚀 正在连接云端...</div>
+<div id="loading">
+    <div>🚀 正在连接云端...</div>
+    <div id="loading-tip" style="font-size:12px; font-weight:normal; color:#666;"></div>
+</div>
 
 <!-- 顶部栏 -->
 <div id="status-bar">
@@ -162,13 +165,23 @@
 <!-- Config Modal -->
 <div id="config-modal" class="modal">
     <div class="modal-box">
-        <h3>⚙️ 设置</h3>
-        <p style="font-size:12px; color:#666;">需要 GitHub Token (权限: gist)</p>
-        <input class="inp" id="cfg-token" type="password" placeholder="Token: ghp_...">
-        <input class="inp" id="cfg-id" placeholder="主数据库 Gist ID (自动生成可留空)">
+        <h3 style="margin:0">⚙️ 连接设置</h3>
+        <div style="background:#fff3cd; color:#856404; padding:10px; font-size:12px; border-radius:4px;">
+            ⚠️ <b>注意：</b> 由于网络限制，在中国大陆地区通常需要<b>开启代理/VPN</b> 才能连接 GitHub API。
+            <br>如果是 "Failed to fetch" 错误，请检查网络连接。
+        </div>
+        <div>
+            <label style="font-size:12px; font-weight:bold;">GitHub Token (必填):</label>
+            <input class="inp" id="cfg-token" type="password" placeholder="格式如: ghp_xxxxxxxxxxxx">
+            <div style="font-size:11px; color:#888; margin-top:3px;">请确保 Token 生成时勾选了 <b>gist</b> 权限。</div>
+        </div>
+        <div>
+            <label style="font-size:12px; font-weight:bold;">主数据库 Gist ID:</label>
+            <input class="inp" id="cfg-id" placeholder="初次使用请留空，系统会自动生成">
+        </div>
         <div style="text-align:right;">
             <button class="bar-btn" onclick="document.getElementById('config-modal').style.display='none'">关闭</button>
-            <button class="bar-btn primary" onclick="saveConfig()">保存</button>
+            <button class="bar-btn primary" onclick="saveConfig()">保存并测试连接</button>
         </div>
     </div>
 </div>
@@ -246,27 +259,32 @@
     async function syncPullMain() {
         if(!ghConfig.token || !ghConfig.mainGistId) return;
         setMsg("正在同步列表...");
+        document.getElementById('loading').style.display = 'flex';
+        
         try {
             const res = await fetch(`https://api.github.com/gists/${ghConfig.mainGistId}`, {
                 headers: { "Authorization": `token ${ghConfig.token}`, "Cache-Control": "no-cache" }
             });
-            if(!res.ok) throw new Error("无法连接主库，请检查 Token 或 Gist ID");
+            
+            await handleApiError(res); // 统一错误处理
+
             const json = await res.json();
             
-            // [修复] 兼容性逻辑：优先找 main_db.json，找不到则找旧版 research_data.json，再找不到则找任意 json
+            // 兼容性逻辑：优先找 main_db.json，找不到则找旧版 research_data.json
             let fileObj = json.files["main_db.json"];
             if (!fileObj) fileObj = json.files["research_data.json"]; // v6 兼容
             if (!fileObj) {
+                // 极端情况：找任意 json
                 const anyJson = Object.keys(json.files).find(k => k.endsWith('.json'));
                 if(anyJson) fileObj = json.files[anyJson];
             }
 
-            if (!fileObj) throw new Error("未在 Gist 中找到有效数据文件");
+            if (!fileObj) throw new Error("Gist 中未找到有效的数据文件");
 
             const content = fileObj.content;
             db = JSON.parse(content);
             if(!db.items) {
-                // v5 以前可能是数组结构
+                // v5 以前可能是数组结构，做个简单的兼容
                 if(Array.isArray(db)) db = { items: db };
                 else db = { items: [] };
             }
@@ -274,11 +292,29 @@
             renderList();
             setMsg("就绪");
         } catch(e) {
-            alert("同步错误: " + e.message);
-            setMsg("❌ 失败");
+            handleNetworkError(e);
         } finally {
             document.getElementById('loading').style.display = 'none';
         }
+    }
+
+    // 统一的 API 错误处理
+    async function handleApiError(res) {
+        if (res.ok) return;
+        if (res.status === 401) throw new Error("Token 无效 (401): 请检查密钥是否正确或已过期");
+        if (res.status === 403) throw new Error("权限被拒绝 (403): Token 可能没有 gist 权限，或 API 调用超限");
+        if (res.status === 404) throw new Error("Gist ID 未找到 (404): 请检查配置中的 ID 是否正确");
+        throw new Error(`连接错误 (${res.status}): ${res.statusText}`);
+    }
+
+    function handleNetworkError(e) {
+        let msg = e.message;
+        if (msg.includes("Failed to fetch")) {
+            msg = "网络连接失败 (Failed to fetch)。\n\n请检查：\n1. 网络是否正常\n2. 是否开启了代理/梯子 (GitHub API 在国内常被阻断)\n3. Token 格式是否正确";
+        }
+        alert("⚠️ " + msg);
+        setMsg("❌ 连接失败");
+        openConfig(); // 失败后自动打开配置框
     }
 
     // --- 核心：加载详情 (智能判断是本地还是云端) ---
@@ -291,20 +327,20 @@
         document.getElementById('detail-view').style.display = 'flex';
         document.getElementById('collab-banner').style.display = 'none';
         document.getElementById('loading').style.display = 'flex';
+        document.getElementById('loading-tip').innerText = "加载内容中...";
 
         try {
             if (itemRef.shareId) {
                 // [重点] 如果有 shareId，去远端拉取最新内容
                 document.getElementById('collab-banner').style.display = 'block';
-                setMsg("正在拉取协作内容...");
                 await loadSharedItem(itemRef.shareId); 
             } else {
                 // 普通本地项目
-                currentItemData = itemRef; // 直接引用本地对象
+                currentItemData = itemRef; 
                 renderDetailView();
             }
         } catch (e) {
-            alert("加载失败: " + e.message);
+            handleNetworkError(e);
         } finally {
             document.getElementById('loading').style.display = 'none';
             setMsg("就绪");
@@ -316,11 +352,10 @@
         const res = await fetch(`https://api.github.com/gists/${gistId}`, {
             headers: { "Authorization": `token ${ghConfig.token}`, "Cache-Control": "no-cache" }
         });
-        if(!res.ok) throw new Error("无法加载协作内容");
+        await handleApiError(res);
         const json = await res.json();
         const content = json.files["shared_item.json"].content;
         currentItemData = JSON.parse(content);
-        // 如果是访客模式，手动设置 currentId
         if(!currentId) currentId = currentItemData.id;
         renderDetailView();
     }
@@ -331,7 +366,6 @@
         document.getElementById('d-date').innerText = new Date(d.date).toLocaleDateString();
         document.getElementById('d-desc').innerHTML = marked.parse(d.desc || "");
         
-        // 渲染答案
         const list = document.getElementById('ans-list');
         list.innerHTML = (d.answers || []).map((a, i) => `
             <div style="background:#fafbfc; border:1px solid #eee; padding:15px; margin-bottom:10px; border-radius:5px;">
@@ -343,10 +377,7 @@
             </div>
         `).join('');
         
-        // 列表选中态
         if(!visitorGistId) renderList(); 
-        
-        // MathJax
         if(window.MathJax) MathJax.typesetPromise();
     }
 
@@ -356,7 +387,6 @@
         if(!item) return;
 
         if (item.shareId) {
-            // 已经是共享的，只显示链接
             const link = `${location.origin}${location.pathname}?gist=${item.shareId}`;
             prompt("🔗 此问题已处于协作模式。将此链接发给合作者：", link);
             return;
@@ -364,11 +394,10 @@
 
         if(!confirm("⚠️ 确定开启协作模式吗？\n\n开启后，此问题的内容将移动到独立的云端空间，以便合作者同步编辑。")) return;
 
-        setMsg("正在初始化协作空间...");
+        setMsg("创建协作空间...");
         document.getElementById('loading').style.display = 'flex';
 
         try {
-            // 1. 创建新的 Share Gist
             const payload = {
                 description: `[Shared] ${item.title}`,
                 public: false,
@@ -379,21 +408,18 @@
                 headers: { "Authorization": `token ${ghConfig.token}` },
                 body: JSON.stringify(payload)
             });
+            await handleApiError(res);
             const json = await res.json();
             const newShareId = json.id;
 
-            // 2. 更新本地主库，指向这个 Share ID，并清空本地 content 以减小体积
             item.shareId = newShareId;
-            // 可选：清空本地的 desc 和 answers，因为以后都去云端读了
-            // item.desc = ""; item.answers = []; 
-
-            await saveMainDB(); // 保存主库结构
+            await saveMainDB(true); 
             
             alert("✅ 协作模式已开启！");
-            loadItem(currentId); // 重新加载（触发远程读取）
+            loadItem(currentId); 
 
         } catch(e) {
-            alert("开启失败: " + e.message);
+            handleNetworkError(e);
         } finally {
             document.getElementById('loading').style.display = 'none';
         }
@@ -429,7 +455,6 @@
         }
         currentItemData.date = new Date().toISOString();
         
-        // 执行保存
         document.getElementById('editor-layer').style.display = 'none';
         await performSave();
         renderDetailView();
@@ -442,55 +467,44 @@
         renderDetailView();
     }
 
-    // 智能保存：判断是保存到 Share Gist 还是 Main Gist
     async function performSave() {
         setMsg("正在保存...");
-        
-        // 场景1: 访客模式 OR 本地项目已转为协作 -> 保存到 Share Gist
-        // 判断依据: visitorGistId 存在，或者 db item 有 shareId
-        let targetShareId = visitorGistId;
-        if (!targetShareId && currentId) {
-            const ref = db.items.find(x => x.id === currentId);
-            if(ref && ref.shareId) targetShareId = ref.shareId;
-        }
-
-        if (targetShareId) {
-            // 保存到独立的 Share Gist
-            await updateGistFile(targetShareId, "shared_item.json", currentItemData);
-            
-            // 如果我是主人，还需要更新一下主库里的标题和时间（元数据）
-            if (!visitorGistId) {
+        try {
+            let targetShareId = visitorGistId;
+            if (!targetShareId && currentId) {
                 const ref = db.items.find(x => x.id === currentId);
-                ref.title = currentItemData.title;
-                ref.date = currentItemData.date;
-                saveMainDB(true); // 静默保存主库
+                if(ref && ref.shareId) targetShareId = ref.shareId;
             }
-        } else {
-            // 场景2: 纯本地项目 -> 直接更新 Main DB
-            // currentItemData 就是 db.items 里的那个对象引用
-            await saveMainDB();
+
+            if (targetShareId) {
+                await updateGistFile(targetShareId, "shared_item.json", currentItemData);
+                if (!visitorGistId) {
+                    const ref = db.items.find(x => x.id === currentId);
+                    ref.title = currentItemData.title;
+                    ref.date = currentItemData.date;
+                    saveMainDB(true); 
+                }
+            } else {
+                await saveMainDB(true);
+            }
+            setMsg("✅ 已保存");
+        } catch(e) {
+            handleNetworkError(e);
         }
-        setMsg("已保存");
     }
 
     async function saveMainDB(silent = false) {
         if(!silent) setMsg("同步主库...");
-        // 即使读取的是旧文件，保存时也会自动升级为 main_db.json
         await updateGistFile(ghConfig.mainGistId, "main_db.json", db);
     }
 
     async function updateGistFile(gistId, filename, dataObj) {
-        try {
-            const res = await fetch(`https://api.github.com/gists/${gistId}`, {
-                method: "PATCH",
-                headers: { "Authorization": `token ${ghConfig.token}`, "Content-Type": "application/json" },
-                body: JSON.stringify({ files: { [filename]: { content: JSON.stringify(dataObj, null, 2) } } })
-            });
-            if (!res.ok) throw new Error(`保存失败: ${res.statusText}`);
-        } catch(e) {
-            alert("无法保存到云端: " + e.message);
-            throw e; // 向上传递错误，阻止后续UI更新
-        }
+        const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+            method: "PATCH",
+            headers: { "Authorization": `token ${ghConfig.token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ files: { [filename]: { content: JSON.stringify(dataObj, null, 2) } } })
+        });
+        await handleApiError(res);
     }
 
     // --- 列表与基本操作 ---
@@ -524,7 +538,6 @@
         location.reload();
     }
 
-    // 拖拽排序
     function dragStart(e, idx) { e.dataTransfer.setData('idx', idx); }
     function dragDrop(e, targetIdx) {
         e.preventDefault();
@@ -538,7 +551,6 @@
     function togglePin(e, idx) {
         e.stopPropagation();
         db.items[idx].isPinned = !db.items[idx].isPinned;
-        // 简单排序：置顶移到最前
         if(db.items[idx].isPinned) {
             const [item] = db.items.splice(idx, 1);
             db.items.unshift(item);
@@ -548,27 +560,50 @@
     }
 
     // --- 配置 ---
-    function openConfig() { document.getElementById('config-modal').style.display = 'flex'; }
+    function openConfig() { 
+        document.getElementById('cfg-token').value = ghConfig.token;
+        document.getElementById('cfg-id').value = ghConfig.mainGistId;
+        document.getElementById('config-modal').style.display = 'flex'; 
+    }
     function setMsg(t) { document.getElementById('sync-status').innerText = t; }
     
     async function saveConfig() {
-        const t = document.getElementById('cfg-token').value;
-        let mid = document.getElementById('cfg-id').value;
-        if(!t) return alert("Token 必填");
-
-        if (!mid) {
-            const res = await fetch("https://api.github.com/gists", {
-                method: "POST",
-                headers: { "Authorization": `token ${t}` },
-                body: JSON.stringify({ description: "Research Manager Main DB", public: false, files: { "main_db.json": { content: JSON.stringify({items:[]}) } } })
-            });
-            const json = await res.json();
-            mid = json.id;
-            alert("已自动创建主数据库 ID: " + mid);
+        const t = document.getElementById('cfg-token').value.trim();
+        let mid = document.getElementById('cfg-id').value.trim();
+        
+        if(!t) return alert("Token 不能为空");
+        if(t.indexOf('ghp_') !== 0 && t.indexOf('github_pat_') !== 0) {
+           if(!confirm("Token 格式看起来不太对 (通常以 ghp_ 开头)。确定要继续吗？")) return;
         }
+
         ghConfig = { token: t, mainGistId: mid };
+        
+        // 自动创建逻辑
+        if (!mid) {
+            setMsg("正在初始化数据库...");
+            document.getElementById('loading').style.display = 'flex';
+            try {
+                const res = await fetch("https://api.github.com/gists", {
+                    method: "POST",
+                    headers: { "Authorization": `token ${t}` },
+                    body: JSON.stringify({ description: "Research Manager Main DB", public: false, files: { "main_db.json": { content: JSON.stringify({items:[]}) } } })
+                });
+                await handleApiError(res);
+                const json = await res.json();
+                mid = json.id;
+                alert("✅ 连接成功！已自动创建新数据库 ID: " + mid);
+                ghConfig.mainGistId = mid;
+            } catch(e) {
+                handleNetworkError(e);
+                document.getElementById('loading').style.display = 'none';
+                return;
+            }
+        }
+        
         localStorage.setItem(CFG_KEY, JSON.stringify(ghConfig));
         document.getElementById('config-modal').style.display = 'none';
+        
+        // 立即尝试同步
         syncPullMain();
     }
 </script>
