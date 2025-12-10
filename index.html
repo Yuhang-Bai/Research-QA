@@ -3,12 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>科研管理器 (云端同步版)</title>
+    <title>科研管理器 v6</title>
     
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script>MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},startup:{typeset:false}};</script>
+    <script>
+        MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']], processEscapes: true },
+            startup: { typeset: false }
+        };
+    </script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
-
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/hint/show-hint.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
@@ -19,428 +23,607 @@
     <style>
         body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; height: 100vh; background: #f4f5f7; overflow: hidden; color: #333; }
         
-        /* 顶部云状态栏 */
-        #cloud-status-bar {
-            position: absolute; top: 0; left: 0; width: 100%; height: 32px; background: #24292e; color: #fff;
-            font-size: 12px; display: flex; align-items: center; justify-content: space-between; padding: 0 15px; box-sizing: border-box; z-index: 100;
+        /* 1. 顶部栏 */
+        #status-bar {
+            position: absolute; top: 0; left: 0; width: 100%; height: 40px; background: #24292e; color: #fff;
+            display: flex; align-items: center; justify-content: space-between; padding: 0 15px; box-sizing: border-box; z-index: 100;
         }
-        #cloud-msg { font-weight: bold; }
-        .cloud-btn { background: #0366d6; border: none; color: white; padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 11px; margin-left: 5px;}
-        .cloud-btn:hover { background: #0255b3; }
-        .cloud-btn.warn { background: #d73a49; }
+        .bar-btn { background: #444; border: 1px solid #666; color: white; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-left: 8px;}
+        .bar-btn:hover { background: #666; }
+        .bar-btn.primary { background: #0366d6; border-color: #0366d6; }
+        .bar-btn.warn { background: #d73a49; border-color: #d73a49; }
 
-        /* 布局调整 (为顶部栏留空) */
-        #sidebar { width: 260px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; z-index: 2; flex-shrink: 0; margin-top: 32px; }
-        #main { flex: 1; display: flex; flex-direction: column; overflow-y: auto; background: white; position: relative; margin-top: 32px; }
-
-        /* 通用组件 (复用 V8/V9 样式) */
-        .header { padding: 15px; border-bottom: 1px solid #ddd; background: #fafbfc; display: flex; justify-content: space-between; align-items: center; }
-        .add-btn { background: #0052cc; color: white; border: none; width: 30px; height: 30px; cursor: pointer; border-radius: 4px; font-size: 20px; display:flex; align-items:center; justify-content:center; }
-        #list { flex: 1; overflow-y: auto; list-style: none; padding: 0; margin: 0; }
-        .item { padding: 15px; border-bottom: 1px solid #eee; cursor: pointer; border-left: 4px solid transparent; }
-        .item:hover { background: #eee; }
-        .item.active { background: #e6effc; border-left: 4px solid #0052cc; }
-        .item-title { font-weight: bold; margin-bottom: 5px; color: #172b4d; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .item-date { font-size: 12px; color: #888; }
+        /* 2. 主布局与拖拽条 */
+        #container { display: flex; width: 100%; height: 100%; padding-top: 40px; box-sizing: border-box; }
         
-        #detail-view { display: none; width: 100%; height: 100%; flex-direction: column; }
-        .content-wrap { padding: 30px 40px; max-width: 1000px; margin: 0 auto; width: 100%; box-sizing: border-box; }
-        .meta-bar { display: flex; justify-content: space-between; margin-bottom: 20px; align-items: center; }
-        .btn { padding: 6px 12px; cursor: pointer; border: none; border-radius: 3px; font-size: 13px; margin-left: 8px;}
-        .btn-primary { background: #0052cc; color: white; }
-        .btn-share { background: #00875a; color: white; }
-        .btn-del { background: #ffebe6; color: #de350b; }
-        .btn-edit { background: #ebecf0; color: #091e42; }
+        #sidebar { 
+            width: 280px; background: #f9f9f9; display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; 
+            border-right: 1px solid #ddd; /* 默认边框，会被resizer覆盖 */
+        }
+        
+        /* 可拖动分割线 */
+        #resizer {
+            width: 5px; background: #ddd; cursor: col-resize; z-index: 10; transition: background 0.2s;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+        }
+        #resizer:hover, #resizer.resizing { background: #0366d6; }
 
-        .markdown-body { line-height: 1.6; font-size: 16px; }
-        .markdown-body h1, .markdown-body h2 { border-bottom: 1px solid #eaecef; padding-bottom: .3em; margin-top: 24px; }
-        .markdown-body code { background-color: #f6f8fa; border-radius: 3px; padding: 2px 4px; font-family: monospace; }
-        .markdown-body pre { background-color: #f6f8fa; padding: 16px; border-radius: 6px; overflow: auto; }
-        .markdown-body blockquote { border-left: 4px solid #dfe2e5; color: #6a737d; padding-left: 1em; margin: 0; }
+        #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: white; position: relative; min-width: 0; }
 
-        .divider-section { background-color: #f4f5f7; border-top: 1px solid #dfe1e6; border-bottom: 1px solid #dfe1e6; padding: 8px 40px; color: #5e6c84; font-weight: bold; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; }
-        .answers-section { background: #fff; padding-bottom: 80px; }
-        .ans-item { border: 1px solid #eee; padding: 20px; border-radius: 8px; margin-bottom: 15px; background: #fafbfc; }
-        .ans-meta { font-size: 12px; color: #aaa; margin-top: 10px; display: flex; justify-content: space-between; border-top: 1px solid #eee; padding-top: 10px; }
+        /* 3. 侧边栏列表 */
+        .sidebar-header { padding: 10px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; background: #fff;}
+        #list { flex: 1; overflow-y: auto; list-style: none; padding: 0; margin: 0; }
+        .item { padding: 12px 10px; border-bottom: 1px solid #eee; cursor: pointer; border-left: 4px solid transparent; display: flex; align-items: flex-start; gap: 8px; user-select: none;}
+        .item:hover { background: #eaeaea; }
+        .item.active { background: #e6effc; border-left: 4px solid #0052cc; }
+        .item.dragging { opacity: 0.5; background: #ccc; }
+        
+        .pin-icon { color: #ccc; font-size: 12px; cursor: pointer; margin-top: 2px;}
+        .pin-icon.pinned { color: #d97706; }
+        .item-content { flex: 1; overflow: hidden; }
+        .item-title { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .item-date { font-size: 11px; color: #888; margin-top: 2px;}
 
-        /* 编辑器 */
-        #editor-container { display: none; flex: 1; flex-direction: column; height: 100%; overflow: hidden; background: #fff; }
-        .editor-toolbar { padding: 10px 20px; border-bottom: 1px solid #ddd; background: #f4f5f7; display: flex; justify-content: space-between; align-items: center; }
-        .editor-split-view { display: flex; flex: 1; overflow: hidden; }
-        .editor-pane, .preview-pane { width: 50%; height: 100%; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
-        .preview-pane { overflow-y: auto; padding: 20px 40px; background: #fff; box-sizing: border-box; border-right: none; }
-        .title-input { width: 100%; padding: 10px 20px; font-size: 18px; font-weight: bold; border: none; border-bottom: 1px solid #ddd; outline: none; }
-        .CodeMirror { height: 100%; font-family: Consolas, Monaco, monospace; font-size: 15px; line-height: 1.5; }
-        .note-input-area { border: 2px solid #eee; border-radius: 6px; overflow: hidden; }
-        .note-cm-container .CodeMirror { height: 120px; }
-        #note-live-preview { margin-top: 10px; padding: 10px; border-top: 1px dashed #ddd; min-height: 40px; color: #555; font-size: 14px; }
+        /* 4. 内容区域 */
+        #detail-view { display: none; width: 100%; height: 100%; flex-direction: column; overflow-y: auto; }
+        .content-wrap { padding: 30px 50px; max-width: 900px; margin: 0 auto; width: 100%; box-sizing: border-box; }
+        
+        .markdown-body { line-height: 1.7; font-size: 16px; color: #24292e; }
+        .markdown-body h1 { border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
+        .markdown-body pre { background: #f6f8fa; padding: 15px; border-radius: 6px; overflow: auto; }
+        .markdown-body blockquote { border-left: 4px solid #dfe2e5; padding-left: 15px; color: #6a737d; }
 
-        /* 学术环境 */
-        .env-block { margin: 15px 0; padding: 15px; border-radius: 4px; text-align: left; }
-        .env-title { font-weight: bold; margin-right: 8px; }
-        .env-content { font-style: italic; }
-        .env-thm { background: #e6effc; border-left: 4px solid #0052cc; color: #172b4d; }
-        .env-thm .env-title { color: #0052cc; }
-        .env-conj { background: #fff7e6; border-left: 4px solid #ff9900; color: #172b4d; }
-        .env-conj .env-title { color: #d97706; }
-        .env-lemma { background: #f4f5f7; border-left: 4px solid #5e6c84; color: #172b4d; }
-        .env-lemma .env-title { color: #42526e; }
-        .env-defn { background: #e3fcef; border-left: 4px solid #00875a; color: #172b4d; }
-        .env-defn .env-title { color: #006644; }
-        .env-proof { margin: 15px 0; padding-left: 15px; color: #333; }
-        .env-proof .env-title { font-style: italic; font-weight: bold; color: #333; }
-        .env-proof .env-content { font-style: normal; }
-        .qed-symbol { float: right; color: #333; }
+        /* 笔记区域 */
+        .ans-item { border: 1px solid #eee; padding: 20px; border-radius: 8px; margin-bottom: 15px; background: #fafbfc; position: relative; }
+        .ans-meta { font-size: 12px; color: #aaa; margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px; display: flex; justify-content: space-between;}
 
-        /* 弹窗 */
-        #modal, #config-modal { display: none; position: fixed; inset: 0; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; z-index: 999; }
-        .modal-content { background:white; padding:20px; width:500px; border-radius:8px; display:flex; flex-direction:column; gap:10px; }
-        .modal-inp { padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+        /* 5. 全屏编辑器 */
+        #editor-layer { display: none; position: fixed; inset: 0; background: white; z-index: 200; flex-direction: column; }
+        .editor-header { height: 50px; border-bottom: 1px solid #ddd; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; background: #f4f5f7; }
+        .editor-body { flex: 1; display: flex; overflow: hidden; }
+        .editor-col { width: 50%; height: 100%; display: flex; flex-direction: column; border-right: 1px solid #ddd; }
+        .preview-pane { padding: 20px 40px; overflow-y: auto; background: #fff; }
+        .CodeMirror { height: 100%; font-family: "SFMono-Regular", Consolas, monospace; font-size: 15px; line-height: 1.6; }
+
+        /* 自定义 LaTeX 环境样式 */
+        .env-block { margin: 1em 0; padding: 15px; border-radius: 4px; border-left: 4px solid #555; background: #f9f9f9; }
+        .env-thm { background: #e6effc; border-left-color: #0052cc; } .env-thm .t { color: #0052cc; font-weight: bold; }
+        .env-proof { background: #fff; border-left: 2px solid #ddd; color: #333; } .env-proof .t { font-style: italic; font-weight: bold; }
+
+        /* 弹窗与加载 */
+        .modal { display: none; position: fixed; inset: 0; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; z-index: 1000; }
+        .modal-box { background:white; padding:25px; width:400px; border-radius:8px; display:flex; flex-direction:column; gap:15px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        .inp { padding: 10px; border: 1px solid #ddd; border-radius: 4px; width: 100%; box-sizing: border-box; }
+        #loading { display: flex; position: fixed; inset: 0; background: rgba(255,255,255,0.8); z-index: 2000; justify-content: center; align-items: center; font-weight: bold; font-size: 18px; color: #333; }
+        
+        /* 协作模式下的特殊样式 */
+        body.collab-mode #sidebar { display: none; }
+        body.collab-mode #resizer { display: none; }
+        body.collab-mode .only-owner { display: none !important; }
+        #collab-banner { display: none; background: #fff3cd; color: #856404; padding: 5px 15px; font-size: 13px; text-align: center; border-bottom: 1px solid #ffeeba; }
     </style>
 </head>
 <body>
 
-<div id="cloud-status-bar">
-    <div id="cloud-msg">📡 未配置云端同步</div>
-    <div>
-        <button class="cloud-btn" onclick="syncPull()">⬇️ 拉取</button>
-        <button class="cloud-btn" onclick="syncPush()">⬆️ 推送</button>
-        <button class="cloud-btn warn" onclick="openConfig()">⚙️ 配置密钥</button>
+<div id="loading">🚀 连接云端数据...</div>
+
+<div id="status-bar">
+    <div style="display:flex; align-items:center; gap:10px;">
+        <span id="app-title" style="font-weight:bold;">科研管理器 v6</span>
+        <span id="sync-status" style="font-size:12px; color:#aaa;">⚪ 准备就绪</span>
+    </div>
+    <div id="auth-controls">
+        <button class="bar-btn" onclick="syncPull()" title="重新拉取">🔄 刷新</button>
+        <button class="bar-btn warn" onclick="openConfig()">⚙️ 密钥配置</button>
     </div>
 </div>
 
-<div id="sidebar">
-    <div class="header">
-        <h3 style="margin:0">问题库</h3>
-        <button class="add-btn" onclick="openModal()">+</button>
-    </div>
-    <ul id="list"></ul>
-</div>
+<div id="collab-banner">⚠️ 协作模式：你正在查看和编辑一个独立的分享问题。所有修改将保存回该分享链接。</div>
 
-<div id="main">
-    <div id="empty-msg" style="text-align:center; color:#888; margin-top:100px;">
-        <h2>请点击左侧“+”添加问题</h2>
+<div id="container">
+    <div id="sidebar">
+        <div class="sidebar-header">
+            <h3 style="margin:0; font-size:16px;">📚 问题库</h3>
+            <button class="bar-btn primary" onclick="startNewProblem()">+</button>
+        </div>
+        <ul id="list">
+            </ul>
     </div>
 
-    <div id="detail-view">
-        <div class="content-wrap" style="flex:1;">
-            <div class="meta-bar">
-                <span id="d-date" style="color:#888; font-size:12px;"></span>
-                <div>
-                    <button class="btn btn-edit" onclick="enterEditMode()">✏️ 修改</button>
-                    <button class="btn btn-share" onclick="doExport()">📤 导出</button>
-                    <button class="btn btn-del" onclick="doDelete()">删除</button>
+    <div id="resizer"></div>
+
+    <div id="main">
+        <div id="empty-msg" style="text-align:center; color:#888; margin-top:20vh;">
+            <h2>请选择或新建问题</h2>
+            <p>数据纯云端同步，无本地缓存</p>
+        </div>
+
+        <div id="detail-view">
+            <div class="content-wrap">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding-bottom:10px; border-bottom:1px solid #eee;">
+                    <span id="d-date" style="color:#888; font-size:12px;"></span>
+                    <div style="display:flex; gap:10px;">
+                        <button class="bar-btn only-owner" onclick="createCollabLink()">🔗 创建协作链接</button>
+                        <button class="bar-btn" onclick="openEditor('problem')">✏️ 编辑问题</button>
+                        <button class="bar-btn warn only-owner" onclick="deleteProblem()">🗑️</button>
+                    </div>
                 </div>
+                <h1 id="d-title" style="color:#0052cc; margin-top:0;"></h1>
+                <div id="d-desc" class="markdown-body"></div>
             </div>
-            <h1 id="d-title" style="color:#0052cc; margin-top:0;"></h1>
-            <div id="d-desc" class="markdown-body"></div>
-        </div>
 
-        <div class="divider-section">▼ 笔记与讨论</div>
-
-        <div class="content-wrap answers-section">
-            <div id="ans-list"></div>
-            <h4 style="margin:20px 0 10px 0; color:#555;">添加新笔记:</h4>
-            <div class="note-input-area note-cm-container"><textarea id="new-ans-textarea"></textarea></div>
-            <div id="note-live-preview" class="markdown-body">预览区域</div>
-            <div style="text-align:right; margin-top:10px;">
-                <button class="btn btn-primary" onclick="addAns()">提交笔记</button>
+            <div style="background:#f4f5f7; padding:10px 50px; font-weight:bold; font-size:13px; color:#666; text-transform:uppercase; letter-spacing:1px;">
+                笔记与讨论
             </div>
-        </div>
-    </div>
 
-    <div id="editor-container">
-        <div class="editor-toolbar">
-            <span style="font-weight:bold;">✏️ 编辑模式</span>
-            <div>
-                <button class="btn" style="background:#eee;" onclick="exitEditMode()">取消</button>
-                <button class="btn btn-primary" onclick="saveEdit()">保存修改</button>
+            <div class="content-wrap" style="background:#fff;">
+                <div id="ans-list"></div>
+                <div style="margin-top:30px; text-align:center;">
+                    <button class="bar-btn primary" style="padding:10px 30px; font-size:14px;" onclick="openEditor('note')">➕ 添加全屏笔记</button>
+                </div>
+                <div style="height:50px;"></div>
             </div>
-        </div>
-        <input type="text" id="editor-title" class="title-input" placeholder="问题标题">
-        <div class="editor-split-view">
-            <div class="editor-pane"><textarea id="code-editor"></textarea></div>
-            <div class="preview-pane"><div id="editor-preview" class="markdown-body"></div></div>
         </div>
     </div>
 </div>
 
-<div id="modal">
-    <div class="modal-content">
-        <h3>新建问题</h3>
-        <input class="modal-inp" id="m-title" placeholder="标题">
-        <textarea class="modal-inp" id="m-desc" style="height:150px" placeholder="简要描述"></textarea>
-        <div style="text-align:right;">
-            <button class="btn" style="background:#eee;" onclick="document.getElementById('modal').style.display='none'">取消</button>
-            <button class="btn btn-primary" onclick="saveNew()">创建</button>
+<div id="editor-layer">
+    <div class="editor-header">
+        <span id="editor-mode-title" style="font-weight:bold;">编辑</span>
+        <input id="editor-title-input" class="inp" style="width:300px; display:none;" placeholder="问题标题">
+        <div>
+            <button class="bar-btn" onclick="closeEditor()">取消</button>
+            <button class="bar-btn primary" onclick="saveEditorContent()">💾 保存 (Ctrl+S)</button>
+        </div>
+    </div>
+    <div class="editor-body">
+        <div class="editor-col">
+            <textarea id="code-editor"></textarea>
+        </div>
+        <div class="editor-col preview-pane">
+            <div id="editor-preview" class="markdown-body"></div>
         </div>
     </div>
 </div>
 
-<div id="config-modal">
-    <div class="modal-content">
-        <h3>⚙️ 云端配置 (GitHub Gist)</h3>
-        <p style="font-size:12px; color:#666;">配置后，数据将同步到您的私人 Gist，实现多设备同步。</p>
-        <label>GitHub Token (需勾选 gist 权限):</label>
-        <input class="modal-inp" id="cfg-token" type="password" placeholder="ghp_xxxxxxxxxxxx">
-        <label>Gist ID (URL 后面的那串字符):</label>
-        <input class="modal-inp" id="cfg-id" placeholder="例如: abc1234567890def">
+<div id="config-modal" class="modal">
+    <div class="modal-box">
+        <h3>⚙️ 云端配置 (Gist)</h3>
+        <p style="font-size:12px; color:#666;">请输入具备 <b>gist</b> 权限的 GitHub Token。</p>
+        <input class="inp" id="cfg-token" type="password" placeholder="ghp_xxxxxxxxxxxx">
+        <input class="inp" id="cfg-gist-id" placeholder="Gist ID (留空则自动创建新的)">
         <div style="text-align:right;">
-            <button class="btn" style="background:#eee;" onclick="document.getElementById('config-modal').style.display='none'">关闭</button>
-            <button class="btn btn-primary" onclick="saveConfig()">保存并测试</button>
+            <button class="bar-btn" onclick="document.getElementById('config-modal').style.display='none'">关闭</button>
+            <button class="bar-btn primary" onclick="saveConfig()">保存并连接</button>
         </div>
     </div>
 </div>
 
 <script>
-    // --- 0. 配置与初始化 ---
-    const LATEX_KEYWORDS = [ { text: "\\begin{thm}\n\n\\end{thm}", displayText: "thm" }, { text: "\\begin{conj}\n\n\\end{conj}", displayText: "conj" }, "\\alpha", "\\beta", "\\sum", "\\prod" ];
-    let mainEditor, noteEditor, debounceTimer;
-    var data = JSON.parse(localStorage.getItem('my_research_v4')) || [];
-    var currentId = null;
+    // --- 0. 核心状态与配置 ---
+    const CFG_KEY = 'v6_gh_config'; // 仅存储 Token 和 主GistID
+    let ghConfig = JSON.parse(localStorage.getItem(CFG_KEY)) || { token: '', gistId: '' };
+    
+    // 内存数据 (无 LocalStorage)
+    let db = { items: [] }; 
+    let currentId = null;
+    let editorMode = 'problem'; // 'problem' | 'note'
+    
+    // 协作模式状态
+    const urlParams = new URLSearchParams(window.location.search);
+    const collabGistId = urlParams.get('gist'); // 如果 URL 有 ?gist=... 则进入协作模式
+    const isCollabMode = !!collabGistId;
 
-    // GitHub 配置
-    var ghConfig = JSON.parse(localStorage.getItem('gh_config')) || { token: '', gistId: '' };
+    // 编辑器实例
+    let cmEditor;
 
-    window.onload = function() {
-        initEditors();
-        renderList();
-        updateCloudStatus();
-        if(ghConfig.token && ghConfig.gistId) {
-            syncPull(true); // 自动拉取
+    // --- 1. 初始化 ---
+    window.onload = async function() {
+        initUI();
+        
+        if (isCollabMode) {
+            enterCollabMode();
+        } else {
+            if (ghConfig.token && ghConfig.gistId) {
+                await syncPull();
+            } else {
+                document.getElementById('loading').style.display = 'none';
+                openConfig();
+            }
         }
     };
 
-    function initEditors() {
-        mainEditor = CodeMirror.fromTextArea(document.getElementById("code-editor"), { mode: "markdown", theme: "default", lineNumbers: true, lineWrapping: true, extraKeys: {"Ctrl-Space": "autocomplete"} });
-        mainEditor.on("inputRead", function(cm, change) { if (change.text[0].match(/[\\a-zA-Z]/)) CodeMirror.commands.autocomplete(cm, null, { completeSingle: false }); });
-        mainEditor.on("change", () => updateMainPreview());
+    function initUI() {
+        // CodeMirror
+        cmEditor = CodeMirror.fromTextArea(document.getElementById("code-editor"), {
+            mode: "markdown", lineNumbers: true, lineWrapping: true,
+            extraKeys: { "Ctrl-S": saveEditorContent }
+        });
+        cmEditor.on("change", () => {
+            const val = cmEditor.getValue();
+            document.getElementById('editor-preview').innerHTML = renderContent(val);
+            if(window.MathJax) MathJax.typesetPromise([document.getElementById('editor-preview')]);
+        });
 
-        noteEditor = CodeMirror.fromTextArea(document.getElementById("new-ans-textarea"), { mode: "markdown", lineWrapping: true, extraKeys: {"Ctrl-Space": "autocomplete"} });
-        noteEditor.on("inputRead", function(cm, change) { if (change.text[0].match(/[\\a-zA-Z]/)) CodeMirror.commands.autocomplete(cm, null, { completeSingle: false }); });
-        noteEditor.on("change", () => updateNotePreview());
-        
-        CodeMirror.registerHelper("hint", "markdown", function(editor) {
-            var cur = editor.getCursor(); var token = editor.getTokenAt(cur);
-            var start = token.start; var end = cur.ch; var word = token.string.slice(0, end - start);
-            var list = LATEX_KEYWORDS.filter(function(item) { var text = (typeof item === "string") ? item : item.displayText; return text.indexOf(word) >= 0; });
-            return { list: list, from: CodeMirror.Pos(cur.line, start), to: CodeMirror.Pos(cur.line, end) };
+        // 拖拽调整宽度
+        const resizer = document.getElementById('resizer');
+        const sidebar = document.getElementById('sidebar');
+        let isResizing = false;
+
+        resizer.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            resizer.classList.add('resizing');
+            document.body.style.cursor = 'col-resize';
+        });
+        window.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            let newWidth = e.clientX;
+            if (newWidth < 150) newWidth = 150;
+            if (newWidth > 600) newWidth = 600;
+            sidebar.style.width = newWidth + 'px';
+        });
+        window.addEventListener('mouseup', () => {
+            isResizing = false;
+            resizer.classList.remove('resizing');
+            document.body.style.cursor = 'default';
         });
     }
 
-    // --- 1. 云端同步核心逻辑 ---
-    function openConfig() {
-        document.getElementById('cfg-token').value = ghConfig.token;
-        document.getElementById('cfg-id').value = ghConfig.gistId;
-        document.getElementById('config-modal').style.display = 'flex';
-    }
-
-    function saveConfig() {
-        ghConfig.token = document.getElementById('cfg-token').value.trim();
-        ghConfig.gistId = document.getElementById('cfg-id').value.trim();
-        localStorage.setItem('gh_config', JSON.stringify(ghConfig));
-        document.getElementById('config-modal').style.display = 'none';
-        updateCloudStatus();
-        syncPull(); // 保存后立即尝试拉取
-    }
-
-    function updateCloudStatus() {
-        const msg = document.getElementById('cloud-msg');
-        if(!ghConfig.token || !ghConfig.gistId) {
-            msg.innerText = "📡 未配置云端";
-            msg.style.color = "#ff9900";
-        } else {
-            msg.innerText = "✅ 云端已就绪";
-            msg.style.color = "#4caf50";
-        }
-    }
-
-    // 拉取数据 (Load)
-    async function syncPull(silent = false) {
-        if(!ghConfig.token) return (!silent && alert("请先配置密钥"));
-        const msg = document.getElementById('cloud-msg');
-        msg.innerText = "🔄 正在同步...";
+    // --- 2. 协作模式逻辑 ---
+    async function enterCollabMode() {
+        document.body.classList.add('collab-mode');
+        document.getElementById('collab-banner').style.display = 'block';
+        document.getElementById('app-title').innerText = "协作查看器";
+        document.getElementById('auth-controls').innerHTML = ''; // 隐藏配置按钮
         
+        // 尝试从 URL Hash 或 prompt 获取 Token (如果 Gist 是私有的)
+        // 简单起见，这里假设用户如果也是科研者，有自己的 Token，或者 Gist 是 Public 的
+        // 为了体验，我们这里直接尝试读取。如果失败，提示用户输入 Token。
+        
+        // 实际上，协作需要 Token 才能编辑。
+        // 我们检查本地是否已有 token，如果没有，提示输入一个临时 token。
+        if (!ghConfig.token) {
+            const tempToken = prompt("进入协作模式：请输入你的 GitHub Token 以启用编辑功能 (不会保存到服务器)");
+            if(tempToken) ghConfig.token = tempToken;
+        }
+
+        await syncPull(collabGistId); // 拉取特定 Gist
+        // 协作模式下 DB 结构可能不同，我们假设每个协作 Gist 只存了一个 Item 对象
+        // 为了复用逻辑，我们将这个单 Item 包装进 db.items
+        if (!Array.isArray(db.items)) {
+            // 说明拉取的是单体对象
+            const singleItem = JSON.parse(JSON.stringify(db)); // db 目前是该对象
+            db = { items: [singleItem] };
+        }
+        
+        renderList();
+        if(db.items.length > 0) loadDetail(db.items[0].id);
+    }
+
+    async function createCollabLink() {
+        const item = db.items.find(x => x.id === currentId);
+        if(!item) return;
+        if(!confirm(`将要把问题 "${item.title}" 发布为一个独立的 Gist 以便分享吗？`)) return;
+        
+        setMsg("正在创建分享链接...");
         try {
-            const res = await fetch(`https://api.github.com/gists/${ghConfig.gistId}`, {
-                headers: { "Authorization": `token ${ghConfig.token}` }
+            // 发布单体对象
+            const res = await fetch("https://api.github.com/gists", {
+                method: "POST",
+                headers: { "Authorization": `token ${ghConfig.token}`, "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    description: `[Shared] ${item.title}`,
+                    public: false, // 设为私有链接
+                    files: { "problem_shared.json": { content: JSON.stringify(item, null, 2) } }
+                })
             });
-            if(!res.ok) throw new Error("连接失败");
+            if(!res.ok) throw new Error("创建失败");
             const json = await res.json();
-            const fileContent = json.files["data.json"].content;
+            const shareUrl = `${window.location.origin}${window.location.pathname}?gist=${json.id}`;
             
-            // 合并逻辑：简单覆盖 (实际使用建议更小心)
-            data = JSON.parse(fileContent);
-            localStorage.setItem('my_research_v4', JSON.stringify(data));
-            renderList();
-            if(currentId) loadDetail(currentId); // 刷新当前页
-            
-            msg.innerText = "☁️ 已同步到最新 (" + new Date().toLocaleTimeString() + ")";
-            if(!silent) alert("拉取成功！");
+            prompt("🔗 链接已生成！\n将此链接发送给合作者，他们可以直接查看并编辑此问题：", shareUrl);
+            setMsg("分享链接创建成功");
         } catch(e) {
-            msg.innerText = "❌ 同步失败";
-            if(!silent) alert("同步失败: " + e.message);
+            alert(e.message);
+            setMsg("创建失败");
         }
     }
 
-    // 推送数据 (Save)
-    async function syncPush() {
-        if(!ghConfig.token) return alert("请先配置密钥");
-        const msg = document.getElementById('cloud-msg');
-        msg.innerText = "⬆️ 正在上传...";
+    // --- 3. 数据同步 (核心) ---
+    async function syncPull(targetGistId = null) {
+        const gid = targetGistId || ghConfig.gistId;
+        if (!ghConfig.token || !gid) return;
+        
+        document.getElementById('loading').style.display = 'flex';
+        setMsg("正在同步...");
         
         try {
-            const payload = {
-                files: {
-                    "data.json": { content: JSON.stringify(data, null, 2) }
-                }
-            };
-            const res = await fetch(`https://api.github.com/gists/${ghConfig.gistId}`, {
-                method: "PATCH",
-                headers: { 
-                    "Authorization": `token ${ghConfig.token}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(payload)
+            const res = await fetch(`https://api.github.com/gists/${gid}`, {
+                headers: { "Authorization": `token ${ghConfig.token}` },
+                cache: "no-store"
             });
-            if(!res.ok) throw new Error("上传失败");
+            if(!res.ok) throw new Error("无法连接 Gist，请检查 Token 或 ID");
+            const json = await res.json();
+            const filename = Object.keys(json.files)[0];
+            const content = json.files[filename].content;
             
-            msg.innerText = "☁️ 上传成功 (" + new Date().toLocaleTimeString() + ")";
+            db = JSON.parse(content);
+            if(!db.items) db = { items: [] }; // 初始保护
+
+            renderList();
+            // 如果不在协作模式且有选中ID，刷新详情
+            if(!isCollabMode && currentId) {
+                // 检查该ID是否还存在
+                if(db.items.find(x=>x.id === currentId)) loadDetail(currentId);
+                else document.getElementById('detail-view').style.display = 'none';
+            }
+            
+            setMsg("✅ 同步完成");
         } catch(e) {
-            msg.innerText = "❌ 上传失败";
-            alert("上传失败: " + e.message);
+            alert("同步错误: " + e.message);
+            setMsg("❌ 同步失败");
+        } finally {
+            document.getElementById('loading').style.display = 'none';
         }
     }
 
-    // --- 2. 渲染与编辑 (复用逻辑) ---
-    function renderContent(text) {
-        if (!text) return "";
-        let html = marked.parse(text);
-        const envs = [ { tags: ['thm','theorem'], name: 'Theorem', class: 'env-thm' }, { tags: ['conjecture','conj'], name: 'Conjecture', class: 'env-conj' }, { tags: ['lemma'], name: 'Lemma', class: 'env-lemma' }, { tags: ['defn'], name: 'Definition', class: 'env-defn' }, { tags: ['proof'], name: 'Proof', class: 'env-proof', isProof: true } ];
-        envs.forEach(env => {
-            env.tags.forEach(tag => {
-                const regex = new RegExp(`\\\\begin\\{${tag}\\}([\\s\\S]*?)\\\\end\\{${tag}\\}`, 'gi');
-                html = html.replace(regex, (m, c) => {
-                    c = c.replace(/^<p>|<\/p>$/g, '');
-                    return env.isProof ? `<div class="${env.class}"><span class="env-title">${env.name}.</span> <span class="env-content">${c}</span> <span class="qed-symbol">◼</span></div>` : `<div class="env-block ${env.class}"><span class="env-title">${env.name}.</span> <span class="env-content">${c}</span></div>`;
-                });
+    async function syncPush() {
+        const gid = isCollabMode ? collabGistId : ghConfig.gistId;
+        if (!ghConfig.token || !gid) return alert("配置缺失");
+        
+        setMsg("正在保存到云端...");
+        
+        // 如果是协作模式，推送单体；如果是主模式，推送整个DB
+        let contentStr = "";
+        let fileName = "research_data.json";
+
+        if (isCollabMode) {
+            // 协作模式下 db.items[0] 是我们要保存的对象
+            contentStr = JSON.stringify(db.items[0], null, 2);
+            fileName = "problem_shared.json"; // 尝试保持一致，或者是原文件名
+        } else {
+            contentStr = JSON.stringify(db, null, 2);
+        }
+
+        try {
+            const res = await fetch(`https://api.github.com/gists/${gid}`, {
+                method: "PATCH",
+                headers: { "Authorization": `token ${ghConfig.token}`, "Content-Type": "application/json" },
+                body: JSON.stringify({ files: { [fileName]: { content: contentStr } } })
             });
-        });
-        return html;
+            if(!res.ok) throw new Error("保存失败");
+            setMsg("☁️ 保存成功 " + new Date().toLocaleTimeString());
+        } catch(e) {
+            alert(e.message);
+            setMsg("❌ 保存失败");
+        }
     }
 
+    // --- 4. 业务逻辑与 UI 渲染 ---
     function renderList() {
-        var listHtml = '';
-        for (var i = 0; i < data.length; i++) {
-            var item = data[i];
-            var activeClass = (item.id === currentId) ? 'active' : '';
-            listHtml += `<li class="item ${activeClass}" onclick="loadDetail(${item.id})"><div class="item-title">${escapeHtml(item.title)}</div><div class="item-date">${new Date(item.date).toLocaleDateString()}</div></li>`;
+        const ul = document.getElementById('list');
+        ul.innerHTML = '';
+        
+        // 排序逻辑：先 Pin 的，然后按 items 数组顺序
+        // 为了支持自定义排序，我们直接渲染 db.items 的顺序。
+        // 置顶只是视觉上的 "Pin"，或者我们可以把 Pin 的移到数组前面。
+        // 策略：items 数组就是显示顺序。Pin 只是一个标记，我们手动逻辑把 Pin 的排前面显示？
+        // 需求是“自由拉动排序”以及“置顶”。
+        // 简单实现：数据结构中 isPinned 的项总是排在非 isPinned 之前。内部再按 index 排序。
+        
+        // 实际上，为了完全自由，我们不如只用数组顺序。
+        // "置顶" 功能将该 item 移动到数组头部。
+        
+        db.items.forEach((item, index) => {
+            const li = document.createElement('li');
+            li.className = `item ${item.id === currentId ? 'active' : ''}`;
+            li.draggable = true;
+            li.innerHTML = `
+                <div class="pin-icon ${item.isPinned ? 'pinned' : ''}" onclick="togglePin(event, ${index})">📌</div>
+                <div class="item-content">
+                    <div class="item-title">${escapeHtml(item.title)}</div>
+                    <div class="item-date">${new Date(item.date).toLocaleDateString()}</div>
+                </div>
+            `;
+            li.onclick = () => loadDetail(item.id);
+            
+            // 拖拽事件
+            li.addEventListener('dragstart', (e) => {
+                li.classList.add('dragging');
+                e.dataTransfer.setData('text/plain', index);
+            });
+            li.addEventListener('dragend', () => li.classList.remove('dragging'));
+            li.addEventListener('dragover', (e) => e.preventDefault()); // 允许 drop
+            li.addEventListener('drop', (e) => handleDrop(e, index));
+
+            ul.appendChild(li);
+        });
+    }
+
+    function handleDrop(e, targetIndex) {
+        e.preventDefault();
+        const sourceIndex = parseInt(e.dataTransfer.getData('text/plain'));
+        if (sourceIndex === targetIndex) return;
+
+        // 移动数组元素
+        const [movedItem] = db.items.splice(sourceIndex, 1);
+        db.items.splice(targetIndex, 0, movedItem);
+        
+        renderList();
+        syncPush(); // 排序后立即同步
+    }
+
+    function togglePin(e, index) {
+        e.stopPropagation();
+        const item = db.items[index];
+        item.isPinned = !item.isPinned;
+        
+        // 如果置顶，移动到最前；取消置顶，移动到（比如）第二个位置？
+        // 简单处理：置顶=移到 index 0。取消置顶=不移动，只变色。
+        // 或者：每次渲染时，先渲染 Pinned，再渲染其他的。
+        // 为了配合“自由排序”，我们采用：置顶操作 = 物理移动到顶部。
+        if (item.isPinned) {
+            db.items.splice(index, 1);
+            db.items.unshift(item);
         }
-        document.getElementById('list').innerHTML = listHtml;
+        renderList();
+        syncPush();
     }
 
     function loadDetail(id) {
         currentId = id;
-        var item = data.find(x => x.id === id);
-        if (!item) return;
+        const item = db.items.find(x => x.id === id);
+        if(!item) return;
 
         document.getElementById('empty-msg').style.display = 'none';
         document.getElementById('detail-view').style.display = 'flex';
-        document.getElementById('editor-container').style.display = 'none';
+        
         document.getElementById('d-title').innerText = item.title;
-        document.getElementById('d-date').innerText = new Date(item.date).toLocaleString();
+        document.getElementById('d-date').innerText = "更新于: " + new Date(item.date).toLocaleString();
         document.getElementById('d-desc').innerHTML = renderContent(item.desc);
         
-        var ansHtml = '';
-        if (item.answers.length === 0) ansHtml = '<div style="color:#999; font-style:italic; text-align:center;">暂无笔记</div>';
-        else {
-            item.answers.forEach((ans, idx) => {
-                ansHtml += `<div class="ans-item"><div class="markdown-body">${renderContent(ans.text)}</div><div class="ans-meta"><span>${new Date(ans.date).toLocaleString()}</span><span><button class="btn-link" style="color:#de350b" onclick="delAns(${idx})">删除</button></span></div></div>`;
-            });
-        }
-        document.getElementById('ans-list').innerHTML = ansHtml;
+        const ansContainer = document.getElementById('ans-list');
+        ansContainer.innerHTML = item.answers.map((a, idx) => `
+            <div class="ans-item">
+                <div class="markdown-body">${renderContent(a.text)}</div>
+                <div class="ans-meta">
+                    <span>${new Date(a.date).toLocaleString()}</span>
+                    <button class="bar-btn warn" style="padding:2px 6px;" onclick="deleteAns(${idx})">删除</button>
+                </div>
+            </div>
+        `).join('');
+
         renderList();
+        if(window.MathJax) MathJax.typesetPromise();
+    }
+
+    // --- 5. 编辑器逻辑 ---
+    function openEditor(mode) {
+        editorMode = mode;
+        const layer = document.getElementById('editor-layer');
+        const titleInp = document.getElementById('editor-title-input');
+        const item = db.items.find(x => x.id === currentId);
+
+        layer.style.display = 'flex';
         
-        if (window.MathJax) MathJax.typesetPromise([document.getElementById('d-desc'), document.getElementById('ans-list')]);
-        noteEditor.setValue("");
-        setTimeout(() => noteEditor.refresh(), 100);
-        document.getElementById('note-live-preview').innerHTML = '预览区域';
+        if (mode === 'problem') {
+            document.getElementById('editor-mode-title').innerText = "编辑问题";
+            titleInp.style.display = 'block';
+            titleInp.value = item.title;
+            cmEditor.setValue(item.desc);
+        } else {
+            document.getElementById('editor-mode-title').innerText = "添加笔记";
+            titleInp.style.display = 'none';
+            cmEditor.setValue(""); // 清空
+            cmEditor.focus();
+        }
+        setTimeout(() => cmEditor.refresh(), 100);
     }
 
-    function enterEditMode() {
-        var item = data.find(x => x.id === currentId);
-        document.getElementById('detail-view').style.display = 'none';
-        document.getElementById('editor-container').style.display = 'flex';
-        document.getElementById('editor-title').value = item.title;
-        mainEditor.setValue(item.desc);
-        setTimeout(() => mainEditor.refresh(), 100);
-        updateMainPreview();
+    function closeEditor() {
+        document.getElementById('editor-layer').style.display = 'none';
     }
 
-    function updateMainPreview() {
-        const text = mainEditor.getValue();
-        const previewEl = document.getElementById('editor-preview');
-        previewEl.innerHTML = renderContent(text);
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => { if (window.MathJax) MathJax.typesetPromise([previewEl]); }, 300);
-    }
-    
-    function updateNotePreview() {
-        const text = noteEditor.getValue();
-        const previewEl = document.getElementById('note-live-preview');
-        previewEl.innerHTML = renderContent(text) || "预览区域";
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => { if (window.MathJax) MathJax.typesetPromise([previewEl]); }, 300);
+    function saveEditorContent() {
+        const val = cmEditor.getValue();
+        const item = db.items.find(x => x.id === currentId);
+        
+        if (editorMode === 'problem') {
+            item.title = document.getElementById('editor-title-input').value;
+            item.desc = val;
+            item.date = new Date().toISOString();
+        } else {
+            if (!val.trim()) return;
+            item.answers.push({ text: val, date: new Date().toISOString() });
+            item.date = new Date().toISOString(); // 更新主问题时间
+        }
+        
+        closeEditor();
+        loadDetail(currentId); // 刷新界面
+        syncPush(); // 同步
     }
 
-    function saveEdit() {
-        var item = data.find(x => x.id === currentId);
-        item.title = document.getElementById('editor-title').value;
-        item.desc = mainEditor.getValue();
-        saveAndPush();
-        exitEditMode();
-        loadDetail(currentId);
-    }
-    function addAns() {
-        var txt = noteEditor.getValue(); if (!txt) return;
-        var item = data.find(x => x.id === currentId);
-        item.answers.push({ text: txt, date: new Date().toISOString() });
-        saveAndPush();
-        loadDetail(currentId);
-    }
-    function saveNew() {
-        var t = document.getElementById('m-title').value; var d = document.getElementById('m-desc').value; if (!t) return alert('标题不能为空');
-        var newItem = { id: Date.now(), title: t, desc: d, date: new Date().toISOString(), answers: [] };
-        data.unshift(newItem);
-        saveAndPush();
-        document.getElementById('modal').style.display = 'none';
-        document.getElementById('m-title').value = ''; document.getElementById('m-desc').value = '';
+    function startNewProblem() {
+        // 直接新建一个，然后进入编辑模式
+        const newItem = { id: Date.now(), title: "新问题 " + new Date().toLocaleDateString(), desc: "", answers: [], date: new Date().toISOString() };
+        db.items.unshift(newItem);
+        currentId = newItem.id;
+        renderList();
         loadDetail(newItem.id);
+        openEditor('problem');
     }
-    function delAns(idx) { if(confirm('删除此笔记？')) { var item = data.find(x => x.id === currentId); item.answers.splice(idx, 1); saveAndPush(); loadDetail(currentId); } }
-    function doDelete() { if(confirm('删除整个问题？')) { data = data.filter(x => x.id !== currentId); saveAndPush(); if(data.length > 0) loadDetail(data[0].id); else location.reload(); } }
 
-    function exitEditMode() { document.getElementById('editor-container').style.display = 'none'; document.getElementById('detail-view').style.display = 'flex'; }
-    function openModal() { document.getElementById('modal').style.display = 'flex'; }
-    function escapeHtml(text) { if (!text) return text; return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
-    function saveAndPush() {
-        localStorage.setItem('my_research_v4', JSON.stringify(data));
-        syncPush(); // 自动推送
+    function deleteProblem() {
+        if(confirm("确定删除此问题吗？无法恢复。")) {
+            db.items = db.items.filter(x => x.id !== currentId);
+            currentId = null;
+            document.getElementById('detail-view').style.display = 'none';
+            document.getElementById('empty-msg').style.display = 'block';
+            renderList();
+            syncPush();
+        }
     }
     
-    // 导出单题
-    function doExport() {
-        var item = data.find(x => x.id === currentId);
-        if (!item) return;
-        var content = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + escapeHtml(item.title) + '</title>';
-        content += '<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"><\/script><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async><\/script><script>MathJax={tex:{inlineMath:[["$","$"],["\\\\(","\\\\)"]]}}<\/script>';
-        content += '<style>body{max-width:900px;margin:20px auto;font-family:sans-serif;padding:20px;line-height:1.6;color:#333} .ans{background:#f9f9f9;padding:15px;border:1px solid #eee;margin-bottom:10px;border-radius:5px;} .env-block {margin:15px 0;padding:15px;border-radius:4px;text-align:left;background:#e6effc;border-left:4px solid #0052cc;font-style:italic;} .env-title {font-weight:bold;color:#0052cc;margin-right:5px;font-style:normal;} .env-conj {background:#fff7e6;border-left-color:#ff9900;} .env-conj .env-title {color:#d97706;} blockquote {border-left:4px solid #ddd;padding-left:15px;color:#777;} code {background:#f4f4f4;padding:2px 5px;border-radius:3px;font-family:monospace;} pre {background:#f4f4f4;padding:10px;border-radius:5px;overflow-x:auto;} h1,h2,h3 {border-bottom:1px solid #eee;padding-bottom:10px;}</style></head><body>';
-        content += '<h1 style="color:#0052cc">' + escapeHtml(item.title) + '</h1><p style="color:#888">Exported: ' + new Date().toLocaleString() + '</p><div id="desc-content"></div><h3 style="margin-top:40px">笔记与讨论</h3><div id="ans-container"></div>';
-        content += '<script>var rawDesc=' + JSON.stringify(item.desc) + '; var rawAnswers=' + JSON.stringify(item.answers) + '; function render(t){var h=marked.parse(t); return h.replace(/\\\\begin{thm}([\\s\\S]*?)\\\\end{thm}/gi, "<div class=\'env-block\'><span class=\'env-title\'>Theorem.</span>$1</div>").replace(/\\\\begin{conj}([\\s\\S]*?)\\\\end{conj}/gi, "<div class=\'env-block env-conj\'><span class=\'env-title\'>Conjecture.</span>$1</div>");} document.getElementById("desc-content").innerHTML=render(rawDesc); var ah=""; rawAnswers.forEach(function(a){ ah+="<div class=\'ans\'>"+render(a.text)+"<div style=\'font-size:12px;color:#999;margin-top:5px\'>"+new Date(a.date).toLocaleString()+"</div></div>"; }); document.getElementById("ans-container").innerHTML=ah; <\/script></body></html>';
-        var blob = new Blob([content], { type: 'text/html;charset=utf-8' });
-        var url = URL.createObjectURL(blob);
-        var a = document.createElement('a'); a.href = url; a.download = 'Research-' + item.title + '.html'; a.click();
+    function deleteAns(idx) {
+        if(confirm("删除此笔记？")) {
+            const item = db.items.find(x => x.id === currentId);
+            item.answers.splice(idx, 1);
+            loadDetail(currentId);
+            syncPush();
+        }
     }
+
+    // --- 6. 辅助 ---
+    function openConfig() { document.getElementById('config-modal').style.display = 'flex'; }
+    
+    async function saveConfig() {
+        const t = document.getElementById('cfg-token').value.trim();
+        const i = document.getElementById('cfg-gist-id').value.trim();
+        
+        if (!t) return alert("Token 必填");
+        
+        ghConfig.token = t;
+        ghConfig.gistId = i;
+        
+        // 自动创建逻辑
+        if (!i) {
+            try {
+                setMsg("正在创建新数据库...");
+                const res = await fetch("https://api.github.com/gists", {
+                    method: "POST",
+                    headers: { "Authorization": `token ${t}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        description: "Research Manager v6 DB",
+                        public: false,
+                        files: { "research_data.json": { content: JSON.stringify({ items: [] }) } }
+                    })
+                });
+                const json = await res.json();
+                ghConfig.gistId = json.id;
+                alert("已自动创建新数据库 ID: " + json.id);
+            } catch(e) {
+                return alert("创建失败: " + e.message);
+            }
+        }
+        
+        localStorage.setItem(CFG_KEY, JSON.stringify(ghConfig));
+        document.getElementById('config-modal').style.display = 'none';
+        syncPull();
+    }
+
+    function setMsg(txt) { document.getElementById('sync-status').innerText = txt; }
+    
+    function renderContent(text) {
+        if (!text) return "";
+        let html = marked.parse(text);
+        // 简单的 LaTeX 环境替换
+        html = html.replace(/\\begin\{thm\}([\s\S]*?)\\end\{thm\}/gi, '<div class="env-block env-thm"><span class="t">Theorem.</span> $1</div>');
+        html = html.replace(/\\begin\{proof\}([\s\S]*?)\\end\{proof\}/gi, '<div class="env-block env-proof"><span class="t">Proof.</span> $1 <span style="float:right">◼</span></div>');
+        return html;
+    }
+    
+    function escapeHtml(text) { return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+
 </script>
 </body>
 </html>
