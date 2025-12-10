@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>科研管理器 v11 (可拉伸全屏版)</title>
+    <title>科研管理器 v13 (搜索替换增强版)</title>
     
     <!-- 依赖库 -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -16,8 +16,10 @@
                 tags: 'ams',
                 macros: {
                     R: "{\\mathbb{R}}", N: "{\\mathbb{N}}", Z: "{\\mathbb{Z}}", Q: "{\\mathbb{Q}}", C: "{\\mathbb{C}}",
-                    P: "{\\mathbb{P}}", E: "{\\mathbb{E}}",
-                    bf: ["{\\mathbf{#1}}", 1], rm: ["{\\mathrm{#1}}", 1], it: ["{\\mathit{#1}}", 1], cal: ["{\\mathcal{#1}}", 1]
+                    P: "{\\mathbb{P}}", PP: "{\\mathbb{P}}", E: "{\\mathbb{E}}",
+                    ex: "\\operatorname{ex}",
+                    bf: ["{\\mathbf{#1}}", 1], rm: ["{\\mathrm{#1}}", 1], it: ["{\\mathit{#1}}", 1], cal: ["{\\mathcal{#1}}", 1],
+                    cM: "{\\mathcal{M}}", cT: "{\\mathcal{T}}", cS: "{\\mathcal{S}}",
                 }
             },
             startup: { typeset: false }
@@ -25,12 +27,22 @@
     </script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
     
-    <!-- CodeMirror -->
+    <!-- CodeMirror 核心与样式 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/hint/show-hint.min.css">
+    <!-- [新增] 搜索对话框样式 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/dialog/dialog.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/search/matchesonscrollbar.min.css">
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/markdown/markdown.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/hint/show-hint.min.js"></script>
+    
+    <!-- [新增] 搜索与替换插件 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/dialog/dialog.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/search/searchcursor.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/search/search.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/search/jump-to-line.min.js"></script>
     
     <style>
         body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; height: 100vh; background: #f4f5f7; overflow: hidden; color: #333; }
@@ -53,6 +65,11 @@
 
         /* 列表 */
         .sidebar-header { padding: 10px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; background: #fff;}
+        /* [新增] 搜索框样式 */
+        .search-box { padding: 8px 10px; border-bottom: 1px solid #ddd; background: #fff; }
+        .search-inp { width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 13px; }
+        .search-inp:focus { border-color: #0366d6; outline: none; }
+
         #list { flex: 1; overflow-y: auto; list-style: none; padding: 0; margin: 0; }
         .item { padding: 12px 10px; border-bottom: 1px solid #eee; cursor: pointer; border-left: 4px solid transparent; display: flex; align-items: flex-start; gap: 8px; user-select: none;}
         .item:hover { background: #eaeaea; }
@@ -71,53 +88,22 @@
         
         /* 编辑器通用样式 */
         .CodeMirror { height: 100%; font-family: "SFMono-Regular", Consolas, monospace; font-size: 15px; }
-        .CodeMirror-hints { z-index: 6000; } /* 确保提示框在全屏之上 */
+        .CodeMirror-hints { z-index: 6000; }
+        .CodeMirror-dialog { font-size: 13px; padding: 5px 10px; background: #fcfcfc; border-bottom: 1px solid #eee; }
 
-        /* [核心修改] 可拉伸 + 全屏支持的嵌入式编辑器 */
+        /* 嵌入式编辑器 */
         .embedded-editor {
-            display: none; /* JS toggles this to 'flex' */
-            flex-direction: column;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            margin-top: 15px;
-            background: #fff;
+            display: none; flex-direction: column;
+            border: 1px solid #ddd; border-radius: 6px; margin-top: 15px; background: #fff;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            
-            /* 可拉伸属性 */
-            resize: vertical; 
-            overflow: hidden; /* 必须设置，否则 resize 手柄可能不显示 */
-            height: 500px;    /* 默认高度 */
-            min-height: 200px;
+            resize: vertical; overflow: hidden; height: 500px; min-height: 200px;
         }
-
-        /* 全屏模式样式 */
         .embedded-editor.fullscreen {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            width: 100vw; height: 100vh;
-            z-index: 5000;
-            margin: 0;
-            border-radius: 0;
-            resize: none; /* 全屏禁止拉伸 */
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            width: 100vw; height: 100vh; z-index: 5000; margin: 0; border-radius: 0; resize: none;
         }
-
-        .embedded-editor .toolbar {
-            padding: 8px 15px;
-            background: #f4f5f7;
-            border-bottom: 1px solid #ddd;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-shrink: 0; /* 防止工具栏被压缩 */
-        }
-
-        .embedded-editor .editor-area {
-            display: flex;
-            flex: 1; /* 自动填充剩余垂直空间 */
-            height: auto; 
-            overflow: hidden;
-        }
-        
+        .embedded-editor .toolbar { padding: 8px 15px; background: #f4f5f7; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+        .embedded-editor .editor-area { display: flex; flex: 1; height: auto; overflow: hidden; }
         .embedded-editor .pane { width: 50%; height: 100%; overflow-y: auto; }
         .embedded-editor .preview-pane { padding: 20px; background: #fff; border-left: 1px solid #eee; }
 
@@ -127,6 +113,7 @@
         .env-conj { background: #fff7e6; border-left-color: #ff9900; } .env-conj .env-title { color: #d97706; }
         .env-lemma { background: #f4f5f7; border-left-color: #5e6c84; } .env-lemma .env-title { color: #42526e; font-weight: bold; }
         .env-defn { background: #e3fcef; border-left-color: #00875a; } .env-defn .env-title { color: #006644; font-weight: bold; }
+        .env-problem { background: #fff0f0; border-left-color: #d73a49; } .env-problem .env-title { color: #d73a49; font-weight: bold; }
         .env-proof { background: #fff; border-left: 2px solid #ddd; color: #333; font-style: normal; } 
         .env-proof .env-title { font-style: italic; font-weight: bold; color:#555; }
 
@@ -151,7 +138,7 @@
 
 <div id="status-bar">
     <div style="display:flex; align-items:center; gap:10px;">
-        <span id="app-title" style="font-weight:bold;">科研管理器 v11 (可拉伸全屏版)</span>
+        <span id="app-title" style="font-weight:bold;">科研管理器 v13 (搜索替换增强版)</span>
         <span id="sync-status" style="font-size:12px; color:#aaa;">⚪ 就绪</span>
     </div>
     <div id="auth-controls">
@@ -165,6 +152,10 @@
         <div class="sidebar-header">
             <h3>📚 问题库</h3>
             <button class="bar-btn primary" onclick="createNewLocal()">+</button>
+        </div>
+        <!-- [新增] 侧边栏搜索框 -->
+        <div class="search-box">
+            <input id="search-input" class="search-inp" placeholder="🔍 搜索标题或内容..." oninput="renderList()">
         </div>
         <ul id="list"></ul>
     </div>
@@ -194,7 +185,10 @@
                 <!-- 问题编辑器 -->
                 <div id="problem-editor-wrapper" class="embedded-editor">
                     <div class="toolbar">
-                        <input id="prob-title-inp" class="inp" style="width:50%; border:1px solid #ccc; padding:6px;" placeholder="问题标题">
+                        <div style="display:flex; align-items:center; gap:10px; width: 60%;">
+                            <input id="prob-title-inp" class="inp" style="flex:1; border:1px solid #ccc; padding:6px;" placeholder="问题标题">
+                            <span style="font-size:11px; color:#666;">(Ctrl-F 查找, Shift-Ctrl-R 替换)</span>
+                        </div>
                         <div style="display:flex; align-items:center;">
                             <button class="bar-btn" onclick="toggleFullscreen('problem-editor-wrapper')">⛶ 全屏</button>
                             <button class="bar-btn" onclick="closeProblemEditor()" style="margin-left:10px;">取消</button>
@@ -223,7 +217,10 @@
                     
                     <div id="note-editor-wrapper" class="embedded-editor">
                         <div class="toolbar">
-                            <span style="font-weight:bold;">📝 新笔记</span>
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <span style="font-weight:bold;">📝 新笔记</span>
+                                <span style="font-size:11px; color:#666;">(Ctrl-F 查找, Shift-Ctrl-R 替换)</span>
+                            </div>
                             <div>
                                 <button class="bar-btn" onclick="toggleFullscreen('note-editor-wrapper')">⛶ 全屏</button>
                                 <button class="bar-btn" onclick="closeNoteEditor()" style="margin-left:10px;">取消</button>
@@ -268,14 +265,17 @@
     const CFG_KEY = 'v7_config';
     let ghConfig = JSON.parse(localStorage.getItem(CFG_KEY)) || { token: '', mainGistId: '' };
     
-    // LaTeX 补全词库
+    // LaTeX 补全词库 (扩充)
     const LATEX_KEYWORDS = [
         { text: "\\begin{thm}\n\n\\end{thm}", displayText: "thm (定理)" },
         { text: "\\begin{proof}\n\n\\end{proof}", displayText: "proof (证明)" },
         { text: "\\begin{lemma}\n\n\\end{lemma}", displayText: "lemma (引理)" },
+        { text: "\\begin{lem}\n\n\\end{lem}", displayText: "lem (引理简写)" },
         { text: "\\begin{defn}\n\n\\end{defn}", displayText: "defn (定义)" },
+        { text: "\\begin{problem}\n\n\\end{problem}", displayText: "problem (问题)" },
         { text: "\\begin{conj}\n\n\\end{conj}", displayText: "conj (猜想)" },
         { text: "\\begin{align}\n\n\\end{align}", displayText: "align (多行公式)" },
+        { text: "\\begin{align*}\n\n\\end{align*}", displayText: "align* (不编号公式)" },
         { text: "\\begin{itemize}\n\\item \n\\end{itemize}", displayText: "itemize (列表)" },
         { text: "\\begin{enumerate}\n\\item \n\\end{enumerate}", displayText: "enumerate (序号列表)" },
         { text: "\\begin{bmatrix}\n\n\\end{bmatrix}", displayText: "bmatrix (矩阵)" },
@@ -285,6 +285,7 @@
         { text: "\\prod_{}^{}", displayText: "\\prod (乘积)" },
         { text: "\\int_{}^{}", displayText: "\\int (积分)" },
         { text: "\\lim_{ \\to }", displayText: "\\lim (极限)" },
+        "\\ex", "\\PP", "\\cM", "\\cT", "\\cS", "\\cong",
         "\\alpha", "\\beta", "\\gamma", "\\Gamma", "\\delta", "\\Delta", "\\epsilon", "\\varepsilon", "\\zeta", "\\eta", 
         "\\theta", "\\Theta", "\\iota", "\\kappa", "\\lambda", "\\Lambda", "\\mu", "\\nu", "\\xi", "\\Xi", "\\pi", "\\Pi", 
         "\\rho", "\\sigma", "\\Sigma", "\\tau", "\\upsilon", "\\phi", "\\Phi", "\\chi", "\\psi", "\\Psi", "\\omega", "\\Omega",
@@ -351,8 +352,9 @@
         const envs = [ 
             { tags: ['thm','theorem'], name: 'Theorem', class: 'env-thm' }, 
             { tags: ['conjecture','conj'], name: 'Conjecture', class: 'env-conj' }, 
-            { tags: ['lemma'], name: 'Lemma', class: 'env-lemma' },
+            { tags: ['lemma','lem'], name: 'Lemma', class: 'env-lemma' }, 
             { tags: ['defn','definition'], name: 'Definition', class: 'env-defn' },
+            { tags: ['problem'], name: 'Problem', class: 'env-problem' },
             { tags: ['proof'], name: 'Proof', class: 'env-proof', isProof: true } 
         ];
         envs.forEach(env => {
@@ -365,20 +367,19 @@
                 });
             });
         });
+        html = html.replace(/<p>(\\begin{align\*?}[\s\S]*?\\end{align\*?})<\/p>/gi, '$1');
         html = html.replace(/<p>(<div class="env-.*?>[\s\S]*?<\/div>)<\/p>/gi, '$1');
-        html = html.replace(/<p>(\\begin{align}[\s\S]*?\\end{align})<\/p>/gi, '$1');
         return html;
     }
 
-    // [新功能] 全屏切换
     function toggleFullscreen(wrapperId) {
         const el = document.getElementById(wrapperId);
         el.classList.toggle('fullscreen');
         const cm = wrapperId.includes('prob') ? probCm : noteCm;
-        cm.refresh(); // 必须刷新 CodeMirror 以适应新尺寸
+        cm.refresh(); 
     }
 
-    // 编辑器开闭逻辑 (改为 flex 布局以支持拉伸)
+    // 编辑器开闭逻辑
     function openProblemEditor() {
         document.getElementById('problem-display-area').style.display = 'none';
         document.getElementById('problem-editor-wrapper').style.display = 'flex';
@@ -388,8 +389,7 @@
     }
     function closeProblemEditor() {
         const el = document.getElementById('problem-editor-wrapper');
-        el.style.display = 'none';
-        el.classList.remove('fullscreen'); // 退出时取消全屏
+        el.style.display = 'none'; el.classList.remove('fullscreen'); 
         document.getElementById('problem-display-area').style.display = 'block';
     }
     
@@ -401,8 +401,7 @@
     }
     function closeNoteEditor() {
         const el = document.getElementById('note-editor-wrapper');
-        el.style.display = 'none';
-        el.classList.remove('fullscreen');
+        el.style.display = 'none'; el.classList.remove('fullscreen');
         document.getElementById('note-trigger-btn').style.display = 'block';
     }
 
@@ -426,7 +425,7 @@
         renderDetailView();
     }
 
-    // 同步与渲染核心 (保持不变)
+    // 同步与渲染核心
     async function syncPull() {
         if (visitorGistId) {
             document.getElementById('loading').style.display = 'flex';
@@ -524,8 +523,38 @@
     async function handleApiError(res) { if (res.ok) return; throw new Error(`Error ${res.status}: ${res.statusText}`); }
     function handleNetworkError(e) { alert("⚠️ " + e.message); setMsg("❌ 失败"); openConfig(); }
     
-    // 操作逻辑
-    function renderList() { document.getElementById('list').innerHTML = db.items.map((item, idx) => `<li class="item ${item.id === currentId ? 'active' : ''} ${item.shareId ? 'shared' : ''}" draggable="true" onclick="loadItem(${item.id})" ondragstart="dragStart(event, ${idx})" ondrop="dragDrop(event, ${idx})" ondragover="event.preventDefault()"><span class="pin-icon ${item.isPinned?'pinned':''}" onclick="togglePin(event, ${idx})">📌</span><span class="item-title">${item.title}</span><span class="share-icon" title="协作中">🔗</span></li>`).join(''); }
+    // [修改] 渲染列表逻辑，支持搜索
+    function renderList() { 
+        const term = document.getElementById('search-input') ? document.getElementById('search-input').value.toLowerCase() : "";
+        const isSearching = term.length > 0;
+        
+        let displayItems = db.items;
+        if(isSearching) {
+            displayItems = db.items.filter(item => 
+                (item.title && item.title.toLowerCase().includes(term)) || 
+                (item.desc && item.desc.toLowerCase().includes(term))
+            );
+        }
+
+        document.getElementById('list').innerHTML = displayItems.map((item) => {
+            // 注意：搜索状态下禁用拖拽，防止索引错乱
+            const idx = db.items.indexOf(item); 
+            const activeClass = item.id === currentId ? 'active' : '';
+            const sharedClass = item.shareId ? 'shared' : '';
+            const pinnedClass = item.isPinned ? 'pinned' : '';
+            const draggableAttr = isSearching ? '' : `draggable="true" ondragstart="dragStart(event, ${idx})" ondrop="dragDrop(event, ${idx})" ondragover="event.preventDefault()"`;
+            
+            return `
+            <li class="item ${activeClass} ${sharedClass}" 
+                ${draggableAttr}
+                onclick="loadItem(${item.id})">
+                <span class="pin-icon ${pinnedClass}" onclick="togglePin(event, ${idx})">📌</span>
+                <span class="item-title">${item.title}</span>
+                <span class="share-icon" title="协作中">🔗</span>
+            </li>`;
+        }).join(''); 
+    }
+
     function createNewLocal() { const newItem = { id: Date.now(), title: "新问题", desc: "", answers: [], date: new Date().toISOString(), isPinned: false }; db.items.unshift(newItem); saveMainDB(); loadItem(newItem.id); }
     function dragStart(e, idx) { e.dataTransfer.setData('idx', idx); }
     function dragDrop(e, targetIdx) { e.preventDefault(); const srcIdx = e.dataTransfer.getData('idx'); const [moved] = db.items.splice(srcIdx, 1); db.items.splice(targetIdx, 0, moved); renderList(); saveMainDB(true); }
