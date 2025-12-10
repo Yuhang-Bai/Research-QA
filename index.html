@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>科研管理器 v15</title>
+    <title>科研管理器 v17</title>
     
     <!-- 依赖库 -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -50,7 +50,7 @@
         .bar-btn.primary { background: #0366d6; border-color: #0366d6; }
         .bar-btn.warn { background: #d73a49; border-color: #d73a49; }
 
-        /* 顶部栏 (App Header) */
+        /* 顶部栏 */
         #status-bar { position: absolute; top: 0; left: 0; width: 100%; height: 40px; background: #24292e; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 15px; box-sizing: border-box; z-index: 1000; }
 
         /* 布局 */
@@ -79,7 +79,7 @@
         /* 详情区 */
         #detail-view { display: none; width: 100%; height: 100%; flex-direction: column; overflow-y: auto; position: relative; }
         
-        /* [核心修改] 吸顶工具栏样式 */
+        /* 吸顶工具栏 */
         #detail-toolbar {
             position: sticky;
             top: 0;
@@ -103,6 +103,8 @@
         .CodeMirror { height: 100%; font-family: "SFMono-Regular", Consolas, monospace; font-size: 15px; }
         .CodeMirror-hints { z-index: 6000; }
         .CodeMirror-dialog { font-size: 13px; padding: 5px 10px; background: #fcfcfc; border-bottom: 1px solid #eee; }
+        /* [新增] 源代码跳转高亮 */
+        .CodeMirror-activeline-background { background: #e8f2ff !important; }
 
         /* 嵌入式编辑器 */
         .embedded-editor {
@@ -118,7 +120,8 @@
         .embedded-editor .toolbar { padding: 8px 15px; background: #f4f5f7; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
         .embedded-editor .editor-area { display: flex; flex: 1; height: auto; overflow: hidden; }
         .embedded-editor .pane { width: 50%; height: 100%; overflow-y: auto; }
-        .embedded-editor .preview-pane { padding: 20px; background: #fff; border-left: 1px solid #eee; }
+        .embedded-editor .preview-pane { padding: 20px; background: #fff; border-left: 1px solid #eee; cursor: pointer; }
+        .embedded-editor .preview-pane:hover { background: #fafafa; } /* 提示可点击 */
 
         /* LaTeX 环境样式 */
         .env-block { margin: 1em 0; padding: 15px; border-radius: 4px; border-left: 4px solid #555; background: #f9f9f9; position: relative; }
@@ -153,7 +156,7 @@
 
 <div id="status-bar">
     <div style="display:flex; align-items:center; gap:10px;">
-        <span id="app-title" style="font-weight:bold;">科研管理器 v15</span>
+        <span id="app-title" style="font-weight:bold;">科研管理器 v17</span>
         <span id="sync-status" style="font-size:12px; color:#aaa;">⚪ 就绪</span>
     </div>
     <div id="auth-controls">
@@ -180,7 +183,6 @@
         <div id="empty-msg" style="text-align:center; color:#888; margin-top:20vh;"><h2>请选择一个问题</h2></div>
 
         <div id="detail-view">
-            <!-- [新增] 吸顶工具栏 -->
             <div id="detail-toolbar">
                 <span id="d-date" style="color:#888; font-size:12px;"></span>
                 <div style="display:flex; gap:10px;">
@@ -190,19 +192,17 @@
                 </div>
             </div>
 
-            <!-- 问题内容区 -->
             <div class="content-wrap" style="padding-top: 20px;">
                 <div id="problem-display-area">
                     <h1 id="d-title" style="color:#0052cc; margin-top:0;"></h1>
                     <div id="d-desc" class="markdown-body"></div>
                 </div>
 
-                <!-- 问题编辑器 -->
                 <div id="problem-editor-wrapper" class="embedded-editor">
                     <div class="toolbar">
                         <div style="display:flex; align-items:center; gap:10px; width: 60%;">
                             <input id="prob-title-inp" class="inp" style="flex:1; border:1px solid #ccc; padding:6px;" placeholder="问题标题">
-                            <span style="font-size:11px; color:#666;">(Ctrl-F 查找)</span>
+                            <span style="font-size:11px; color:#666;">(双击右侧预览可跳转)</span>
                         </div>
                         <div style="display:flex; align-items:center;">
                             <button class="bar-btn" onclick="toggleFullscreen('problem-editor-wrapper')">⛶ 全屏</button>
@@ -212,7 +212,10 @@
                     </div>
                     <div class="editor-area">
                         <div class="pane"><textarea id="prob-code-editor"></textarea></div>
-                        <div class="pane preview-pane"><div id="prob-live-preview" class="markdown-body"></div></div>
+                        <!-- [新增] title 提示用户可双击 -->
+                        <div class="pane preview-pane" id="prob-preview-container" title="双击此处跳转到左侧对应代码">
+                            <div id="prob-live-preview" class="markdown-body"></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -224,7 +227,6 @@
             <div class="content-wrap" style="padding-top:20px; padding-bottom:50px;">
                 <div id="ans-list"></div>
                 
-                <!-- 笔记编辑器 -->
                 <div id="note-section-footer" style="margin-top:30px;">
                     <div id="note-trigger-btn" style="text-align:center;">
                         <button class="bar-btn primary" style="padding:10px 40px; font-size:14px;" onclick="openNoteEditor()">➕ 添加笔记</button>
@@ -234,7 +236,7 @@
                         <div class="toolbar">
                             <div style="display:flex; align-items:center; gap:10px;">
                                 <span style="font-weight:bold;">📝 新笔记</span>
-                                <span style="font-size:11px; color:#666;">(Ctrl-F 查找)</span>
+                                <span style="font-size:11px; color:#666;">(双击右侧预览可跳转)</span>
                             </div>
                             <div>
                                 <button class="bar-btn" onclick="toggleFullscreen('note-editor-wrapper')">⛶ 全屏</button>
@@ -244,7 +246,9 @@
                         </div>
                         <div class="editor-area">
                             <div class="pane"><textarea id="note-code-editor"></textarea></div>
-                            <div class="pane preview-pane"><div id="note-live-preview" class="markdown-body"></div></div>
+                            <div class="pane preview-pane" id="note-preview-container" title="双击此处跳转到左侧对应代码">
+                                <div id="note-live-preview" class="markdown-body"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -309,13 +313,18 @@
     };
 
     function initEditors() {
-        const cmConfig = { mode: "markdown", lineNumbers: true, lineWrapping: true, extraKeys: { "Ctrl-Space": "autocomplete" } };
+        // [新增] styleActiveLine 插件支持
+        const cmConfig = { mode: "markdown", lineNumbers: true, lineWrapping: true, extraKeys: { "Ctrl-Space": "autocomplete" }, styleActiveLine: true };
         
         probCm = CodeMirror.fromTextArea(document.getElementById("prob-code-editor"), { ...cmConfig, extraKeys: { ...cmConfig.extraKeys, "Ctrl-S": saveProblem } });
         setupCmEvents(probCm, 'prob-live-preview', false); 
+        // [新增] 绑定双击事件到容器
+        document.getElementById('prob-preview-container').addEventListener('dblclick', (e) => jumpToSource(probCm, e));
 
         noteCm = CodeMirror.fromTextArea(document.getElementById("note-code-editor"), { ...cmConfig, extraKeys: { ...cmConfig.extraKeys, "Ctrl-S": saveNote } });
         setupCmEvents(noteCm, 'note-live-preview', false);
+        // [新增] 绑定双击事件到容器
+        document.getElementById('note-preview-container').addEventListener('dblclick', (e) => jumpToSource(noteCm, e));
 
         CodeMirror.registerHelper("hint", "markdown", function(editor) {
             var cur = editor.getCursor(), token = editor.getTokenAt(cur), start = token.start, end = cur.ch, word = token.string.slice(0, end - start);
@@ -338,13 +347,50 @@
         function stopResize() { document.removeEventListener('mousemove', resize, false); document.removeEventListener('mouseup', stopResize, false); }
     }
 
+    // [核心新增] 双击跳转逻辑
+    function jumpToSource(cm, event) {
+        // 1. 获取点击的文本内容
+        let target = event.target;
+        // 如果点击的是数学公式，尝试获取最近的文本块
+        if (target.tagName.toLowerCase().includes('mjx')) {
+            target = target.closest('p, li, h1, h2, h3, h4, h5, h6, .env-block') || target;
+        }
+        
+        let text = target.innerText || target.textContent;
+        if (!text) return;
+
+        // 取前 30 个字符作为搜索关键词，去除多余空白
+        let searchPhrase = text.slice(0, 30).replace(/\s+/g, ' ').trim();
+        if (searchPhrase.length < 3) return; // 太短不搜索
+
+        // 2. 在 CodeMirror 中搜索
+        let cursor = cm.getSearchCursor(searchPhrase);
+        if (cursor.findNext()) {
+            // 3. 跳转并高亮
+            let pos = cursor.from();
+            cm.setCursor(pos);
+            cm.scrollIntoView(pos, 200); // 200px margin
+            cm.setSelection(cursor.from(), cursor.to());
+            cm.focus();
+        }
+    }
+
     function setupCmEvents(cm, previewId, isGlobal) {
-        cm.on("inputRead", function(cm, change) { if (change.text[0].match(/[\\a-zA-Z]/)) { CodeMirror.commands.autocomplete(cm, null, { completeSingle: false }); } });
+        let debounceTimer = null;
+        
+        cm.on("inputRead", function(cm, change) { 
+            if (change.text[0].match(/[\\a-zA-Z]/)) { CodeMirror.commands.autocomplete(cm, null, { completeSingle: false }); } 
+        });
+        
         cm.on("change", () => {
-            const val = cm.getValue();
-            if(!isGlobal) resetDocState();
-            document.getElementById(previewId).innerHTML = renderContent(val, isGlobal);
-            if(window.MathJax) MathJax.typesetPromise([document.getElementById(previewId)]);
+            if (debounceTimer) clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                const val = cm.getValue();
+                if(!isGlobal) resetDocState();
+                const el = document.getElementById(previewId);
+                el.innerHTML = renderContent(val, isGlobal);
+                if(window.MathJax && val.trim().length > 0) MathJax.typesetPromise([el]);
+            }, 300);
         });
     }
 
