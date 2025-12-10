@@ -66,7 +66,7 @@
         .CodeMirror { height: 100%; font-family: "SFMono-Regular", Consolas, monospace; font-size: 15px; }
         .CodeMirror-hints { z-index: 3000; } /* 确保提示框在顶层 */
 
-        /* [修复] 自定义 LaTeX 环境样式 */
+        /* 自定义 LaTeX 环境样式 */
         .env-block { margin: 1em 0; padding: 15px; border-radius: 4px; border-left: 4px solid #555; background: #f9f9f9; }
         
         .env-thm { background: #e6effc; border-left-color: #0052cc; } .env-thm .env-title { color: #0052cc; font-weight: bold; }
@@ -135,7 +135,7 @@
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding-bottom:10px; border-bottom:1px solid #eee;">
                     <span id="d-date" style="color:#888; font-size:12px;"></span>
                     <div style="display:flex; gap:10px;">
-                        <button class="bar-btn only-owner" id="btn-share" onclick="convertToShared()">🔗 开启协作/获取链接</button>
+                        <button class="bar-btn only-owner" id="btn-share" onclick="manageCollaboration()">🔗 管理协作</button>
                         <button class="bar-btn" onclick="openEditor('problem')">✏️ 编辑问题</button>
                         <button class="bar-btn warn only-owner" onclick="deleteItem()">🗑️</button>
                     </div>
@@ -206,7 +206,7 @@
     const CFG_KEY = 'v7_config';
     let ghConfig = JSON.parse(localStorage.getItem(CFG_KEY)) || { token: '', mainGistId: '' };
     
-    // [修复] 补全关键词列表 (添加了 defn, lemma)
+    // 补全关键词列表
     const LATEX_KEYWORDS = [ 
         { text: "\\begin{thm}\n\n\\end{thm}", displayText: "\\begin{thm} (Theorem)" }, 
         { text: "\\begin{conj}\n\n\\end{conj}", displayText: "\\begin{conj} (Conjecture)" },
@@ -248,7 +248,6 @@
             extraKeys: { "Ctrl-S": saveEditor, "Ctrl-Space": "autocomplete" }
         });
         
-        // [修复] 自动触发补全逻辑
         cmEditor.on("inputRead", function(cm, change) { 
             if (change.text[0].match(/[\\a-zA-Z]/)) {
                 CodeMirror.commands.autocomplete(cm, null, { completeSingle: false }); 
@@ -261,16 +260,13 @@
             if(window.MathJax) MathJax.typesetPromise([document.getElementById('editor-preview')]);
         });
         
-        // [修复] 注册 Markdown Hint Helper
         CodeMirror.registerHelper("hint", "markdown", function(editor) {
             var cur = editor.getCursor(); 
             var token = editor.getTokenAt(cur);
-            // 简单处理：获取光标前的单词
             var start = token.start; 
             var end = cur.ch; 
             var word = token.string.slice(0, end - start);
             
-            // 如果输入的是 '\'，token 可能是 backslash 或者是 error
             if (word === "" && token.string === "\\") {
                 word = "\\";
                 start = token.start;
@@ -294,7 +290,6 @@
         function stopResize() { document.removeEventListener('mousemove', resize, false); document.removeEventListener('mouseup', stopResize, false); }
     }
 
-    // [修复] 自定义渲染函数：添加了 defn, lemma, 并处理 p 标签嵌套问题
     function renderContent(text) {
         if (!text) return "";
         let html = marked.parse(text);
@@ -302,17 +297,15 @@
         const envs = [ 
             { tags: ['thm','theorem'], name: 'Theorem', class: 'env-thm' }, 
             { tags: ['conjecture','conj'], name: 'Conjecture', class: 'env-conj' }, 
-            { tags: ['lemma'], name: 'Lemma', class: 'env-lemma' }, // 新增
-            { tags: ['defn','definition'], name: 'Definition', class: 'env-defn' }, // 新增
+            { tags: ['lemma'], name: 'Lemma', class: 'env-lemma' },
+            { tags: ['defn','definition'], name: 'Definition', class: 'env-defn' },
             { tags: ['proof'], name: 'Proof', class: 'env-proof', isProof: true } 
         ];
 
         envs.forEach(env => {
             env.tags.forEach(tag => {
-                // 正则匹配
                 const regex = new RegExp(`\\\\begin\\{${tag}\\}([\\s\\S]*?)\\\\end\\{${tag}\\}`, 'gi');
                 html = html.replace(regex, (m, c) => {
-                    // 清理 markdown 自动包裹的 p 标签
                     c = c.replace(/^\s*<p>|<\/p>\s*$/g, '');
                     let blockHtml = "";
                     if (env.isProof) {
@@ -325,16 +318,13 @@
             });
         });
 
-        // [额外修复] 如果 div 被包裹在 p 中 (Marked 的常见行为)，解包它
         html = html.replace(/<p>(<div class="env-.*?>[\s\S]*?<\/div>)<\/p>/gi, '$1');
 
         return html;
     }
 
-    // [修复] 统一的刷新入口函数
     async function syncPull() {
         if (visitorGistId) {
-            // 访客模式刷新
             document.getElementById('loading').style.display = 'flex';
             document.getElementById('loading-tip').innerText = "刷新协作内容...";
             try {
@@ -346,7 +336,6 @@
                 document.getElementById('loading').style.display = 'none';
             }
         } else {
-            // 主人模式刷新
             await syncPullMain();
         }
     }
@@ -480,16 +469,57 @@
         if(window.MathJax) MathJax.typesetPromise();
     }
 
-    async function convertToShared() {
+    // [更新] 管理协作的入口函数
+    async function manageCollaboration() {
         const item = db.items.find(x => x.id === currentId);
         if(!item) return;
 
         if (item.shareId) {
-            const link = `${location.origin}${location.pathname}?gist=${item.shareId}`;
-            prompt("🔗 此问题已处于协作模式。将此链接发给合作者：", link);
-            return;
+            const action = prompt("⚙️ 协作管理\n请输入对应数字：\n\n1. 📋 获取分享链接\n2. 🔌 停止协作 (断开连接，内容存回本地)", "1");
+            if (action === "1") {
+                const link = `${location.origin}${location.pathname}?gist=${item.shareId}`;
+                prompt("🔗 链接：", link);
+            } else if (action === "2") {
+                await stopCollaboration(item);
+            }
+        } else {
+            await convertToShared();
         }
+    }
 
+    // [新增] 停止协作功能
+    async function stopCollaboration(item) {
+        if(!confirm("⚠️ 确定停止协作吗？\n\n1. 将断开与云端 Gist 的连接。\n2. 当前显示的最新内容将保存回您的主数据库。\n3. 之前的分享链接将失效（无法再同步）。")) return;
+        
+        setMsg("正在断开...");
+        document.getElementById('loading').style.display = 'flex';
+        document.getElementById('loading-tip').innerText = "正在合并数据回本地...";
+        
+        try {
+            // 1. Merge remote content into local item (currentItemData has the latest from shared Gist)
+            item.desc = currentItemData.desc;
+            item.answers = currentItemData.answers;
+            item.title = currentItemData.title;
+            item.date = currentItemData.date;
+            
+            // 2. Remove shareId
+            delete item.shareId;
+            
+            // 3. Save Main DB
+            await saveMainDB(true);
+            
+            alert("✅ 已关闭协作，内容已完整存回本地。");
+            loadItem(item.id); 
+        } catch(e) {
+            alert("操作失败: " + e.message);
+        } finally {
+            document.getElementById('loading').style.display = 'none';
+        }
+    }
+
+    // 原开启协作功能
+    async function convertToShared() {
+        const item = db.items.find(x => x.id === currentId);
         if(!confirm("⚠️ 确定开启协作模式吗？\n\n开启后，此问题的内容将移动到独立的云端空间，以便合作者同步编辑。")) return;
 
         setMsg("创建协作空间...");
@@ -564,21 +594,18 @@
         renderDetailView();
     }
 
-    // [修复] 增加错误捕获和 Loading 提示的删除函数
     async function deleteItem() {
         if(!currentId) return;
         if(!confirm("⚠️ 确定要彻底删除此问题吗？\n操作不可恢复。")) return;
         
-        // 显示加载遮罩，防止误以为没反应
         document.getElementById('loading').style.display = 'flex';
         document.getElementById('loading-tip').innerText = "正在云端删除...";
 
         try {
             db.items = db.items.filter(x => x.id !== currentId);
-            await saveMainDB(true); // 静默保存，因为我们已经有 Loading 了
-            location.reload(); // 成功后刷新
+            await saveMainDB(true); 
+            location.reload(); 
         } catch(e) {
-            // 失败则关闭遮罩并报错
             document.getElementById('loading').style.display = 'none';
             alert("❌ 删除失败: " + e.message + "\n可能是网络连接问题或 Token 权限不足。");
         }
