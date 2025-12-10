@@ -1,446 +1,446 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>科研管理器 </title>
-    
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script>MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},startup:{typeset:false}};</script>
-    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>科研管理器 (云端同步版)</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},startup:{typeset:false}};</script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
 
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/hint/show-hint.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/markdown/markdown.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/stex/stex.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/hint/show-hint.min.js"></script>
-    
-    <style>
-        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; height: 100vh; background: #f4f5f7; overflow: hidden; color: #333; }
-        
-        /* 顶部云状态栏 */
-        #cloud-status-bar {
-            position: absolute; top: 0; left: 0; width: 100%; height: 32px; background: #24292e; color: #fff;
-            font-size: 12px; display: flex; align-items: center; justify-content: space-between; padding: 0 15px; box-sizing: border-box; z-index: 100;
-        }
-        #cloud-msg { font-weight: bold; }
-        .cloud-btn { background: #0366d6; border: none; color: white; padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 11px; margin-left: 5px;}
-        .cloud-btn:hover { background: #0255b3; }
-        .cloud-btn.warn { background: #d73a49; }
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/hint/show-hint.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/markdown/markdown.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/stex/stex.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/hint/show-hint.min.js"></script>
+    
+    <style>
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; height: 100vh; background: #f4f5f7; overflow: hidden; color: #333; }
+        
+        /* 顶部云状态栏 */
+        #cloud-status-bar {
+            position: absolute; top: 0; left: 0; width: 100%; height: 32px; background: #24292e; color: #fff;
+            font-size: 12px; display: flex; align-items: center; justify-content: space-between; padding: 0 15px; box-sizing: border-box; z-index: 100;
+        }
+        #cloud-msg { font-weight: bold; }
+        .cloud-btn { background: #0366d6; border: none; color: white; padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 11px; margin-left: 5px;}
+        .cloud-btn:hover { background: #0255b3; }
+        .cloud-btn.warn { background: #d73a49; }
 
-        /* 布局调整 (为顶部栏留空) */
-        #sidebar { width: 260px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; z-index: 2; flex-shrink: 0; margin-top: 32px; }
-        #main { flex: 1; display: flex; flex-direction: column; overflow-y: auto; background: white; position: relative; margin-top: 32px; }
+        /* 布局调整 (为顶部栏留空) */
+        #sidebar { width: 260px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; z-index: 2; flex-shrink: 0; margin-top: 32px; }
+        #main { flex: 1; display: flex; flex-direction: column; overflow-y: auto; background: white; position: relative; margin-top: 32px; }
 
-        /* 通用组件 (复用 V8/V9 样式) */
-        .header { padding: 15px; border-bottom: 1px solid #ddd; background: #fafbfc; display: flex; justify-content: space-between; align-items: center; }
-        .add-btn { background: #0052cc; color: white; border: none; width: 30px; height: 30px; cursor: pointer; border-radius: 4px; font-size: 20px; display:flex; align-items:center; justify-content:center; }
-        #list { flex: 1; overflow-y: auto; list-style: none; padding: 0; margin: 0; }
-        .item { padding: 15px; border-bottom: 1px solid #eee; cursor: pointer; border-left: 4px solid transparent; }
-        .item:hover { background: #eee; }
-        .item.active { background: #e6effc; border-left: 4px solid #0052cc; }
-        .item-title { font-weight: bold; margin-bottom: 5px; color: #172b4d; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .item-date { font-size: 12px; color: #888; }
-        
-        #detail-view { display: none; width: 100%; height: 100%; flex-direction: column; }
-        .content-wrap { padding: 30px 40px; max-width: 1000px; margin: 0 auto; width: 100%; box-sizing: border-box; }
-        .meta-bar { display: flex; justify-content: space-between; margin-bottom: 20px; align-items: center; }
-        .btn { padding: 6px 12px; cursor: pointer; border: none; border-radius: 3px; font-size: 13px; margin-left: 8px;}
-        .btn-primary { background: #0052cc; color: white; }
-        .btn-share { background: #00875a; color: white; }
-        .btn-del { background: #ffebe6; color: #de350b; }
-        .btn-edit { background: #ebecf0; color: #091e42; }
+        /* 通用组件 (复用 V8/V9 样式) */
+        .header { padding: 15px; border-bottom: 1px solid #ddd; background: #fafbfc; display: flex; justify-content: space-between; align-items: center; }
+        .add-btn { background: #0052cc; color: white; border: none; width: 30px; height: 30px; cursor: pointer; border-radius: 4px; font-size: 20px; display:flex; align-items:center; justify-content:center; }
+        #list { flex: 1; overflow-y: auto; list-style: none; padding: 0; margin: 0; }
+        .item { padding: 15px; border-bottom: 1px solid #eee; cursor: pointer; border-left: 4px solid transparent; }
+        .item:hover { background: #eee; }
+        .item.active { background: #e6effc; border-left: 4px solid #0052cc; }
+        .item-title { font-weight: bold; margin-bottom: 5px; color: #172b4d; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .item-date { font-size: 12px; color: #888; }
+        
+        #detail-view { display: none; width: 100%; height: 100%; flex-direction: column; }
+        .content-wrap { padding: 30px 40px; max-width: 1000px; margin: 0 auto; width: 100%; box-sizing: border-box; }
+        .meta-bar { display: flex; justify-content: space-between; margin-bottom: 20px; align-items: center; }
+        .btn { padding: 6px 12px; cursor: pointer; border: none; border-radius: 3px; font-size: 13px; margin-left: 8px;}
+        .btn-primary { background: #0052cc; color: white; }
+        .btn-share { background: #00875a; color: white; }
+        .btn-del { background: #ffebe6; color: #de350b; }
+        .btn-edit { background: #ebecf0; color: #091e42; }
 
-        .markdown-body { line-height: 1.6; font-size: 16px; }
-        .markdown-body h1, .markdown-body h2 { border-bottom: 1px solid #eaecef; padding-bottom: .3em; margin-top: 24px; }
-        .markdown-body code { background-color: #f6f8fa; border-radius: 3px; padding: 2px 4px; font-family: monospace; }
-        .markdown-body pre { background-color: #f6f8fa; padding: 16px; border-radius: 6px; overflow: auto; }
-        .markdown-body blockquote { border-left: 4px solid #dfe2e5; color: #6a737d; padding-left: 1em; margin: 0; }
+        .markdown-body { line-height: 1.6; font-size: 16px; }
+        .markdown-body h1, .markdown-body h2 { border-bottom: 1px solid #eaecef; padding-bottom: .3em; margin-top: 24px; }
+        .markdown-body code { background-color: #f6f8fa; border-radius: 3px; padding: 2px 4px; font-family: monospace; }
+        .markdown-body pre { background-color: #f6f8fa; padding: 16px; border-radius: 6px; overflow: auto; }
+        .markdown-body blockquote { border-left: 4px solid #dfe2e5; color: #6a737d; padding-left: 1em; margin: 0; }
 
-        .divider-section { background-color: #f4f5f7; border-top: 1px solid #dfe1e6; border-bottom: 1px solid #dfe1e6; padding: 8px 40px; color: #5e6c84; font-weight: bold; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; }
-        .answers-section { background: #fff; padding-bottom: 80px; }
-        .ans-item { border: 1px solid #eee; padding: 20px; border-radius: 8px; margin-bottom: 15px; background: #fafbfc; }
-        .ans-meta { font-size: 12px; color: #aaa; margin-top: 10px; display: flex; justify-content: space-between; border-top: 1px solid #eee; padding-top: 10px; }
+        .divider-section { background-color: #f4f5f7; border-top: 1px solid #dfe1e6; border-bottom: 1px solid #dfe1e6; padding: 8px 40px; color: #5e6c84; font-weight: bold; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; }
+        .answers-section { background: #fff; padding-bottom: 80px; }
+        .ans-item { border: 1px solid #eee; padding: 20px; border-radius: 8px; margin-bottom: 15px; background: #fafbfc; }
+        .ans-meta { font-size: 12px; color: #aaa; margin-top: 10px; display: flex; justify-content: space-between; border-top: 1px solid #eee; padding-top: 10px; }
 
-        /* 编辑器 */
-        #editor-container { display: none; flex: 1; flex-direction: column; height: 100%; overflow: hidden; background: #fff; }
-        .editor-toolbar { padding: 10px 20px; border-bottom: 1px solid #ddd; background: #f4f5f7; display: flex; justify-content: space-between; align-items: center; }
-        .editor-split-view { display: flex; flex: 1; overflow: hidden; }
-        .editor-pane, .preview-pane { width: 50%; height: 100%; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
-        .preview-pane { overflow-y: auto; padding: 20px 40px; background: #fff; box-sizing: border-box; border-right: none; }
-        .title-input { width: 100%; padding: 10px 20px; font-size: 18px; font-weight: bold; border: none; border-bottom: 1px solid #ddd; outline: none; }
-        .CodeMirror { height: 100%; font-family: Consolas, Monaco, monospace; font-size: 15px; line-height: 1.5; }
-        .note-input-area { border: 2px solid #eee; border-radius: 6px; overflow: hidden; }
-        .note-cm-container .CodeMirror { height: 120px; }
-        #note-live-preview { margin-top: 10px; padding: 10px; border-top: 1px dashed #ddd; min-height: 40px; color: #555; font-size: 14px; }
+        /* 编辑器 */
+        #editor-container { display: none; flex: 1; flex-direction: column; height: 100%; overflow: hidden; background: #fff; }
+        .editor-toolbar { padding: 10px 20px; border-bottom: 1px solid #ddd; background: #f4f5f7; display: flex; justify-content: space-between; align-items: center; }
+        .editor-split-view { display: flex; flex: 1; overflow: hidden; }
+        .editor-pane, .preview-pane { width: 50%; height: 100%; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
+        .preview-pane { overflow-y: auto; padding: 20px 40px; background: #fff; box-sizing: border-box; border-right: none; }
+        .title-input { width: 100%; padding: 10px 20px; font-size: 18px; font-weight: bold; border: none; border-bottom: 1px solid #ddd; outline: none; }
+        .CodeMirror { height: 100%; font-family: Consolas, Monaco, monospace; font-size: 15px; line-height: 1.5; }
+        .note-input-area { border: 2px solid #eee; border-radius: 6px; overflow: hidden; }
+        .note-cm-container .CodeMirror { height: 120px; }
+        #note-live-preview { margin-top: 10px; padding: 10px; border-top: 1px dashed #ddd; min-height: 40px; color: #555; font-size: 14px; }
 
-        /* 学术环境 */
-        .env-block { margin: 15px 0; padding: 15px; border-radius: 4px; text-align: left; }
-        .env-title { font-weight: bold; margin-right: 8px; }
-        .env-content { font-style: italic; }
-        .env-thm { background: #e6effc; border-left: 4px solid #0052cc; color: #172b4d; }
-        .env-thm .env-title { color: #0052cc; }
-        .env-conj { background: #fff7e6; border-left: 4px solid #ff9900; color: #172b4d; }
-        .env-conj .env-title { color: #d97706; }
-        .env-lemma { background: #f4f5f7; border-left: 4px solid #5e6c84; color: #172b4d; }
-        .env-lemma .env-title { color: #42526e; }
-        .env-defn { background: #e3fcef; border-left: 4px solid #00875a; color: #172b4d; }
-        .env-defn .env-title { color: #006644; }
-        .env-proof { margin: 15px 0; padding-left: 15px; color: #333; }
-        .env-proof .env-title { font-style: italic; font-weight: bold; color: #333; }
-        .env-proof .env-content { font-style: normal; }
-        .qed-symbol { float: right; color: #333; }
+        /* 学术环境 */
+        .env-block { margin: 15px 0; padding: 15px; border-radius: 4px; text-align: left; }
+        .env-title { font-weight: bold; margin-right: 8px; }
+        .env-content { font-style: italic; }
+        .env-thm { background: #e6effc; border-left: 4px solid #0052cc; color: #172b4d; }
+        .env-thm .env-title { color: #0052cc; }
+        .env-conj { background: #fff7e6; border-left: 4px solid #ff9900; color: #172b4d; }
+        .env-conj .env-title { color: #d97706; }
+        .env-lemma { background: #f4f5f7; border-left: 4px solid #5e6c84; color: #172b4d; }
+        .env-lemma .env-title { color: #42526e; }
+        .env-defn { background: #e3fcef; border-left: 4px solid #00875a; color: #172b4d; }
+        .env-defn .env-title { color: #006644; }
+        .env-proof { margin: 15px 0; padding-left: 15px; color: #333; }
+        .env-proof .env-title { font-style: italic; font-weight: bold; color: #333; }
+        .env-proof .env-content { font-style: normal; }
+        .qed-symbol { float: right; color: #333; }
 
-        /* 弹窗 */
-        #modal, #config-modal { display: none; position: fixed; inset: 0; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; z-index: 999; }
-        .modal-content { background:white; padding:20px; width:500px; border-radius:8px; display:flex; flex-direction:column; gap:10px; }
-        .modal-inp { padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
-    </style>
+        /* 弹窗 */
+        #modal, #config-modal { display: none; position: fixed; inset: 0; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; z-index: 999; }
+        .modal-content { background:white; padding:20px; width:500px; border-radius:8px; display:flex; flex-direction:column; gap:10px; }
+        .modal-inp { padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+    </style>
 </head>
 <body>
 
 <div id="cloud-status-bar">
-    <div id="cloud-msg">📡 未配置云端同步</div>
-    <div>
-        <button class="cloud-btn" onclick="syncPull()">⬇️ 拉取</button>
-        <button class="cloud-btn" onclick="syncPush()">⬆️ 推送</button>
-        <button class="cloud-btn warn" onclick="openConfig()">⚙️ 配置密钥</button>
-    </div>
+    <div id="cloud-msg">📡 未配置云端同步</div>
+    <div>
+        <button class="cloud-btn" onclick="syncPull()">⬇️ 拉取</button>
+        <button class="cloud-btn" onclick="syncPush()">⬆️ 推送</button>
+        <button class="cloud-btn warn" onclick="openConfig()">⚙️ 配置密钥</button>
+    </div>
 </div>
 
 <div id="sidebar">
-    <div class="header">
-        <h3 style="margin:0">问题库</h3>
-        <button class="add-btn" onclick="openModal()">+</button>
-    </div>
-    <ul id="list"></ul>
+    <div class="header">
+        <h3 style="margin:0">问题库</h3>
+        <button class="add-btn" onclick="openModal()">+</button>
+    </div>
+    <ul id="list"></ul>
 </div>
 
 <div id="main">
-    <div id="empty-msg" style="text-align:center; color:#888; margin-top:100px;">
-        <h2>请点击左侧“+”添加问题</h2>
-    </div>
+    <div id="empty-msg" style="text-align:center; color:#888; margin-top:100px;">
+        <h2>请点击左侧“+”添加问题</h2>
+    </div>
 
-    <div id="detail-view">
-        <div class="content-wrap" style="flex:1;">
-            <div class="meta-bar">
-                <span id="d-date" style="color:#888; font-size:12px;"></span>
-                <div>
-                    <button class="btn btn-edit" onclick="enterEditMode()">✏️ 修改</button>
-                    <button class="btn btn-share" onclick="doExport()">📤 导出</button>
-                    <button class="btn btn-del" onclick="doDelete()">删除</button>
-                </div>
-            </div>
-            <h1 id="d-title" style="color:#0052cc; margin-top:0;"></h1>
-            <div id="d-desc" class="markdown-body"></div>
-        </div>
+    <div id="detail-view">
+        <div class="content-wrap" style="flex:1;">
+            <div class="meta-bar">
+                <span id="d-date" style="color:#888; font-size:12px;"></span>
+                <div>
+                    <button class="btn btn-edit" onclick="enterEditMode()">✏️ 修改</button>
+                    <button class="btn btn-share" onclick="doExport()">📤 导出</button>
+                    <button class="btn btn-del" onclick="doDelete()">删除</button>
+                </div>
+            </div>
+            <h1 id="d-title" style="color:#0052cc; margin-top:0;"></h1>
+            <div id="d-desc" class="markdown-body"></div>
+        </div>
 
-        <div class="divider-section">▼ 笔记与讨论</div>
+        <div class="divider-section">▼ 笔记与讨论</div>
 
-        <div class="content-wrap answers-section">
-            <div id="ans-list"></div>
-            <h4 style="margin:20px 0 10px 0; color:#555;">添加新笔记:</h4>
-            <div class="note-input-area note-cm-container"><textarea id="new-ans-textarea"></textarea></div>
-            <div id="note-live-preview" class="markdown-body">预览区域</div>
-            <div style="text-align:right; margin-top:10px;">
-                <button class="btn btn-primary" onclick="addAns()">提交笔记</button>
-            </div>
-        </div>
-    </div>
+        <div class="content-wrap answers-section">
+            <div id="ans-list"></div>
+            <h4 style="margin:20px 0 10px 0; color:#555;">添加新笔记:</h4>
+            <div class="note-input-area note-cm-container"><textarea id="new-ans-textarea"></textarea></div>
+            <div id="note-live-preview" class="markdown-body">预览区域</div>
+            <div style="text-align:right; margin-top:10px;">
+                <button class="btn btn-primary" onclick="addAns()">提交笔记</button>
+            </div>
+        </div>
+    </div>
 
-    <div id="editor-container">
-        <div class="editor-toolbar">
-            <span style="font-weight:bold;">✏️ 编辑模式</span>
-            <div>
-                <button class="btn" style="background:#eee;" onclick="exitEditMode()">取消</button>
-                <button class="btn btn-primary" onclick="saveEdit()">保存修改</button>
-            </div>
-        </div>
-        <input type="text" id="editor-title" class="title-input" placeholder="问题标题">
-        <div class="editor-split-view">
-            <div class="editor-pane"><textarea id="code-editor"></textarea></div>
-            <div class="preview-pane"><div id="editor-preview" class="markdown-body"></div></div>
-        </div>
-    </div>
+    <div id="editor-container">
+        <div class="editor-toolbar">
+            <span style="font-weight:bold;">✏️ 编辑模式</span>
+            <div>
+                <button class="btn" style="background:#eee;" onclick="exitEditMode()">取消</button>
+                <button class="btn btn-primary" onclick="saveEdit()">保存修改</button>
+            </div>
+        </div>
+        <input type="text" id="editor-title" class="title-input" placeholder="问题标题">
+        <div class="editor-split-view">
+            <div class="editor-pane"><textarea id="code-editor"></textarea></div>
+            <div class="preview-pane"><div id="editor-preview" class="markdown-body"></div></div>
+        </div>
+    </div>
 </div>
 
 <div id="modal">
-    <div class="modal-content">
-        <h3>新建问题</h3>
-        <input class="modal-inp" id="m-title" placeholder="标题">
-        <textarea class="modal-inp" id="m-desc" style="height:150px" placeholder="简要描述"></textarea>
-        <div style="text-align:right;">
-            <button class="btn" style="background:#eee;" onclick="document.getElementById('modal').style.display='none'">取消</button>
-            <button class="btn btn-primary" onclick="saveNew()">创建</button>
-        </div>
-    </div>
+    <div class="modal-content">
+        <h3>新建问题</h3>
+        <input class="modal-inp" id="m-title" placeholder="标题">
+        <textarea class="modal-inp" id="m-desc" style="height:150px" placeholder="简要描述"></textarea>
+        <div style="text-align:right;">
+            <button class="btn" style="background:#eee;" onclick="document.getElementById('modal').style.display='none'">取消</button>
+            <button class="btn btn-primary" onclick="saveNew()">创建</button>
+        </div>
+    </div>
 </div>
 
 <div id="config-modal">
-    <div class="modal-content">
-        <h3>⚙️ 云端配置 (GitHub Gist)</h3>
-        <p style="font-size:12px; color:#666;">配置后，数据将同步到您的私人 Gist，实现多设备同步。</p>
-        <label>GitHub Token (需勾选 gist 权限):</label>
-        <input class="modal-inp" id="cfg-token" type="password" placeholder="ghp_xxxxxxxxxxxx">
-        <label>Gist ID (URL 后面的那串字符):</label>
-        <input class="modal-inp" id="cfg-id" placeholder="例如: abc1234567890def">
-        <div style="text-align:right;">
-            <button class="btn" style="background:#eee;" onclick="document.getElementById('config-modal').style.display='none'">关闭</button>
-            <button class="btn btn-primary" onclick="saveConfig()">保存并测试</button>
-        </div>
-    </div>
+    <div class="modal-content">
+        <h3>⚙️ 云端配置 (GitHub Gist)</h3>
+        <p style="font-size:12px; color:#666;">配置后，数据将同步到您的私人 Gist，实现多设备同步。</p>
+        <label>GitHub Token (需勾选 gist 权限):</label>
+        <input class="modal-inp" id="cfg-token" type="password" placeholder="ghp_xxxxxxxxxxxx">
+        <label>Gist ID (URL 后面的那串字符):</label>
+        <input class="modal-inp" id="cfg-id" placeholder="例如: abc1234567890def">
+        <div style="text-align:right;">
+            <button class="btn" style="background:#eee;" onclick="document.getElementById('config-modal').style.display='none'">关闭</button>
+            <button class="btn btn-primary" onclick="saveConfig()">保存并测试</button>
+        </div>
+    </div>
 </div>
 
 <script>
-    // --- 0. 配置与初始化 ---
-    const LATEX_KEYWORDS = [ { text: "\\begin{thm}\n\n\\end{thm}", displayText: "thm" }, { text: "\\begin{conj}\n\n\\end{conj}", displayText: "conj" }, "\\alpha", "\\beta", "\\sum", "\\prod" ];
-    let mainEditor, noteEditor, debounceTimer;
-    var data = JSON.parse(localStorage.getItem('my_research_v4')) || [];
-    var currentId = null;
+    // --- 0. 配置与初始化 ---
+    const LATEX_KEYWORDS = [ { text: "\\begin{thm}\n\n\\end{thm}", displayText: "thm" }, { text: "\\begin{conj}\n\n\\end{conj}", displayText: "conj" }, "\\alpha", "\\beta", "\\sum", "\\prod" ];
+    let mainEditor, noteEditor, debounceTimer;
+    var data = JSON.parse(localStorage.getItem('my_research_v4')) || [];
+    var currentId = null;
 
-    // GitHub 配置
-    var ghConfig = JSON.parse(localStorage.getItem('gh_config')) || { token: '', gistId: '' };
+    // GitHub 配置
+    var ghConfig = JSON.parse(localStorage.getItem('gh_config')) || { token: '', gistId: '' };
 
-    window.onload = function() {
-        initEditors();
-        renderList();
-        updateCloudStatus();
-        if(ghConfig.token && ghConfig.gistId) {
-            syncPull(true); // 自动拉取
-        }
-    };
+    window.onload = function() {
+        initEditors();
+        renderList();
+        updateCloudStatus();
+        if(ghConfig.token && ghConfig.gistId) {
+            syncPull(true); // 自动拉取
+        }
+    };
 
-    function initEditors() {
-        mainEditor = CodeMirror.fromTextArea(document.getElementById("code-editor"), { mode: "markdown", theme: "default", lineNumbers: true, lineWrapping: true, extraKeys: {"Ctrl-Space": "autocomplete"} });
-        mainEditor.on("inputRead", function(cm, change) { if (change.text[0].match(/[\\a-zA-Z]/)) CodeMirror.commands.autocomplete(cm, null, { completeSingle: false }); });
-        mainEditor.on("change", () => updateMainPreview());
+    function initEditors() {
+        mainEditor = CodeMirror.fromTextArea(document.getElementById("code-editor"), { mode: "markdown", theme: "default", lineNumbers: true, lineWrapping: true, extraKeys: {"Ctrl-Space": "autocomplete"} });
+        mainEditor.on("inputRead", function(cm, change) { if (change.text[0].match(/[\\a-zA-Z]/)) CodeMirror.commands.autocomplete(cm, null, { completeSingle: false }); });
+        mainEditor.on("change", () => updateMainPreview());
 
-        noteEditor = CodeMirror.fromTextArea(document.getElementById("new-ans-textarea"), { mode: "markdown", lineWrapping: true, extraKeys: {"Ctrl-Space": "autocomplete"} });
-        noteEditor.on("inputRead", function(cm, change) { if (change.text[0].match(/[\\a-zA-Z]/)) CodeMirror.commands.autocomplete(cm, null, { completeSingle: false }); });
-        noteEditor.on("change", () => updateNotePreview());
-        
-        CodeMirror.registerHelper("hint", "markdown", function(editor) {
-            var cur = editor.getCursor(); var token = editor.getTokenAt(cur);
-            var start = token.start; var end = cur.ch; var word = token.string.slice(0, end - start);
-            var list = LATEX_KEYWORDS.filter(function(item) { var text = (typeof item === "string") ? item : item.displayText; return text.indexOf(word) >= 0; });
-            return { list: list, from: CodeMirror.Pos(cur.line, start), to: CodeMirror.Pos(cur.line, end) };
-        });
-    }
+        noteEditor = CodeMirror.fromTextArea(document.getElementById("new-ans-textarea"), { mode: "markdown", lineWrapping: true, extraKeys: {"Ctrl-Space": "autocomplete"} });
+        noteEditor.on("inputRead", function(cm, change) { if (change.text[0].match(/[\\a-zA-Z]/)) CodeMirror.commands.autocomplete(cm, null, { completeSingle: false }); });
+        noteEditor.on("change", () => updateNotePreview());
+        
+        CodeMirror.registerHelper("hint", "markdown", function(editor) {
+            var cur = editor.getCursor(); var token = editor.getTokenAt(cur);
+            var start = token.start; var end = cur.ch; var word = token.string.slice(0, end - start);
+            var list = LATEX_KEYWORDS.filter(function(item) { var text = (typeof item === "string") ? item : item.displayText; return text.indexOf(word) >= 0; });
+            return { list: list, from: CodeMirror.Pos(cur.line, start), to: CodeMirror.Pos(cur.line, end) };
+        });
+    }
 
-    // --- 1. 云端同步核心逻辑 ---
-    function openConfig() {
-        document.getElementById('cfg-token').value = ghConfig.token;
-        document.getElementById('cfg-id').value = ghConfig.gistId;
-        document.getElementById('config-modal').style.display = 'flex';
-    }
+    // --- 1. 云端同步核心逻辑 ---
+    function openConfig() {
+        document.getElementById('cfg-token').value = ghConfig.token;
+        document.getElementById('cfg-id').value = ghConfig.gistId;
+        document.getElementById('config-modal').style.display = 'flex';
+    }
 
-    function saveConfig() {
-        ghConfig.token = document.getElementById('cfg-token').value.trim();
-        ghConfig.gistId = document.getElementById('cfg-id').value.trim();
-        localStorage.setItem('gh_config', JSON.stringify(ghConfig));
-        document.getElementById('config-modal').style.display = 'none';
-        updateCloudStatus();
-        syncPull(); // 保存后立即尝试拉取
-    }
+    function saveConfig() {
+        ghConfig.token = document.getElementById('cfg-token').value.trim();
+        ghConfig.gistId = document.getElementById('cfg-id').value.trim();
+        localStorage.setItem('gh_config', JSON.stringify(ghConfig));
+        document.getElementById('config-modal').style.display = 'none';
+        updateCloudStatus();
+        syncPull(); // 保存后立即尝试拉取
+    }
 
-    function updateCloudStatus() {
-        const msg = document.getElementById('cloud-msg');
-        if(!ghConfig.token || !ghConfig.gistId) {
-            msg.innerText = "📡 未配置云端";
-            msg.style.color = "#ff9900";
-        } else {
-            msg.innerText = "✅ 云端已就绪";
-            msg.style.color = "#4caf50";
-        }
-    }
+    function updateCloudStatus() {
+        const msg = document.getElementById('cloud-msg');
+        if(!ghConfig.token || !ghConfig.gistId) {
+            msg.innerText = "📡 未配置云端";
+            msg.style.color = "#ff9900";
+        } else {
+            msg.innerText = "✅ 云端已就绪";
+            msg.style.color = "#4caf50";
+        }
+    }
 
-    // 拉取数据 (Load)
-    async function syncPull(silent = false) {
-        if(!ghConfig.token) return (!silent && alert("请先配置密钥"));
-        const msg = document.getElementById('cloud-msg');
-        msg.innerText = "🔄 正在同步...";
-        
-        try {
-            const res = await fetch(`https://api.github.com/gists/${ghConfig.gistId}`, {
-                headers: { "Authorization": `token ${ghConfig.token}` }
-            });
-            if(!res.ok) throw new Error("连接失败");
-            const json = await res.json();
-            const fileContent = json.files["data.json"].content;
-            
-            // 合并逻辑：简单覆盖 (实际使用建议更小心)
-            data = JSON.parse(fileContent);
-            localStorage.setItem('my_research_v4', JSON.stringify(data));
-            renderList();
-            if(currentId) loadDetail(currentId); // 刷新当前页
-            
-            msg.innerText = "☁️ 已同步到最新 (" + new Date().toLocaleTimeString() + ")";
-            if(!silent) alert("拉取成功！");
-        } catch(e) {
-            msg.innerText = "❌ 同步失败";
-            if(!silent) alert("同步失败: " + e.message);
-        }
-    }
+    // 拉取数据 (Load)
+    async function syncPull(silent = false) {
+        if(!ghConfig.token) return (!silent && alert("请先配置密钥"));
+        const msg = document.getElementById('cloud-msg');
+        msg.innerText = "🔄 正在同步...";
+        
+        try {
+            const res = await fetch(`https://api.github.com/gists/${ghConfig.gistId}`, {
+                headers: { "Authorization": `token ${ghConfig.token}` }
+            });
+            if(!res.ok) throw new Error("连接失败");
+            const json = await res.json();
+            const fileContent = json.files["data.json"].content;
+            
+            // 合并逻辑：简单覆盖 (实际使用建议更小心)
+            data = JSON.parse(fileContent);
+            localStorage.setItem('my_research_v4', JSON.stringify(data));
+            renderList();
+            if(currentId) loadDetail(currentId); // 刷新当前页
+            
+            msg.innerText = "☁️ 已同步到最新 (" + new Date().toLocaleTimeString() + ")";
+            if(!silent) alert("拉取成功！");
+        } catch(e) {
+            msg.innerText = "❌ 同步失败";
+            if(!silent) alert("同步失败: " + e.message);
+        }
+    }
 
-    // 推送数据 (Save)
-    async function syncPush() {
-        if(!ghConfig.token) return alert("请先配置密钥");
-        const msg = document.getElementById('cloud-msg');
-        msg.innerText = "⬆️ 正在上传...";
-        
-        try {
-            const payload = {
-                files: {
-                    "data.json": { content: JSON.stringify(data, null, 2) }
-                }
-            };
-            const res = await fetch(`https://api.github.com/gists/${ghConfig.gistId}`, {
-                method: "PATCH",
-                headers: { 
-                    "Authorization": `token ${ghConfig.token}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(payload)
-            });
-            if(!res.ok) throw new Error("上传失败");
-            
-            msg.innerText = "☁️ 上传成功 (" + new Date().toLocaleTimeString() + ")";
-        } catch(e) {
-            msg.innerText = "❌ 上传失败";
-            alert("上传失败: " + e.message);
-        }
-    }
+    // 推送数据 (Save)
+    async function syncPush() {
+        if(!ghConfig.token) return alert("请先配置密钥");
+        const msg = document.getElementById('cloud-msg');
+        msg.innerText = "⬆️ 正在上传...";
+        
+        try {
+            const payload = {
+                files: {
+                    "data.json": { content: JSON.stringify(data, null, 2) }
+                }
+            };
+            const res = await fetch(`https://api.github.com/gists/${ghConfig.gistId}`, {
+                method: "PATCH",
+                headers: { 
+                    "Authorization": `token ${ghConfig.token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(payload)
+            });
+            if(!res.ok) throw new Error("上传失败");
+            
+            msg.innerText = "☁️ 上传成功 (" + new Date().toLocaleTimeString() + ")";
+        } catch(e) {
+            msg.innerText = "❌ 上传失败";
+            alert("上传失败: " + e.message);
+        }
+    }
 
-    // --- 2. 渲染与编辑 (复用逻辑) ---
-    function renderContent(text) {
-        if (!text) return "";
-        let html = marked.parse(text);
-        const envs = [ { tags: ['thm','theorem'], name: 'Theorem', class: 'env-thm' }, { tags: ['conjecture','conj'], name: 'Conjecture', class: 'env-conj' }, { tags: ['lemma'], name: 'Lemma', class: 'env-lemma' }, { tags: ['defn'], name: 'Definition', class: 'env-defn' }, { tags: ['proof'], name: 'Proof', class: 'env-proof', isProof: true } ];
-        envs.forEach(env => {
-            env.tags.forEach(tag => {
-                const regex = new RegExp(`\\\\begin\\{${tag}\\}([\\s\\S]*?)\\\\end\\{${tag}\\}`, 'gi');
-                html = html.replace(regex, (m, c) => {
-                    c = c.replace(/^<p>|<\/p>$/g, '');
-                    return env.isProof ? `<div class="${env.class}"><span class="env-title">${env.name}.</span> <span class="env-content">${c}</span> <span class="qed-symbol">◼</span></div>` : `<div class="env-block ${env.class}"><span class="env-title">${env.name}.</span> <span class="env-content">${c}</span></div>`;
-                });
-            });
-        });
-        return html;
-    }
+    // --- 2. 渲染与编辑 (复用逻辑) ---
+    function renderContent(text) {
+        if (!text) return "";
+        let html = marked.parse(text);
+        const envs = [ { tags: ['thm','theorem'], name: 'Theorem', class: 'env-thm' }, { tags: ['conjecture','conj'], name: 'Conjecture', class: 'env-conj' }, { tags: ['lemma'], name: 'Lemma', class: 'env-lemma' }, { tags: ['defn'], name: 'Definition', class: 'env-defn' }, { tags: ['proof'], name: 'Proof', class: 'env-proof', isProof: true } ];
+        envs.forEach(env => {
+            env.tags.forEach(tag => {
+                const regex = new RegExp(`\\\\begin\\{${tag}\\}([\\s\\S]*?)\\\\end\\{${tag}\\}`, 'gi');
+                html = html.replace(regex, (m, c) => {
+                    c = c.replace(/^<p>|<\/p>$/g, '');
+                    return env.isProof ? `<div class="${env.class}"><span class="env-title">${env.name}.</span> <span class="env-content">${c}</span> <span class="qed-symbol">◼</span></div>` : `<div class="env-block ${env.class}"><span class="env-title">${env.name}.</span> <span class="env-content">${c}</span></div>`;
+                });
+            });
+        });
+        return html;
+    }
 
-    function renderList() {
-        var listHtml = '';
-        for (var i = 0; i < data.length; i++) {
-            var item = data[i];
-            var activeClass = (item.id === currentId) ? 'active' : '';
-            listHtml += `<li class="item ${activeClass}" onclick="loadDetail(${item.id})"><div class="item-title">${escapeHtml(item.title)}</div><div class="item-date">${new Date(item.date).toLocaleDateString()}</div></li>`;
-        }
-        document.getElementById('list').innerHTML = listHtml;
-    }
+    function renderList() {
+        var listHtml = '';
+        for (var i = 0; i < data.length; i++) {
+            var item = data[i];
+            var activeClass = (item.id === currentId) ? 'active' : '';
+            listHtml += `<li class="item ${activeClass}" onclick="loadDetail(${item.id})"><div class="item-title">${escapeHtml(item.title)}</div><div class="item-date">${new Date(item.date).toLocaleDateString()}</div></li>`;
+        }
+        document.getElementById('list').innerHTML = listHtml;
+    }
 
-    function loadDetail(id) {
-        currentId = id;
-        var item = data.find(x => x.id === id);
-        if (!item) return;
+    function loadDetail(id) {
+        currentId = id;
+        var item = data.find(x => x.id === id);
+        if (!item) return;
 
-        document.getElementById('empty-msg').style.display = 'none';
-        document.getElementById('detail-view').style.display = 'flex';
-        document.getElementById('editor-container').style.display = 'none';
-        document.getElementById('d-title').innerText = item.title;
-        document.getElementById('d-date').innerText = new Date(item.date).toLocaleString();
-        document.getElementById('d-desc').innerHTML = renderContent(item.desc);
-        
-        var ansHtml = '';
-        if (item.answers.length === 0) ansHtml = '<div style="color:#999; font-style:italic; text-align:center;">暂无笔记</div>';
-        else {
-            item.answers.forEach((ans, idx) => {
-                ansHtml += `<div class="ans-item"><div class="markdown-body">${renderContent(ans.text)}</div><div class="ans-meta"><span>${new Date(ans.date).toLocaleString()}</span><span><button class="btn-link" style="color:#de350b" onclick="delAns(${idx})">删除</button></span></div></div>`;
-            });
-        }
-        document.getElementById('ans-list').innerHTML = ansHtml;
-        renderList();
-        
-        if (window.MathJax) MathJax.typesetPromise([document.getElementById('d-desc'), document.getElementById('ans-list')]);
-        noteEditor.setValue("");
-        setTimeout(() => noteEditor.refresh(), 100);
-        document.getElementById('note-live-preview').innerHTML = '预览区域';
-    }
+        document.getElementById('empty-msg').style.display = 'none';
+        document.getElementById('detail-view').style.display = 'flex';
+        document.getElementById('editor-container').style.display = 'none';
+        document.getElementById('d-title').innerText = item.title;
+        document.getElementById('d-date').innerText = new Date(item.date).toLocaleString();
+        document.getElementById('d-desc').innerHTML = renderContent(item.desc);
+        
+        var ansHtml = '';
+        if (item.answers.length === 0) ansHtml = '<div style="color:#999; font-style:italic; text-align:center;">暂无笔记</div>';
+        else {
+            item.answers.forEach((ans, idx) => {
+                ansHtml += `<div class="ans-item"><div class="markdown-body">${renderContent(ans.text)}</div><div class="ans-meta"><span>${new Date(ans.date).toLocaleString()}</span><span><button class="btn-link" style="color:#de350b" onclick="delAns(${idx})">删除</button></span></div></div>`;
+            });
+        }
+        document.getElementById('ans-list').innerHTML = ansHtml;
+        renderList();
+        
+        if (window.MathJax) MathJax.typesetPromise([document.getElementById('d-desc'), document.getElementById('ans-list')]);
+        noteEditor.setValue("");
+        setTimeout(() => noteEditor.refresh(), 100);
+        document.getElementById('note-live-preview').innerHTML = '预览区域';
+    }
 
-    function enterEditMode() {
-        var item = data.find(x => x.id === currentId);
-        document.getElementById('detail-view').style.display = 'none';
-        document.getElementById('editor-container').style.display = 'flex';
-        document.getElementById('editor-title').value = item.title;
-        mainEditor.setValue(item.desc);
-        setTimeout(() => mainEditor.refresh(), 100);
-        updateMainPreview();
-    }
+    function enterEditMode() {
+        var item = data.find(x => x.id === currentId);
+        document.getElementById('detail-view').style.display = 'none';
+        document.getElementById('editor-container').style.display = 'flex';
+        document.getElementById('editor-title').value = item.title;
+        mainEditor.setValue(item.desc);
+        setTimeout(() => mainEditor.refresh(), 100);
+        updateMainPreview();
+    }
 
-    function updateMainPreview() {
-        const text = mainEditor.getValue();
-        const previewEl = document.getElementById('editor-preview');
-        previewEl.innerHTML = renderContent(text);
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => { if (window.MathJax) MathJax.typesetPromise([previewEl]); }, 300);
-    }
-    
-    function updateNotePreview() {
-        const text = noteEditor.getValue();
-        const previewEl = document.getElementById('note-live-preview');
-        previewEl.innerHTML = renderContent(text) || "预览区域";
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => { if (window.MathJax) MathJax.typesetPromise([previewEl]); }, 300);
-    }
+    function updateMainPreview() {
+        const text = mainEditor.getValue();
+        const previewEl = document.getElementById('editor-preview');
+        previewEl.innerHTML = renderContent(text);
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => { if (window.MathJax) MathJax.typesetPromise([previewEl]); }, 300);
+    }
+    
+    function updateNotePreview() {
+        const text = noteEditor.getValue();
+        const previewEl = document.getElementById('note-live-preview');
+        previewEl.innerHTML = renderContent(text) || "预览区域";
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => { if (window.MathJax) MathJax.typesetPromise([previewEl]); }, 300);
+    }
 
-    function saveEdit() {
-        var item = data.find(x => x.id === currentId);
-        item.title = document.getElementById('editor-title').value;
-        item.desc = mainEditor.getValue();
-        saveAndPush();
-        exitEditMode();
-        loadDetail(currentId);
-    }
-    function addAns() {
-        var txt = noteEditor.getValue(); if (!txt) return;
-        var item = data.find(x => x.id === currentId);
-        item.answers.push({ text: txt, date: new Date().toISOString() });
-        saveAndPush();
-        loadDetail(currentId);
-    }
-    function saveNew() {
-        var t = document.getElementById('m-title').value; var d = document.getElementById('m-desc').value; if (!t) return alert('标题不能为空');
-        var newItem = { id: Date.now(), title: t, desc: d, date: new Date().toISOString(), answers: [] };
-        data.unshift(newItem);
-        saveAndPush();
-        document.getElementById('modal').style.display = 'none';
-        document.getElementById('m-title').value = ''; document.getElementById('m-desc').value = '';
-        loadDetail(newItem.id);
-    }
-    function delAns(idx) { if(confirm('删除此笔记？')) { var item = data.find(x => x.id === currentId); item.answers.splice(idx, 1); saveAndPush(); loadDetail(currentId); } }
-    function doDelete() { if(confirm('删除整个问题？')) { data = data.filter(x => x.id !== currentId); saveAndPush(); if(data.length > 0) loadDetail(data[0].id); else location.reload(); } }
+    function saveEdit() {
+        var item = data.find(x => x.id === currentId);
+        item.title = document.getElementById('editor-title').value;
+        item.desc = mainEditor.getValue();
+        saveAndPush();
+        exitEditMode();
+        loadDetail(currentId);
+    }
+    function addAns() {
+        var txt = noteEditor.getValue(); if (!txt) return;
+        var item = data.find(x => x.id === currentId);
+        item.answers.push({ text: txt, date: new Date().toISOString() });
+        saveAndPush();
+        loadDetail(currentId);
+    }
+    function saveNew() {
+        var t = document.getElementById('m-title').value; var d = document.getElementById('m-desc').value; if (!t) return alert('标题不能为空');
+        var newItem = { id: Date.now(), title: t, desc: d, date: new Date().toISOString(), answers: [] };
+        data.unshift(newItem);
+        saveAndPush();
+        document.getElementById('modal').style.display = 'none';
+        document.getElementById('m-title').value = ''; document.getElementById('m-desc').value = '';
+        loadDetail(newItem.id);
+    }
+    function delAns(idx) { if(confirm('删除此笔记？')) { var item = data.find(x => x.id === currentId); item.answers.splice(idx, 1); saveAndPush(); loadDetail(currentId); } }
+    function doDelete() { if(confirm('删除整个问题？')) { data = data.filter(x => x.id !== currentId); saveAndPush(); if(data.length > 0) loadDetail(data[0].id); else location.reload(); } }
 
-    function exitEditMode() { document.getElementById('editor-container').style.display = 'none'; document.getElementById('detail-view').style.display = 'flex'; }
-    function openModal() { document.getElementById('modal').style.display = 'flex'; }
-    function escapeHtml(text) { if (!text) return text; return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
-    function saveAndPush() {
-        localStorage.setItem('my_research_v4', JSON.stringify(data));
-        syncPush(); // 自动推送
-    }
-    
-    // 导出单题
-    function doExport() {
-        var item = data.find(x => x.id === currentId);
-        if (!item) return;
-        var content = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + escapeHtml(item.title) + '</title>';
-        content += '<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"><\/script><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async><\/script><script>MathJax={tex:{inlineMath:[["$","$"],["\\\\(","\\\\)"]]}}<\/script>';
-        content += '<style>body{max-width:900px;margin:20px auto;font-family:sans-serif;padding:20px;line-height:1.6;color:#333} .ans{background:#f9f9f9;padding:15px;border:1px solid #eee;margin-bottom:10px;border-radius:5px;} .env-block {margin:15px 0;padding:15px;border-radius:4px;text-align:left;background:#e6effc;border-left:4px solid #0052cc;font-style:italic;} .env-title {font-weight:bold;color:#0052cc;margin-right:5px;font-style:normal;} .env-conj {background:#fff7e6;border-left-color:#ff9900;} .env-conj .env-title {color:#d97706;} blockquote {border-left:4px solid #ddd;padding-left:15px;color:#777;} code {background:#f4f4f4;padding:2px 5px;border-radius:3px;font-family:monospace;} pre {background:#f4f4f4;padding:10px;border-radius:5px;overflow-x:auto;} h1,h2,h3 {border-bottom:1px solid #eee;padding-bottom:10px;}</style></head><body>';
-        content += '<h1 style="color:#0052cc">' + escapeHtml(item.title) + '</h1><p style="color:#888">Exported: ' + new Date().toLocaleString() + '</p><div id="desc-content"></div><h3 style="margin-top:40px">笔记与讨论</h3><div id="ans-container"></div>';
-        content += '<script>var rawDesc=' + JSON.stringify(item.desc) + '; var rawAnswers=' + JSON.stringify(item.answers) + '; function render(t){var h=marked.parse(t); return h.replace(/\\\\begin{thm}([\\s\\S]*?)\\\\end{thm}/gi, "<div class=\'env-block\'><span class=\'env-title\'>Theorem.</span>$1</div>").replace(/\\\\begin{conj}([\\s\\S]*?)\\\\end{conj}/gi, "<div class=\'env-block env-conj\'><span class=\'env-title\'>Conjecture.</span>$1</div>");} document.getElementById("desc-content").innerHTML=render(rawDesc); var ah=""; rawAnswers.forEach(function(a){ ah+="<div class=\'ans\'>"+render(a.text)+"<div style=\'font-size:12px;color:#999;margin-top:5px\'>"+new Date(a.date).toLocaleString()+"</div></div>"; }); document.getElementById("ans-container").innerHTML=ah; <\/script></body></html>';
-        var blob = new Blob([content], { type: 'text/html;charset=utf-8' });
-        var url = URL.createObjectURL(blob);
-        var a = document.createElement('a'); a.href = url; a.download = 'Research-' + item.title + '.html'; a.click();
-    }
+    function exitEditMode() { document.getElementById('editor-container').style.display = 'none'; document.getElementById('detail-view').style.display = 'flex'; }
+    function openModal() { document.getElementById('modal').style.display = 'flex'; }
+    function escapeHtml(text) { if (!text) return text; return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
+    function saveAndPush() {
+        localStorage.setItem('my_research_v4', JSON.stringify(data));
+        syncPush(); // 自动推送
+    }
+    
+    // 导出单题
+    function doExport() {
+        var item = data.find(x => x.id === currentId);
+        if (!item) return;
+        var content = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + escapeHtml(item.title) + '</title>';
+        content += '<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"><\/script><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async><\/script><script>MathJax={tex:{inlineMath:[["$","$"],["\\\\(","\\\\)"]]}}<\/script>';
+        content += '<style>body{max-width:900px;margin:20px auto;font-family:sans-serif;padding:20px;line-height:1.6;color:#333} .ans{background:#f9f9f9;padding:15px;border:1px solid #eee;margin-bottom:10px;border-radius:5px;} .env-block {margin:15px 0;padding:15px;border-radius:4px;text-align:left;background:#e6effc;border-left:4px solid #0052cc;font-style:italic;} .env-title {font-weight:bold;color:#0052cc;margin-right:5px;font-style:normal;} .env-conj {background:#fff7e6;border-left-color:#ff9900;} .env-conj .env-title {color:#d97706;} blockquote {border-left:4px solid #ddd;padding-left:15px;color:#777;} code {background:#f4f4f4;padding:2px 5px;border-radius:3px;font-family:monospace;} pre {background:#f4f4f4;padding:10px;border-radius:5px;overflow-x:auto;} h1,h2,h3 {border-bottom:1px solid #eee;padding-bottom:10px;}</style></head><body>';
+        content += '<h1 style="color:#0052cc">' + escapeHtml(item.title) + '</h1><p style="color:#888">Exported: ' + new Date().toLocaleString() + '</p><div id="desc-content"></div><h3 style="margin-top:40px">笔记与讨论</h3><div id="ans-container"></div>';
+        content += '<script>var rawDesc=' + JSON.stringify(item.desc) + '; var rawAnswers=' + JSON.stringify(item.answers) + '; function render(t){var h=marked.parse(t); return h.replace(/\\\\begin{thm}([\\s\\S]*?)\\\\end{thm}/gi, "<div class=\'env-block\'><span class=\'env-title\'>Theorem.</span>$1</div>").replace(/\\\\begin{conj}([\\s\\S]*?)\\\\end{conj}/gi, "<div class=\'env-block env-conj\'><span class=\'env-title\'>Conjecture.</span>$1</div>");} document.getElementById("desc-content").innerHTML=render(rawDesc); var ah=""; rawAnswers.forEach(function(a){ ah+="<div class=\'ans\'>"+render(a.text)+"<div style=\'font-size:12px;color:#999;margin-top:5px\'>"+new Date(a.date).toLocaleString()+"</div></div>"; }); document.getElementById("ans-container").innerHTML=ah; <\/script></body></html>';
+        var blob = new Blob([content], { type: 'text/html;charset=utf-8' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a'); a.href = url; a.download = 'Research-' + item.title + '.html'; a.click();
+    }
 </script>
 </body>
 </html>
