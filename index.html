@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>科研管理器</title>
+    <title>科研管理器 v7 (实时协作版)</title>
     
     <!-- 依赖库 -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -250,15 +250,32 @@
             const res = await fetch(`https://api.github.com/gists/${ghConfig.mainGistId}`, {
                 headers: { "Authorization": `token ${ghConfig.token}`, "Cache-Control": "no-cache" }
             });
-            if(!res.ok) throw new Error("无法连接主库");
+            if(!res.ok) throw new Error("无法连接主库，请检查 Token 或 Gist ID");
             const json = await res.json();
-            const content = json.files["main_db.json"].content;
+            
+            // [修复] 兼容性逻辑：优先找 main_db.json，找不到则找旧版 research_data.json，再找不到则找任意 json
+            let fileObj = json.files["main_db.json"];
+            if (!fileObj) fileObj = json.files["research_data.json"]; // v6 兼容
+            if (!fileObj) {
+                const anyJson = Object.keys(json.files).find(k => k.endsWith('.json'));
+                if(anyJson) fileObj = json.files[anyJson];
+            }
+
+            if (!fileObj) throw new Error("未在 Gist 中找到有效数据文件");
+
+            const content = fileObj.content;
             db = JSON.parse(content);
-            if(!db.items) db = { items: [] };
+            if(!db.items) {
+                // v5 以前可能是数组结构
+                if(Array.isArray(db)) db = { items: db };
+                else db = { items: [] };
+            }
+            
             renderList();
             setMsg("就绪");
         } catch(e) {
-            alert(e.message);
+            alert("同步错误: " + e.message);
+            setMsg("❌ 失败");
         } finally {
             document.getElementById('loading').style.display = 'none';
         }
@@ -458,15 +475,22 @@
 
     async function saveMainDB(silent = false) {
         if(!silent) setMsg("同步主库...");
+        // 即使读取的是旧文件，保存时也会自动升级为 main_db.json
         await updateGistFile(ghConfig.mainGistId, "main_db.json", db);
     }
 
     async function updateGistFile(gistId, filename, dataObj) {
-        await fetch(`https://api.github.com/gists/${gistId}`, {
-            method: "PATCH",
-            headers: { "Authorization": `token ${ghConfig.token}` },
-            body: JSON.stringify({ files: { [filename]: { content: JSON.stringify(dataObj, null, 2) } } })
-        });
+        try {
+            const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+                method: "PATCH",
+                headers: { "Authorization": `token ${ghConfig.token}`, "Content-Type": "application/json" },
+                body: JSON.stringify({ files: { [filename]: { content: JSON.stringify(dataObj, null, 2) } } })
+            });
+            if (!res.ok) throw new Error(`保存失败: ${res.statusText}`);
+        } catch(e) {
+            alert("无法保存到云端: " + e.message);
+            throw e; // 向上传递错误，阻止后续UI更新
+        }
     }
 
     // --- 列表与基本操作 ---
