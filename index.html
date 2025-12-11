@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>科研管理器 v30</title>
+    <title>科研管理器 v31</title>
     
     <!-- 依赖库 -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -53,7 +53,6 @@
         .bar-btn.warn { background: #d73a49; border-color: #d73a49; }
         .bar-btn.secondary { background: #f6f8fa; border-color: #d1d5da; color: #24292e; }
         .bar-btn.secondary:hover { background: #e1e4e8; }
-        /* 纯文本按钮 */
         .btn-text { background: none; border: none; color: #0366d6; cursor: pointer; font-size: 12px; padding: 0 5px; }
         .btn-text:hover { text-decoration: underline; }
 
@@ -109,48 +108,15 @@
         #preamble-section { background: #fff8dc; padding: 10px; border-bottom: 1px solid #ddd; display:none; }
         #prob-preamble-inp { width: 100%; height: 80px; box-sizing: border-box; border: 1px solid #ccc; font-family: monospace; font-size: 13px; padding: 5px; border-radius: 4px; resize: vertical; }
 
-        /* 笔记卡片 */
         .ans-card {
-            background: #fff;
-            border: 1px solid #e1e4e8;
-            border-radius: 6px;
-            padding: 25px;
-            margin-bottom: 25px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-            position: relative;
-            transition: all 0.2s ease-in-out;
+            background: #fff; border: 1px solid #e1e4e8; border-radius: 6px; padding: 25px; margin-bottom: 25px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04); position: relative; transition: all 0.2s ease-in-out;
         }
-        .ans-card:hover {
-            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
-            transform: translateY(-2px);
-            border-color: #d1d5da;
-        }
-        
-        /* [新增] 笔记折叠样式 */
-        .ans-content {
-            transition: max-height 0.3s ease;
-        }
-        .ans-content.collapsed {
-            max-height: 200px;
-            overflow: hidden;
-            /* 渐隐遮罩 */
-            -webkit-mask-image: linear-gradient(180deg, black 60%, transparent 100%);
-            mask-image: linear-gradient(180deg, black 60%, transparent 100%);
-        }
+        .ans-card:hover { box-shadow: 0 5px 15px rgba(0,0,0,0.08); transform: translateY(-2px); border-color: #d1d5da; }
+        .ans-content { transition: max-height 0.3s ease; }
+        .ans-content.collapsed { max-height: 200px; overflow: hidden; -webkit-mask-image: linear-gradient(180deg, black 60%, transparent 100%); mask-image: linear-gradient(180deg, black 60%, transparent 100%); }
+        .ans-footer { margin-top: 15px; padding-top: 15px; border-top: 1px dashed #eee; display: flex; justify-content: space-between; align-items: center; color: #586069; font-size: 12px; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
 
-        .ans-footer {
-            margin-top: 15px;
-            padding-top: 15px;
-            border-top: 1px dashed #eee;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            color: #586069;
-            font-size: 12px;
-            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-        }
-
-        /* 智能吸顶 */
         .thm-proof-wrapper { position: relative; margin-bottom: 1em; }
         .env-block { margin: 1em 0; padding: 15px; border-radius: 4px; border-left: 4px solid #555; background: #f9f9f9; position: relative; transition: box-shadow 0.2s; }
         .env-block.sticky-mode {
@@ -172,19 +138,9 @@
         .latex-ref { color: #0052cc; cursor: pointer; text-decoration: none; border-bottom: none; font-weight: bold;}
         .latex-ref:hover { text-decoration: underline; background: #e6effc; }
 
-        /* [新增] 全屏阅读覆盖层 */
-        #fullscreen-reader {
-            display: none;
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: #fff; z-index: 2000; flex-direction: column;
-        }
-        #fullscreen-reader .header {
-            padding: 15px 30px; background: #f9f9f9; border-bottom: 1px solid #ddd;
-            display: flex; justify-content: space-between; align-items: center;
-        }
-        #fullscreen-content {
-            flex: 1; overflow-y: auto; padding: 40px; max-width: 900px; margin: 0 auto; width: 100%; box-sizing: border-box;
-        }
+        #fullscreen-reader { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #fff; z-index: 2000; flex-direction: column; }
+        #fullscreen-reader .header { padding: 15px 30px; background: #f9f9f9; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; }
+        #fullscreen-content { flex: 1; overflow-y: auto; padding: 40px; max-width: 900px; margin: 0 auto; width: 100%; box-sizing: border-box; }
 
         #collab-banner { display: none; background: #e6ffed; color: #0052cc; padding: 8px; text-align: center; border-bottom: 1px solid #bfebbb; font-size: 13px; }
         #loading { display: flex; position: fixed; inset: 0; background: rgba(255,255,255,0.8); z-index: 2000; justify-content: center; align-items: center; font-weight: bold; font-size: 18px; color: #333; flex-direction: column; gap: 10px; }
@@ -206,7 +162,7 @@
 
 <div id="status-bar">
     <div style="display:flex; align-items:center; gap:10px;">
-        <span id="app-title" style="font-weight:bold;">科研管理器 v30</span>
+        <span id="app-title" style="font-weight:bold;">科研管理器 v31</span>
         <span id="sync-status" style="font-size:12px; color:#aaa;">⚪ 就绪</span>
     </div>
     <div id="auth-controls">
@@ -380,7 +336,6 @@
         if (visitorGistId) { enterVisitorMode(); } 
         else { if (ghConfig.token && ghConfig.mainGistId) { await syncPullMain(); } else { document.getElementById('loading').style.display = 'none'; openConfig(); } }
         
-        // Esc 退出全屏阅读
         document.addEventListener('keydown', (e) => {
             if(e.key === "Escape") document.getElementById('fullscreen-reader').style.display = 'none';
         });
@@ -660,7 +615,6 @@
         document.getElementById('note-section-footer').scrollIntoView({ behavior: 'smooth' });
     }
     
-    // [新增] 切换折叠
     function toggleNote(idx) {
         const content = document.getElementById(`ans-content-${idx}`);
         const btn = document.getElementById(`ans-btn-toggle-${idx}`);
@@ -674,7 +628,6 @@
         }
     }
     
-    // [新增] 全屏查看
     function fullscreenNote(idx) {
         const note = currentItemData.answers[idx];
         const container = document.getElementById('fullscreen-content');
@@ -714,12 +667,30 @@
             finally { document.getElementById('loading').style.display = 'none'; }
         } else { await syncPullMain(); }
     }
+    // [修复] 增加错误捕获的访客入口
     async function enterVisitorMode() {
         document.body.classList.add('visitor-mode');
         document.getElementById('auth-controls').innerHTML = ''; 
         document.getElementById('app-title').innerText = "协作编辑器 (访客)";
-        if (!ghConfig.token) { const t = prompt("请输入 GitHub Token 以启用编辑权限："); if(t) ghConfig.token = t; }
-        await loadSharedItem(visitorGistId);
+        document.getElementById('loading').style.display = 'flex';
+        document.getElementById('loading-tip').innerText = "连接中...";
+
+        if (!ghConfig.token) { 
+            const t = prompt("请输入 GitHub Token 以启用编辑权限："); 
+            if(t) {
+                ghConfig.token = t.trim();
+                localStorage.setItem(CFG_KEY, JSON.stringify(ghConfig)); // 保存 Token
+            }
+        }
+        
+        try {
+            await loadSharedItem(visitorGistId);
+            setMsg("协作模式");
+        } catch(e) {
+            alert("连接失败: " + e.message);
+        } finally {
+            document.getElementById('loading').style.display = 'none';
+        }
     }
     async function syncPullMain() {
         if(!ghConfig.token || !ghConfig.mainGistId) return;
@@ -755,11 +726,25 @@
         } catch (e) { handleNetworkError(e); } 
         finally { document.getElementById('loading').style.display = 'none'; setMsg("就绪"); }
     }
+    // [修复] 增强的文件读取逻辑
     async function loadSharedItem(gistId) {
-        const res = await fetch(`https://api.github.com/gists/${gistId}`, { headers: { "Authorization": `token ${ghConfig.token}` } });
+        const headers = {};
+        if (ghConfig.token) headers["Authorization"] = `token ${ghConfig.token}`;
+        
+        const res = await fetch(`https://api.github.com/gists/${gistId}`, { headers: headers });
         await handleApiError(res);
         const json = await res.json();
-        currentItemData = JSON.parse(json.files["shared_item.json"].content);
+        
+        // 尝试读取 shared_item.json，如果不存在则读取第一个 json 文件
+        let fileObj = json.files["shared_item.json"];
+        if (!fileObj) {
+             const key = Object.keys(json.files).find(k => k.endsWith('.json'));
+             if(key) fileObj = json.files[key];
+        }
+        
+        if (!fileObj) throw new Error("Gist 数据损坏");
+        
+        currentItemData = JSON.parse(fileObj.content);
         if(!currentId) currentId = currentItemData.id;
         renderDetailView();
     }
@@ -795,7 +780,6 @@
             </div>
         `).join('');
         
-        // Apply Sticky & MathJax
         document.getElementById('ans-list').querySelectorAll('.ans-content').forEach(el => postProcessDom(el));
         
         resolveReferences();
