@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>科研管理器 v32</title>
+    <title>科研管理器</title>
     
     <!-- 依赖库 -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -70,14 +70,26 @@
         .search-inp:focus { border-color: #0366d6; outline: none; }
 
         #list { flex: 1; overflow-y: auto; list-style: none; padding: 0; margin: 0; }
-        .item { padding: 12px 10px; border-bottom: 1px solid #eee; cursor: pointer; border-left: 4px solid transparent; display: flex; align-items: flex-start; gap: 8px; user-select: none;}
+        .item { padding: 12px 10px; border-bottom: 1px solid #eee; cursor: pointer; border-left: 4px solid transparent; display: flex; align-items: flex-start; gap: 8px; user-select: none; position: relative; }
         .item:hover { background: #eaeaea; }
         .item.active { background: #e6effc; border-left: 4px solid #0052cc; }
         .item-title { font-weight: 600; font-size: 14px; white-space: normal; overflow: visible; word-break: break-word; flex: 1; line-height: 1.4; }
-        .pin-icon { color: #ccc; font-size: 12px; cursor: pointer; flex-shrink: 0; margin-top: 3px; }
-        .pin-icon.pinned { color: #d97706; }
+        
+        /* [修改] 置顶图标仅在置顶时显示，且样式微调 */
+        .pin-indicator { color: #d97706; font-size: 12px; margin-right: 5px; margin-top: 3px; flex-shrink: 0; }
+        
         .share-icon { font-size: 12px; margin-left: 5px; color: #00875a; display:none; flex-shrink: 0; margin-top: 3px; }
         .item.shared .share-icon { display: inline; }
+
+        /* [新增] 右键菜单样式 */
+        #ctx-menu {
+            display: none; position: fixed; z-index: 10001; background: #fff; border: 1px solid #d1d5da;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); border-radius: 6px; padding: 5px 0; min-width: 120px;
+        }
+        .ctx-item { padding: 8px 15px; cursor: pointer; font-size: 13px; color: #333; display: block; }
+        .ctx-item:hover { background: #0366d6; color: white; }
+        .ctx-item.warn { color: #d73a49; border-top: 1px solid #eee; }
+        .ctx-item.warn:hover { background: #d73a49; color: white; }
 
         #detail-view { display: none; width: 100%; height: 100%; flex-direction: column; overflow-y: auto; position: relative; }
         
@@ -155,6 +167,12 @@
 </head>
 <body>
 
+<!-- [新增] 右键菜单 -->
+<div id="ctx-menu">
+    <div class="ctx-item" onclick="togglePinFromCtx()">📌 置顶 / 取消置顶</div>
+    <div class="ctx-item warn" onclick="deleteItemFromCtx()">🗑️ 删除此问题</div>
+</div>
+
 <div id="loading">
     <div>🚀 正在连接云端...</div>
     <div id="loading-tip" style="font-size:12px; font-weight:normal; color:#666;"></div>
@@ -162,7 +180,7 @@
 
 <div id="status-bar">
     <div style="display:flex; align-items:center; gap:10px;">
-        <span id="app-title" style="font-weight:bold;">科研管理器 v32</span>
+        <span id="app-title" style="font-weight:bold;">科研管理器</span>
         <span id="sync-status" style="font-size:12px; color:#aaa;">⚪ 就绪</span>
     </div>
     <div id="auth-controls">
@@ -327,12 +345,14 @@
     let probCm, noteCm;
     let docState = { counters: {}, labels: {} };
     let editingNoteIndex = null;
+    let contextMenuTargetIdx = null; // 右键菜单的目标索引
 
     const urlParams = new URLSearchParams(window.location.search);
     const visitorGistId = urlParams.get('gist');
 
     window.onload = async function() {
         initEditors();
+        initContextMenu(); // 初始化右键菜单
         if (visitorGistId) { enterVisitorMode(); } 
         else { if (ghConfig.token && ghConfig.mainGistId) { await syncPullMain(); } else { document.getElementById('loading').style.display = 'none'; openConfig(); } }
         
@@ -411,6 +431,76 @@
         }
     }
 
+    // [新增] 初始化右键菜单
+    function initContextMenu() {
+        const menu = document.getElementById('ctx-menu');
+        // 点击页面其他地方隐藏菜单
+        document.addEventListener('click', (e) => {
+            if (!menu.contains(e.target)) menu.style.display = 'none';
+        });
+        // 滚动时隐藏菜单
+        document.addEventListener('scroll', () => menu.style.display = 'none', true);
+    }
+
+    function openContextMenu(e, idx) {
+        e.preventDefault(); // 阻止默认右键菜单
+        e.stopPropagation();
+        
+        contextMenuTargetIdx = idx;
+        const menu = document.getElementById('ctx-menu');
+        
+        // 计算位置
+        let x = e.clientX;
+        let y = e.clientY;
+        
+        // 简单的边界检查
+        if (x + 150 > window.innerWidth) x = window.innerWidth - 160;
+        if (y + 100 > window.innerHeight) y = window.innerHeight - 110;
+
+        menu.style.left = x + 'px';
+        menu.style.top = y + 'px';
+        menu.style.display = 'block';
+    }
+
+    // [新增] 右键菜单功能
+    function togglePinFromCtx() {
+        if (contextMenuTargetIdx === null) return;
+        const idx = contextMenuTargetIdx;
+        document.getElementById('ctx-menu').style.display = 'none';
+        
+        db.items[idx].isPinned = !db.items[idx].isPinned;
+        if(db.items[idx].isPinned) {
+            const [item] = db.items.splice(idx, 1);
+            db.items.unshift(item);
+        }
+        renderList();
+        saveMainDB(true);
+    }
+
+    async function deleteItemFromCtx() {
+        if (contextMenuTargetIdx === null) return;
+        const idx = contextMenuTargetIdx;
+        const item = db.items[idx];
+        document.getElementById('ctx-menu').style.display = 'none';
+        
+        if(!confirm(`确定要彻底删除问题 "${item.title}" 吗？`)) return;
+        
+        try {
+            // 如果正好是当前选中的，清空视图
+            if (item.id === currentId) {
+                currentId = null;
+                document.getElementById('detail-view').style.display = 'none';
+                document.getElementById('empty-msg').style.display = 'block';
+            }
+            
+            db.items.splice(idx, 1);
+            await saveMainDB(true);
+            renderList();
+        } catch(e) {
+            alert(e.message);
+        }
+    }
+
     function jumpToSource(cm, event) {
         let target = event.target;
         if (target.tagName.toLowerCase().includes('mjx')) {
@@ -474,7 +564,6 @@
         });
     }
 
-    // [核心修复] 渲染器
     function renderContent(text, isGlobal, preamble = "") {
         if (!text) return "";
 
@@ -486,13 +575,10 @@
 
         let processedText = text;
 
-        // [修复] 将 LaTeX 的 ~ 替换为标准空格，避免被 Markdown 误判为删除线
-        // 注意：我们只替换非数学环境中的波浪号。
-        // 由于这里还没分离 math，我们先简单替换。
-        // 为了安全，我们先保护数学块，然后再替换剩余文本的 ~
-        
-        // 1. 保护所有数学环境
-        if (preamble && preamble.trim()) { processedText = `$$ ${preamble} $$ \n` + processedText; }
+        if (preamble && preamble.trim()) {
+             processedText = `$$ ${preamble} $$ \n` + processedText;
+        }
+
         processedText = processedText.replace(/\$\$([\s\S]*?)\$\$/g, (match) => { return storeMath(match); });
         processedText = processedText.replace(/\$((?:\\.|[^$\\])*)\$/g, (match) => { return storeMath(match); });
         processedText = processedText.replace(/\\\(((?:\\.|[^\\])*)\\\)/g, (match) => { return storeMath(match); });
@@ -502,10 +588,9 @@
         const envRegex = new RegExp(`\\\\begin\\{(${envsToProtect.join('|')})\\}([\\s\\S]*?)\\\\end\\{\\1\\}`, 'g');
         processedText = processedText.replace(envRegex, (match) => { return storeMath(match); });
 
-        // [核心修复] 替换剩余文本中的波浪号
+        // [修复] 将 ~ 替换为空格
         processedText = processedText.replace(/~/g, ' ');
 
-        // 2. 文本命令替换
         processedText = processedText
             .replace(/\\textbf\{([^{}]+)\}/g, '<strong>$1</strong>')
             .replace(/\\textit\{([^{}]+)\}/g, '<em>$1</em>')
@@ -513,10 +598,8 @@
             .replace(/\\underline\{([^{}]+)\}/g, '<u>$1</u>')
             .replace(/\\texttt\{([^{}]+)\}/g, '<code>$1</code>');
 
-        // 3. Markdown 渲染
         let html = marked.parse(processedText);
 
-        // 4. 恢复数学块
         html = html.replace(/<p>MATHBLOCK(\d+)ENDMATHBLOCK<\/p>/g, (m, id) => mathBlocks[id]);
         html = html.replace(/MATHBLOCK(\d+)ENDMATHBLOCK/g, (m, id) => mathBlocks[id]);
         
@@ -524,7 +607,6 @@
              html = html.replace(/^<p>(\$\$[\s\S]*?\$\$)< \/p>/, '$1'); 
         }
 
-        // 5. 自定义环境
         const envs = [ 
             { tags: ['thm','theorem'], name: 'Theorem', key: 'thm', class: 'env-thm' }, 
             { tags: ['conjecture','conj'], name: 'Conjecture', key: 'conj', class: 'env-conj' }, 
@@ -836,14 +918,20 @@
             const sharedClass = item.shareId ? 'shared' : '';
             const pinnedClass = item.isPinned ? 'pinned' : '';
             const draggableAttr = isSearching ? '' : `draggable="true" ondragstart="dragStart(event, ${idx})" ondrop="dragDrop(event, ${idx})" ondragover="event.preventDefault()"`;
-            return `<li class="item ${activeClass} ${sharedClass}" ${draggableAttr} onclick="loadItem(${item.id})"><span class="pin-icon ${pinnedClass}" onclick="togglePin(event, ${idx})">📌</span><span class="item-title">${item.title}</span><span class="share-icon" title="协作中">🔗</span></li>`;
+            const pinnedIndicator = item.isPinned ? `<span class="pin-indicator">📌</span>` : '';
+            return `<li class="item ${activeClass} ${sharedClass}" ${draggableAttr} onclick="loadItem(${item.id})" oncontextmenu="openContextMenu(event, ${idx})">
+                ${pinnedIndicator}
+                <span class="item-title">${item.title}</span>
+                <span class="share-icon" title="协作中">🔗</span>
+            </li>`;
         }).join(''); 
     }
 
     function createNewLocal() { const newItem = { id: Date.now(), title: "新问题", desc: "", answers: [], date: new Date().toISOString(), isPinned: false }; db.items.unshift(newItem); saveMainDB(); loadItem(newItem.id); }
     function dragStart(e, idx) { e.dataTransfer.setData('idx', idx); }
     function dragDrop(e, targetIdx) { e.preventDefault(); const srcIdx = e.dataTransfer.getData('idx'); const [moved] = db.items.splice(srcIdx, 1); db.items.splice(targetIdx, 0, moved); renderList(); saveMainDB(true); }
-    function togglePin(e, idx) { e.stopPropagation(); db.items[idx].isPinned = !db.items[idx].isPinned; if(db.items[idx].isPinned) { const [item] = db.items.splice(idx, 1); db.items.unshift(item); } renderList(); saveMainDB(true); }
+    // 移除 togglePin，因为现在通过右键菜单操作
+    
     async function deleteAns(idx) { if(!confirm("删除笔记?")) return; currentItemData.answers.splice(idx, 1); await performSave(); renderDetailView(); }
     async function deleteItem() { if(!confirm("彻底删除?")) return; try { db.items = db.items.filter(x => x.id !== currentId); await saveMainDB(true); location.reload(); } catch(e) { alert(e.message); } }
     async function manageCollaboration() { const item = db.items.find(x => x.id === currentId); if(item.shareId) { const a = prompt("1.获取链接 2.停止协作", "1"); if(a==="1") prompt("链接:", `${location.origin}${location.pathname}?gist=${item.shareId}`); else if(a==="2") stopCollaboration(item); } else convertToShared(); }
