@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>科研管理器 v20</title>
+    <title>科研管理器 v23</title>
     
     <!-- 依赖库 -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -105,8 +105,17 @@
         }
 
         .content-wrap { padding: 30px 50px; max-width: 900px; margin: 0 auto; width: 100%; box-sizing: border-box; }
-        .markdown-body { line-height: 1.7; font-size: 16px; color: #24292e; }
-        .markdown-body pre { background: #f6f8fa; padding: 15px; border-radius: 6px; overflow: auto; }
+        
+        /* [核心修改] 正文区域字体优化 */
+        .markdown-body { 
+            /* 英文字体优先使用 Times New Roman，中文字体优先使用宋体 */
+            font-family: "Times New Roman", "SimSun", "Songti SC", "NSimSun", serif;
+            font-size: 17px; /* 衬线体通常比无衬线体看起来小，稍微调大字号 */
+            line-height: 1.8; /* 增加行距，提升学术阅读体验 */
+            color: #24292e; 
+        }
+        .markdown-body pre { background: #f6f8fa; padding: 15px; border-radius: 6px; overflow: auto; font-family: Consolas, monospace; font-size: 14px;}
+        .markdown-body code { font-family: Consolas, monospace; background: rgba(27,31,35,.05); border-radius: 3px; padding: .2em .4em; font-size: 85%; }
         
         /* 编辑器样式 */
         .CodeMirror { height: 100%; font-family: "SFMono-Regular", Consolas, monospace; font-size: 15px; }
@@ -125,7 +134,7 @@
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             width: 100vw; height: 100vh; z-index: 5000; margin: 0; border-radius: 0; resize: none;
         }
-        .embedded-editor .toolbar { padding: 8px 15px; background: #f4f5f7; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+        .embedded-editor .toolbar { padding: 8px 15px; background: #f4f5f7; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; /* 恢复UI字体 */ }
         .embedded-editor .editor-area { display: flex; flex: 1; height: auto; overflow: hidden; }
         .embedded-editor .pane { width: 50%; height: 100%; overflow-y: auto; }
         .embedded-editor .preview-pane { padding: 20px; background: #fff; border-left: 1px solid #eee; cursor: pointer; }
@@ -164,7 +173,7 @@
 
 <div id="status-bar">
     <div style="display:flex; align-items:center; gap:10px;">
-        <span id="app-title" style="font-weight:bold;">科研管理器 v20</span>
+        <span id="app-title" style="font-weight:bold;">科研管理器 v23</span>
         <span id="sync-status" style="font-size:12px; color:#aaa;">⚪ 就绪</span>
     </div>
     <div id="auth-controls">
@@ -223,6 +232,7 @@
                     </div>
                     <div class="editor-area">
                         <div class="pane"><textarea id="prob-code-editor"></textarea></div>
+                        <!-- [修复] 添加ID和Title以支持双击跳转 -->
                         <div class="pane preview-pane" id="prob-preview-container" title="双击此处跳转到左侧对应代码">
                             <div id="prob-live-preview" class="markdown-body"></div>
                         </div>
@@ -257,6 +267,7 @@
                         </div>
                         <div class="editor-area">
                             <div class="pane"><textarea id="note-code-editor"></textarea></div>
+                            <!-- [修复] 添加ID和Title以支持双击跳转 -->
                             <div class="pane preview-pane" id="note-preview-container" title="双击此处跳转到左侧对应代码">
                                 <div id="note-live-preview" class="markdown-body"></div>
                             </div>
@@ -294,6 +305,7 @@
     const CFG_KEY = 'v7_config';
     let ghConfig = JSON.parse(localStorage.getItem(CFG_KEY)) || { token: '', mainGistId: '' };
     
+    // LaTeX 补全词库，增加文本格式命令
     const LATEX_KEYWORDS = [
         { text: "\\begin{thm}\\label{thm:}\n\n\\end{thm}", displayText: "thm (定理)" },
         { text: "\\begin{proof}\n\n\\end{proof}", displayText: "proof (证明)" },
@@ -302,6 +314,11 @@
         { text: "\\begin{problem}\\label{prob:}\n\n\\end{problem}", displayText: "problem (问题)" },
         { text: "\\begin{conj}\\label{conj:}\n\n\\end{conj}", displayText: "conj (猜想)" },
         { text: "\\begin{align}\n\n\\end{align}", displayText: "align (多行公式)" },
+        { text: "\\textbf{}", displayText: "\\textbf (粗体)" },
+        { text: "\\textit{}", displayText: "\\textit (斜体)" },
+        { text: "\\emph{}", displayText: "\\emph (强调)" },
+        { text: "\\underline{}", displayText: "\\underline (下划线)" },
+        { text: "\\texttt{}", displayText: "\\texttt (代码)" },
         { text: "\\begin{itemize}\n\\item \n\\end{itemize}", displayText: "itemize (列表)" },
         { text: "\\begin{enumerate}\n\\item \n\\end{enumerate}", displayText: "enumerate (序号列表)" },
         { text: "\\frac{}{}", displayText: "\\frac (分数)" },
@@ -328,10 +345,12 @@
         
         probCm = CodeMirror.fromTextArea(document.getElementById("prob-code-editor"), { ...cmConfig, extraKeys: { ...cmConfig.extraKeys, "Ctrl-S": saveProblem } });
         setupCmEvents(probCm, 'prob-live-preview', false); 
+        // [修复] 重新绑定双击事件
         document.getElementById('prob-preview-container').addEventListener('dblclick', (e) => jumpToSource(probCm, e));
 
         noteCm = CodeMirror.fromTextArea(document.getElementById("note-code-editor"), { ...cmConfig, extraKeys: { ...cmConfig.extraKeys, "Ctrl-S": saveNote } });
         setupCmEvents(noteCm, 'note-live-preview', false);
+        // [修复] 重新绑定双击事件
         document.getElementById('note-preview-container').addEventListener('dblclick', (e) => jumpToSource(noteCm, e));
 
         CodeMirror.registerHelper("hint", "markdown", function(editor) {
@@ -348,17 +367,16 @@
             return hintResult;
         });
 
-        // [核心优化] 丝滑拖拽逻辑
         const resizer = document.getElementById('resizer');
         const sidebar = document.getElementById('sidebar');
         let isResizing = false;
         let animationFrameId;
 
         resizer.addEventListener('mousedown', (e) => {
-            e.preventDefault(); // 关键：防止文本选中导致 mouseup 失效
+            e.preventDefault(); 
             isResizing = true;
             document.body.style.cursor = 'col-resize';
-            document.body.style.userSelect = 'none'; // 强制禁止选中
+            document.body.style.userSelect = 'none'; 
             
             document.addEventListener('mousemove', handleMouseMove);
             document.addEventListener('mouseup', stopResize);
@@ -366,7 +384,6 @@
 
         function handleMouseMove(e) {
             if (!isResizing) return;
-            // 使用 requestAnimationFrame 优化渲染性能
             cancelAnimationFrame(animationFrameId);
             animationFrameId = requestAnimationFrame(() => {
                 let newWidth = e.clientX;
@@ -385,6 +402,7 @@
         }
     }
 
+    // [修复] 找回 jumpToSource 函数
     function jumpToSource(cm, event) {
         let target = event.target;
         if (target.tagName.toLowerCase().includes('mjx')) {
@@ -441,6 +459,15 @@
 
         let processedText = text;
 
+        // 1. 优先保护行内公式 (防止 \textbf 误伤 math mode)
+        processedText = processedText.replace(/\$((?:\\.|[^$\\])*)\$/g, (match) => {
+            return storeMath(match);
+        });
+        processedText = processedText.replace(/\\\(((?:\\.|[^\\])*)\\\)/g, (match) => {
+            return storeMath(match);
+        });
+
+        // 2. 保护 $$...$$ 和环境
         processedText = processedText.replace(/\$\$([\s\S]*?)\$\$/g, (match) => {
             return storeMath(match);
         });
@@ -451,11 +478,22 @@
             return storeMath(match);
         });
 
+        // 3. 文本格式命令替换 (保留 v21 功能)
+        processedText = processedText
+            .replace(/\\textbf\{([^{}]+)\}/g, '<strong>$1</strong>')
+            .replace(/\\textit\{([^{}]+)\}/g, '<em>$1</em>')
+            .replace(/\\emph\{([^{}]+)\}/g, '<em>$1</em>')
+            .replace(/\\underline\{([^{}]+)\}/g, '<u>$1</u>')
+            .replace(/\\texttt\{([^{}]+)\}/g, '<code>$1</code>');
+
+        // 4. Markdown Render
         let html = marked.parse(processedText);
 
+        // 5. 恢复数学块
         html = html.replace(/<p>MATHBLOCK(\d+)ENDMATHBLOCK<\/p>/g, (m, id) => mathBlocks[id]);
         html = html.replace(/MATHBLOCK(\d+)ENDMATHBLOCK/g, (m, id) => mathBlocks[id]);
 
+        // 6. 自定义环境处理
         const envs = [ 
             { tags: ['thm','theorem'], name: 'Theorem', key: 'thm', class: 'env-thm' }, 
             { tags: ['conjecture','conj'], name: 'Conjecture', key: 'conj', class: 'env-conj' }, 
