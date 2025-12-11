@@ -3,13 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>科研管理器 v24)</title>
+    <title>科研管理器 v26</title>
     
     <!-- 依赖库 -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script>
         MathJax = {
+            loader: { load: ['[tex]/physics', '[tex]/mhchem', '[tex]/color', '[tex]/cancel', '[tex]/boldsymbol'] },
             tex: { 
+                packages: {'[+]': ['physics', 'mhchem', 'color', 'cancel', 'boldsymbol']},
                 inlineMath: [['$', '$'], ['\\(', '\\)']], 
                 displayMath: [['$$', '$$'], ['\\[', '\\]']], 
                 processEscapes: true,
@@ -25,7 +27,7 @@
             startup: { typeset: false }
         };
     </script>
-    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js"></script>
     
     <!-- CodeMirror & Plugins -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
@@ -49,7 +51,7 @@
         .bar-btn:hover { background: #666; }
         .bar-btn.primary { background: #0366d6; border-color: #0366d6; }
         .bar-btn.warn { background: #d73a49; border-color: #d73a49; }
-        .bar-btn.secondary { background: #f6f8fa; border-color: #d1d5da; color: #24292e; } /* 新增次要按钮样式 */
+        .bar-btn.secondary { background: #f6f8fa; border-color: #d1d5da; color: #24292e; }
         .bar-btn.secondary:hover { background: #e1e4e8; }
 
         /* 顶部栏 */
@@ -72,16 +74,7 @@
         .item { padding: 12px 10px; border-bottom: 1px solid #eee; cursor: pointer; border-left: 4px solid transparent; display: flex; align-items: flex-start; gap: 8px; user-select: none;}
         .item:hover { background: #eaeaea; }
         .item.active { background: #e6effc; border-left: 4px solid #0052cc; }
-        
-        .item-title { 
-            font-weight: 600; 
-            font-size: 14px; 
-            white-space: normal; 
-            overflow: visible; 
-            word-break: break-word; 
-            flex: 1; 
-            line-height: 1.4;
-        }
+        .item-title { font-weight: 600; font-size: 14px; white-space: normal; overflow: visible; word-break: break-word; flex: 1; line-height: 1.4; }
         .pin-icon { color: #ccc; font-size: 12px; cursor: pointer; flex-shrink: 0; margin-top: 3px; }
         .pin-icon.pinned { color: #d97706; }
         .share-icon { font-size: 12px; margin-left: 5px; color: #00875a; display:none; flex-shrink: 0; margin-top: 3px; }
@@ -90,31 +83,14 @@
         /* 详情区 */
         #detail-view { display: none; width: 100%; height: 100%; flex-direction: column; overflow-y: auto; position: relative; }
         
-        /* [关键] 吸顶工具栏 (Sticky) */
         #detail-toolbar {
-            position: sticky;
-            top: 0;
-            z-index: 90;
-            background: rgba(255,255,255,0.98); /* 稍微增加不透明度 */
-            backdrop-filter: blur(8px);
-            border-bottom: 1px solid #eee;
-            padding: 12px 50px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-shrink: 0;
+            position: sticky; top: 0; z-index: 90; background: rgba(255,255,255,0.98); backdrop-filter: blur(8px);
+            border-bottom: 1px solid #eee; padding: 12px 50px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
             box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
 
         .content-wrap { padding: 30px 50px; max-width: 900px; margin: 0 auto; width: 100%; box-sizing: border-box; }
-        
-        /* 正文区域字体优化 */
-        .markdown-body { 
-            font-family: "Times New Roman", "SimSun", "Songti SC", "NSimSun", serif;
-            font-size: 17px; 
-            line-height: 1.8; 
-            color: #24292e; 
-        }
+        .markdown-body { font-family: "Times New Roman", "SimSun", "Songti SC", "NSimSun", serif; font-size: 17px; line-height: 1.8; color: #24292e; }
         .markdown-body pre { background: #f6f8fa; padding: 15px; border-radius: 6px; overflow: auto; font-family: Consolas, monospace; font-size: 14px;}
         .markdown-body code { font-family: Consolas, monospace; background: rgba(27,31,35,.05); border-radius: 3px; padding: .2em .4em; font-size: 85%; }
         
@@ -125,23 +101,19 @@
         .CodeMirror-activeline-background { background: #e8f2ff !important; }
 
         /* 嵌入式编辑器 */
-        .embedded-editor {
-            display: none; flex-direction: column;
-            border: 1px solid #ddd; border-radius: 6px; margin-top: 15px; background: #fff;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            resize: vertical; overflow: hidden; height: 500px; min-height: 200px;
-        }
-        .embedded-editor.fullscreen {
-            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            width: 100vw; height: 100vh; z-index: 5000; margin: 0; border-radius: 0; resize: none;
-        }
+        .embedded-editor { display: none; flex-direction: column; border: 1px solid #ddd; border-radius: 6px; margin-top: 15px; background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.1); resize: vertical; overflow: hidden; height: 500px; min-height: 200px; }
+        .embedded-editor.fullscreen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100vw; height: 100vh; z-index: 5000; margin: 0; border-radius: 0; resize: none; }
         .embedded-editor .toolbar { padding: 8px 15px; background: #f4f5f7; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
         .embedded-editor .editor-area { display: flex; flex: 1; height: auto; overflow: hidden; }
         .embedded-editor .pane { width: 50%; height: 100%; overflow-y: auto; }
         .embedded-editor .preview-pane { padding: 20px; background: #fff; border-left: 1px solid #eee; cursor: pointer; }
         .embedded-editor .preview-pane:hover { background: #fafafa; } 
+        
+        /* [新增] 宏定义输入区域 */
+        #preamble-section { background: #fff8dc; padding: 10px; border-bottom: 1px solid #ddd; display:none; }
+        #prob-preamble-inp { width: 100%; height: 80px; box-sizing: border-box; border: 1px solid #ccc; font-family: monospace; font-size: 13px; padding: 5px; border-radius: 4px; resize: vertical; }
 
-        /* LaTeX 环境样式 */
+        /* LaTeX 环境 */
         .env-block { margin: 1em 0; padding: 15px; border-radius: 4px; border-left: 4px solid #555; background: #f9f9f9; position: relative; }
         .env-thm { background: #e6effc; border-left-color: #0052cc; } .env-thm .env-title { color: #0052cc; font-weight: bold; }
         .env-conj { background: #fff7e6; border-left-color: #ff9900; } .env-conj .env-title { color: #d97706; }
@@ -150,14 +122,15 @@
         .env-problem { background: #fff0f0; border-left-color: #d73a49; } .env-problem .env-title { color: #d73a49; font-weight: bold; }
         .env-proof { background: #fff; border-left: 2px solid #ddd; color: #333; font-style: normal; margin: 1em 0; padding-left: 15px;} 
         .env-proof .env-title { font-style: italic; font-weight: bold; color:#555; }
-        .latex-ref { color: #0052cc; cursor: pointer; text-decoration: none; border-bottom: 1px dotted #0052cc; }
-        .latex-ref:hover { background: #e6effc; }
+        
+        .latex-ref { color: #0052cc; cursor: pointer; text-decoration: none; border-bottom: none; font-weight: bold;}
+        .latex-ref:hover { text-decoration: underline; background: #e6effc; }
 
         /* 其他 */
         #collab-banner { display: none; background: #e6ffed; color: #0052cc; padding: 8px; text-align: center; border-bottom: 1px solid #bfebbb; font-size: 13px; }
         #loading { display: flex; position: fixed; inset: 0; background: rgba(255,255,255,0.8); z-index: 2000; justify-content: center; align-items: center; font-weight: bold; font-size: 18px; color: #333; flex-direction: column; gap: 10px; }
         .modal { display: none; position: fixed; inset: 0; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; z-index: 1000; }
-        .modal-box { background:white; padding:25px; width:450px; border-radius:8px; display:flex; flex-direction:column; gap:15px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        .modal-box { background:white; padding:25px; width:500px; border-radius:8px; display:flex; flex-direction:column; gap:15px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); max-height: 90vh; overflow-y: auto;}
         .inp { padding: 10px; border: 1px solid #ddd; border-radius: 4px; width: 100%; box-sizing: border-box; }
         
         body.visitor-mode .only-owner { display: none !important; }
@@ -174,12 +147,12 @@
 
 <div id="status-bar">
     <div style="display:flex; align-items:center; gap:10px;">
-        <span id="app-title" style="font-weight:bold;">科研管理器 v24</span>
+        <span id="app-title" style="font-weight:bold;">科研管理器 v26</span>
         <span id="sync-status" style="font-size:12px; color:#aaa;">⚪ 就绪</span>
     </div>
     <div id="auth-controls">
         <button class="bar-btn" onclick="syncPull()">🔄 刷新列表</button>
-        <button class="bar-btn warn" onclick="openConfig()">⚙️ 密钥</button>
+        <button class="bar-btn warn" onclick="openConfig()">⚙️ 密钥配置</button>
     </div>
 </div>
 
@@ -201,7 +174,6 @@
         <div id="empty-msg" style="text-align:center; color:#888; margin-top:20vh;"><h2>请选择一个问题</h2></div>
 
         <div id="detail-view">
-            <!-- [吸顶工具栏] 始终在内容上方 -->
             <div id="detail-toolbar">
                 <span id="d-date" style="color:#888; font-size:12px;"></span>
                 <div style="display:flex; gap:10px;">
@@ -211,7 +183,6 @@
                 </div>
             </div>
 
-            <!-- 问题内容区 -->
             <div class="content-wrap" style="padding-top: 20px;">
                 <div id="problem-display-area">
                     <h1 id="d-title" style="color:#0052cc; margin-top:0;"></h1>
@@ -225,11 +196,17 @@
                             <input id="prob-title-inp" class="inp" style="flex:1; border:1px solid #ccc; padding:6px;" placeholder="问题标题">
                             <span style="font-size:11px; color:#666;">(Ctrl-F 查找)</span>
                         </div>
-                        <div style="display:flex; align-items:center;">
+                        <div style="display:flex; align-items:center; gap:5px;">
+                            <button class="bar-btn secondary" onclick="togglePreamble()">∑ 定义宏</button>
                             <button class="bar-btn" onclick="toggleFullscreen('problem-editor-wrapper')">⛶ 全屏</button>
-                            <button class="bar-btn" onclick="closeProblemEditor()" style="margin-left:10px;">取消</button>
+                            <button class="bar-btn" onclick="closeProblemEditor()">取消</button>
                             <button class="bar-btn primary" onclick="saveProblem()">💾 保存</button>
                         </div>
+                    </div>
+                    <!-- [新增] 宏定义输入区 -->
+                    <div id="preamble-section">
+                        <div style="font-size:12px; color:#666; margin-bottom:5px;">在此输入 LaTeX 宏定义 (例如 \newcommand{\myvec}[1]{\mathbf{#1}})：</div>
+                        <textarea id="prob-preamble-inp" placeholder="\def\R{\mathbb{R}}"></textarea>
                     </div>
                     <div class="editor-area">
                         <div class="pane"><textarea id="prob-code-editor"></textarea></div>
@@ -247,7 +224,6 @@
             <div class="content-wrap" style="padding-top:20px; padding-bottom:50px;">
                 <div id="ans-list"></div>
                 
-                <!-- 笔记编辑器 -->
                 <div id="note-section-footer" style="margin-top:30px;">
                     <div id="note-trigger-btn" style="text-align:center;">
                         <button class="bar-btn primary" style="padding:10px 40px; font-size:14px;" onclick="openNoteEditor()">➕ 添加笔记</button>
@@ -257,7 +233,7 @@
                         <div class="toolbar">
                             <div style="display:flex; align-items:center; gap:10px;">
                                 <span id="note-editor-title" style="font-weight:bold;">📝 新笔记</span>
-                                <span style="font-size:11px; color:#666;">(Ctrl-F 查找)</span>
+                                <span style="font-size:11px; color:#666;">(自动继承上方定义的宏)</span>
                             </div>
                             <div>
                                 <button class="bar-btn" onclick="toggleFullscreen('note-editor-wrapper')">⛶ 全屏</button>
@@ -281,21 +257,21 @@
 <!-- Config Modal -->
 <div id="config-modal" class="modal">
     <div class="modal-box">
-        <h3 style="margin:0">⚙️ 连接设置</h3>
-        <div style="background:#fff3cd; color:#856404; padding:10px; font-size:12px; border-radius:4px;">
-            ⚠️ 若出现 "Failed to fetch"，请检查网络连接（需访问 GitHub API）或 Token。
-        </div>
-        <div>
+        <h3 style="margin:0">⚙️ 设置与配置</h3>
+        <div style="background:#f9f9f9; padding:10px; margin-top:10px; border-radius:4px;">
             <label style="font-size:12px; font-weight:bold;">GitHub Token (必填):</label>
-            <input class="inp" id="cfg-token" type="password" placeholder="格式如: ghp_xxxxxxxxxxxx">
+            <input class="inp" id="cfg-token" type="password" placeholder="ghp_xxxxxxxxxxxx">
+            <div style="font-size:11px; color:#888; margin-top:3px;">需勾选 <b>gist</b> 权限。</div>
         </div>
-        <div>
+        
+        <div style="background:#f9f9f9; padding:10px; margin-top:10px; border-radius:4px;">
             <label style="font-size:12px; font-weight:bold;">主数据库 Gist ID:</label>
             <input class="inp" id="cfg-id" placeholder="初次使用请留空">
         </div>
-        <div style="text-align:right;">
+
+        <div style="text-align:right; margin-top:15px;">
             <button class="bar-btn" onclick="document.getElementById('config-modal').style.display='none'">关闭</button>
-            <button class="bar-btn primary" onclick="saveConfig()">保存并测试</button>
+            <button class="bar-btn primary" onclick="saveConfig()">保存并生效</button>
         </div>
     </div>
 </div>
@@ -304,7 +280,6 @@
     const CFG_KEY = 'v7_config';
     let ghConfig = JSON.parse(localStorage.getItem(CFG_KEY)) || { token: '', mainGistId: '' };
     
-    // LaTeX 补全词库
     const LATEX_KEYWORDS = [
         { text: "\\begin{thm}\\label{thm:}\n\n\\end{thm}", displayText: "thm (定理)" },
         { text: "\\begin{proof}\n\n\\end{proof}", displayText: "proof (证明)" },
@@ -321,7 +296,7 @@
         { text: "\\begin{itemize}\n\\item \n\\end{itemize}", displayText: "itemize (列表)" },
         { text: "\\begin{enumerate}\n\\item \n\\end{enumerate}", displayText: "enumerate (序号列表)" },
         { text: "\\frac{}{}", displayText: "\\frac (分数)" },
-        "\\alpha", "\\beta", "\\gamma", "\\lambda", "\\sum", "\\prod", "\\int", "\\infty", "\\ex", "\\PP"
+        "\\alpha", "\\beta", "\\gamma", "\\lambda", "\\sum", "\\prod", "\\int", "\\infty", "\\ex", "\\PP", "\\boldsymbol"
     ];
 
     let db = { items: [] };
@@ -329,7 +304,6 @@
     let currentItemData = null; 
     let probCm, noteCm;
     let docState = { counters: {}, labels: {} };
-    // [新增] 编辑状态标记，null 表示新增，数字表示正在编辑的笔记索引
     let editingNoteIndex = null;
 
     const urlParams = new URLSearchParams(window.location.search);
@@ -345,12 +319,27 @@
         const cmConfig = { mode: "markdown", lineNumbers: true, lineWrapping: true, extraKeys: { "Ctrl-Space": "autocomplete" }, styleActiveLine: true };
         
         probCm = CodeMirror.fromTextArea(document.getElementById("prob-code-editor"), { ...cmConfig, extraKeys: { ...cmConfig.extraKeys, "Ctrl-S": saveProblem } });
-        setupCmEvents(probCm, 'prob-live-preview', false); 
+        // [修改] 传递获取实时 preamble 的函数
+        setupCmEvents(probCm, 'prob-live-preview', false, () => document.getElementById('prob-preamble-inp').value); 
         document.getElementById('prob-preview-container').addEventListener('dblclick', (e) => jumpToSource(probCm, e));
 
         noteCm = CodeMirror.fromTextArea(document.getElementById("note-code-editor"), { ...cmConfig, extraKeys: { ...cmConfig.extraKeys, "Ctrl-S": saveNote } });
-        setupCmEvents(noteCm, 'note-live-preview', false);
+        // [修改] 笔记预览使用当前问题已保存的 preamble
+        setupCmEvents(noteCm, 'note-live-preview', false, () => currentItemData ? currentItemData.preamble : "");
         document.getElementById('note-preview-container').addEventListener('dblclick', (e) => jumpToSource(noteCm, e));
+
+        // 监听 preamble 输入框的变化，实时更新预览
+        document.getElementById('prob-preamble-inp').addEventListener('input', () => {
+             // 触发编辑器 change 事件以刷新预览
+             probCm.display.input.blur(); probCm.display.input.focus(); 
+             // 或者手动触发刷新
+             const val = probCm.getValue();
+             resetDocState();
+             const el = document.getElementById('prob-live-preview');
+             const preamble = document.getElementById('prob-preamble-inp').value;
+             el.innerHTML = renderContent(val, false, preamble);
+             if(window.MathJax && val.trim().length > 0) MathJax.typesetPromise([el]);
+        });
 
         CodeMirror.registerHelper("hint", "markdown", function(editor) {
             var cur = editor.getCursor(), token = editor.getTokenAt(cur), start = token.start, end = cur.ch, word = token.string.slice(0, end - start);
@@ -423,7 +412,7 @@
         }
     }
 
-    function setupCmEvents(cm, previewId, isGlobal) {
+    function setupCmEvents(cm, previewId, isGlobal, getPreambleFn) {
         let debounceTimer = null;
         
         cm.on("inputRead", function(cm, change) { 
@@ -436,7 +425,8 @@
                 const val = cm.getValue();
                 if(!isGlobal) resetDocState();
                 const el = document.getElementById(previewId);
-                el.innerHTML = renderContent(val, isGlobal);
+                const preamble = getPreambleFn ? getPreambleFn() : "";
+                el.innerHTML = renderContent(val, isGlobal, preamble);
                 if(window.MathJax && val.trim().length > 0) MathJax.typesetPromise([el]);
             }, 300);
         });
@@ -446,7 +436,8 @@
         docState = { counters: { thm: 0, lemma: 0, defn: 0, conj: 0, problem: 0 }, labels: {} };
     }
 
-    function renderContent(text, isGlobal) {
+    // [修改] renderContent 接受 preamble 参数
+    function renderContent(text, isGlobal, preamble = "") {
         if (!text) return "";
 
         const mathBlocks = [];
@@ -456,6 +447,11 @@
         };
 
         let processedText = text;
+
+        // 1. 注入 Preamble
+        if (preamble && preamble.trim()) {
+             processedText = `$$ ${preamble} $$ \n` + processedText;
+        }
 
         processedText = processedText.replace(/\$\$([\s\S]*?)\$\$/g, (match) => { return storeMath(match); });
         processedText = processedText.replace(/\$((?:\\.|[^$\\])*)\$/g, (match) => { return storeMath(match); });
@@ -476,6 +472,13 @@
 
         html = html.replace(/<p>MATHBLOCK(\d+)ENDMATHBLOCK<\/p>/g, (m, id) => mathBlocks[id]);
         html = html.replace(/MATHBLOCK(\d+)ENDMATHBLOCK/g, (m, id) => mathBlocks[id]);
+        
+        // 隐藏注入的 preamble
+        if (preamble && preamble.trim()) {
+             html = html.replace(/<p>(\$\$[\s\S]*?\\(?:newcommand|def|DeclareMathOperator)[\s\S]*?\$\$)< \/p>/, '$1'); 
+             // 实际上 MathJax 处理定义块本身就不显示，主要是去掉 Marked 生成的空 p 标签
+             // 简单的 CSS 隐藏第一块：由于无法精准定位，依赖 MathJax 的行为通常是安全的（0高度）
+        }
 
         const envs = [ 
             { tags: ['thm','theorem'], name: 'Theorem', key: 'thm', class: 'env-thm' }, 
@@ -530,10 +533,22 @@
         const cm = wrapperId.includes('prob') ? probCm : noteCm; cm.refresh(); 
     }
 
+    // [新增] 切换 Preamble 输入框显示
+    function togglePreamble() {
+        const el = document.getElementById('preamble-section');
+        el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    }
+
     function openProblemEditor() {
         document.getElementById('problem-display-area').style.display = 'none';
         document.getElementById('problem-editor-wrapper').style.display = 'flex';
         document.getElementById('prob-title-inp').value = currentItemData.title;
+        
+        // [新增] 填充 preamble
+        document.getElementById('prob-preamble-inp').value = currentItemData.preamble || "";
+        // 默认隐藏 preamble 编辑区，除非有内容
+        document.getElementById('preamble-section').style.display = currentItemData.preamble ? 'block' : 'none';
+
         probCm.setValue(currentItemData.desc);
         setTimeout(() => { probCm.refresh(); probCm.focus(); }, 50);
     }
@@ -547,32 +562,24 @@
         document.getElementById('note-editor-wrapper').style.display = 'flex';
         noteCm.setValue('');
         setTimeout(() => { noteCm.refresh(); noteCm.focus(); }, 100);
-        // [新增] 滚动到底部
         document.getElementById('note-section-footer').scrollIntoView({ behavior: 'smooth' });
     }
     function closeNoteEditor() {
         const el = document.getElementById('note-editor-wrapper');
         el.style.display = 'none'; el.classList.remove('fullscreen');
         document.getElementById('note-trigger-btn').style.display = 'block';
-        
-        // [新增] 重置编辑状态
         editingNoteIndex = null;
         document.getElementById('note-editor-title').innerText = "📝 新笔记";
         noteCm.setValue('');
     }
 
-    // [新增] 编辑笔记入口函数
     function editAns(idx) {
         editingNoteIndex = idx;
         const note = currentItemData.answers[idx];
-        
         document.getElementById('note-trigger-btn').style.display = 'none';
         document.getElementById('note-editor-wrapper').style.display = 'flex';
-        
-        // 设置内容和标题
         noteCm.setValue(note.text);
         document.getElementById('note-editor-title').innerText = "✏️ 编辑笔记";
-        
         setTimeout(() => { noteCm.refresh(); noteCm.focus(); }, 100);
         document.getElementById('note-section-footer').scrollIntoView({ behavior: 'smooth' });
     }
@@ -580,28 +587,20 @@
     async function saveProblem() {
         currentItemData.title = document.getElementById('prob-title-inp').value;
         currentItemData.desc = probCm.getValue();
+        // [新增] 保存 preamble
+        currentItemData.preamble = document.getElementById('prob-preamble-inp').value;
         currentItemData.date = new Date().toISOString();
         closeProblemEditor();
         await performSave();
         renderDetailView();
     }
     
-    // [修改] 保存笔记逻辑（支持新增和修改）
     async function saveNote() {
         const val = noteCm.getValue();
         if(!val.trim()) return;
-        
-        if (editingNoteIndex !== null) {
-            // 修改现有笔记
-            currentItemData.answers[editingNoteIndex].text = val;
-            // 可选：更新该条笔记的时间 currentItemData.answers[editingNoteIndex].date = ...
-        } else {
-            // 新增笔记
-            if(!currentItemData.answers) currentItemData.answers = [];
-            currentItemData.answers.push({ text: val, date: new Date().toISOString() });
-        }
-        
-        currentItemData.date = new Date().toISOString(); // 更新问题修改时间
+        if (editingNoteIndex !== null) { currentItemData.answers[editingNoteIndex].text = val; } 
+        else { if(!currentItemData.answers) currentItemData.answers = []; currentItemData.answers.push({ text: val, date: new Date().toISOString() }); }
+        currentItemData.date = new Date().toISOString(); 
         closeNoteEditor();
         await performSave();
         renderDetailView();
@@ -671,14 +670,16 @@
         const d = currentItemData;
         document.getElementById('d-title').innerText = d.title;
         document.getElementById('d-date').innerText = new Date(d.date).toLocaleDateString();
-        document.getElementById('d-desc').innerHTML = renderContent(d.desc || "", true);
+        
+        // [修改] 传递当前问题的 preamble 进行渲染
+        document.getElementById('d-desc').innerHTML = renderContent(d.desc || "", true, d.preamble);
+        
         document.getElementById('problem-display-area').style.display = 'block';
         document.getElementById('problem-editor-wrapper').style.display = 'none';
         
-        // [修改] 增加编辑按钮
         document.getElementById('ans-list').innerHTML = (d.answers || []).map((a, i) => `
             <div style="background:#fafbfc; border:1px solid #eee; padding:15px; margin-bottom:10px; border-radius:5px;">
-                <div class="markdown-body">${renderContent(a.text, true)}</div>
+                <div class="markdown-body">${renderContent(a.text, true, d.preamble)}</div>
                 <div style="font-size:12px; color:#aaa; margin-top:5px; display:flex; justify-content:space-between; align-items:center;">
                     <span>${new Date(a.date).toLocaleString()}</span>
                     <div>
@@ -741,14 +742,22 @@
     async function stopCollaboration(item) { if(!confirm("停止协作并存回本地?")) return; try { item.desc=currentItemData.desc; item.answers=currentItemData.answers; delete item.shareId; await saveMainDB(true); alert("已停止"); loadItem(item.id); } catch(e){alert(e.message);} }
     async function convertToShared() { const item = db.items.find(x => x.id === currentId); if(!confirm("开启协作?")) return; try { const res = await fetch("https://api.github.com/gists", { method: "POST", headers: { "Authorization": `token ${ghConfig.token}` }, body: JSON.stringify({ description: `[Shared] ${item.title}`, public: false, files: { "shared_item.json": { content: JSON.stringify(item, null, 2) } } }) }); const json = await res.json(); item.shareId = json.id; await saveMainDB(true); alert("已开启"); loadItem(currentId); } catch(e){alert(e.message);} }
 
-    function openConfig() { document.getElementById('cfg-token').value = ghConfig.token; document.getElementById('cfg-id').value = ghConfig.mainGistId; document.getElementById('config-modal').style.display = 'flex'; }
+    function openConfig() { 
+        document.getElementById('cfg-token').value = ghConfig.token; 
+        document.getElementById('cfg-id').value = ghConfig.mainGistId; 
+        document.getElementById('config-modal').style.display = 'flex'; 
+    }
     function setMsg(t) { document.getElementById('sync-status').innerText = t; }
+    
     async function saveConfig() {
         const t = document.getElementById('cfg-token').value.trim();
         let mid = document.getElementById('cfg-id').value.trim();
+        
         if(!t) return alert("Token 不能为空");
         if (mid.includes('/')) mid = mid.split('/').pop().replace('.git', '');
+        
         ghConfig = { token: t, mainGistId: mid };
+        
         if (!mid) {
             setMsg("初始化..."); try {
                 const res = await fetch("https://api.github.com/gists", { method: "POST", headers: { "Authorization": `token ${t}` }, body: JSON.stringify({ description: "Research Manager Main DB", public: false, files: { "main_db.json": { content: JSON.stringify({items:[]}) } } }) });
@@ -757,7 +766,8 @@
         }
         localStorage.setItem(CFG_KEY, JSON.stringify(ghConfig));
         document.getElementById('config-modal').style.display = 'none';
-        syncPullMain();
+        
+        syncPullMain(); 
     }
 </script>
 </body>
