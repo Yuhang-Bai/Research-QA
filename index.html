@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>科研管理器 v28</title>
+    <title>科研管理器 v29</title>
     
     <!-- 依赖库 -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -106,23 +106,45 @@
         #preamble-section { background: #fff8dc; padding: 10px; border-bottom: 1px solid #ddd; display:none; }
         #prob-preamble-inp { width: 100%; height: 80px; box-sizing: border-box; border: 1px solid #ccc; font-family: monospace; font-size: 13px; padding: 5px; border-radius: 4px; resize: vertical; }
 
-        /* [新增] 智能吸顶样式 */
+        /* [新增] 笔记卡片样式 */
+        .ans-card {
+            background: #fff;
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            position: relative;
+            transition: all 0.2s ease-in-out;
+        }
+        .ans-card:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            transform: translateY(-2px);
+            border-color: #d1d5da;
+        }
+        /* 左侧装饰条已移除 */
+        .ans-footer {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px dashed #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #586069;
+            font-size: 12px;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        /* 智能吸顶样式 */
         .thm-proof-wrapper { position: relative; margin-bottom: 1em; }
         .env-block { margin: 1em 0; padding: 15px; border-radius: 4px; border-left: 4px solid #555; background: #f9f9f9; position: relative; transition: box-shadow 0.2s; }
         
-        /* 当定理吸顶时的样式 */
         .env-block.sticky-mode {
-            position: sticky;
-            top: 60px; /* 紧贴 detail-toolbar 下方 */
-            z-index: 80;
+            position: sticky; top: 60px; z-index: 80;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            border-bottom: 1px solid #ddd;
-            margin-bottom: 0;
-            border-bottom-left-radius: 0;
-            border-bottom-right-radius: 0;
-            opacity: 0.98;
-            max-height: 30vh; /* 防止定理太长遮挡全部 */
-            overflow-y: auto;
+            border-bottom: 1px solid #ddd; margin-bottom: 0;
+            border-bottom-left-radius: 0; border-bottom-right-radius: 0;
+            opacity: 0.98; max-height: 30vh; overflow-y: auto;
         }
         
         .env-thm { background: #e6effc; border-left-color: #0052cc; } .env-thm .env-title { color: #0052cc; font-weight: bold; }
@@ -133,8 +155,6 @@
         
         .env-proof { background: #fff; border-left: 2px solid #ddd; color: #333; font-style: normal; margin: 1em 0; padding-left: 15px;} 
         .env-proof .env-title { font-style: italic; font-weight: bold; color:#555; }
-        
-        /* 证明部分在组合时的样式微调 */
         .env-proof.attached { margin-top: 0; border-top-left-radius: 0; border-top-right-radius: 0; padding-top: 15px; }
 
         .latex-ref { color: #0052cc; cursor: pointer; text-decoration: none; border-bottom: none; font-weight: bold;}
@@ -160,7 +180,7 @@
 
 <div id="status-bar">
     <div style="display:flex; align-items:center; gap:10px;">
-        <span id="app-title" style="font-weight:bold;">科研管理器 v28</span>
+        <span id="app-title" style="font-weight:bold;">科研管理器 v29</span>
         <span id="sync-status" style="font-size:12px; color:#aaa;">⚪ 就绪</span>
     </div>
     <div id="auth-controls">
@@ -330,7 +350,6 @@
         const cmConfig = { mode: "markdown", lineNumbers: true, lineWrapping: true, extraKeys: { "Ctrl-Space": "autocomplete" }, styleActiveLine: true };
         
         probCm = CodeMirror.fromTextArea(document.getElementById("prob-code-editor"), { ...cmConfig, extraKeys: { ...cmConfig.extraKeys, "Ctrl-S": saveProblem } });
-        // 在编辑预览时也启用 DOM 后处理，模拟吸顶效果预览
         setupCmEvents(probCm, 'prob-live-preview', false, () => document.getElementById('prob-preamble-inp').value); 
         document.getElementById('prob-preview-container').addEventListener('dblclick', (e) => jumpToSource(probCm, e));
 
@@ -344,7 +363,6 @@
              const el = document.getElementById('prob-live-preview');
              const preamble = document.getElementById('prob-preamble-inp').value;
              el.innerHTML = renderContent(val, false, preamble);
-             // 重新处理 DOM
              postProcessDom(el);
              if(window.MathJax && val.trim().length > 0) MathJax.typesetPromise([el]);
         });
@@ -435,7 +453,6 @@
                 const el = document.getElementById(previewId);
                 const preamble = getPreambleFn ? getPreambleFn() : "";
                 el.innerHTML = renderContent(val, isGlobal, preamble);
-                // 每次渲染后执行 DOM 后处理
                 postProcessDom(el);
                 if(window.MathJax && val.trim().length > 0) MathJax.typesetPromise([el]);
             }, 300);
@@ -446,27 +463,16 @@
         docState = { counters: { thm: 0, lemma: 0, defn: 0, conj: 0, problem: 0 }, labels: {} };
     }
 
-    // [新增] DOM 后处理函数，用于实现 sticky logic
     function postProcessDom(container) {
-        // 查找所有 proof block
         const proofs = container.querySelectorAll('.env-proof');
         proofs.forEach(proof => {
-            // 查找 proof 前一个元素
             const prev = proof.previousElementSibling;
-            // 检查前一个元素是否是 定理/引理 等环境块
             if (prev && prev.classList.contains('env-block')) {
-                // 创建包裹层
                 const wrapper = document.createElement('div');
                 wrapper.className = 'thm-proof-wrapper';
-                
-                // 插入 wrapper 到 dom
                 prev.parentNode.insertBefore(wrapper, prev);
-                
-                // 将 定理 和 证明 移入 wrapper
                 wrapper.appendChild(prev);
                 wrapper.appendChild(proof);
-                
-                // 添加 sticky 样式
                 prev.classList.add('sticky-mode');
                 proof.classList.add('attached');
             }
@@ -700,30 +706,30 @@
         document.getElementById('d-title').innerText = d.title;
         document.getElementById('d-date').innerText = new Date(d.date).toLocaleDateString();
         
-        const descContainer = document.getElementById('d-desc');
-        // 渲染 HTML
-        descContainer.innerHTML = renderContent(d.desc || "", true, d.preamble);
         // [核心逻辑] 应用 Sticky Post Processing
+        const descContainer = document.getElementById('d-desc');
+        descContainer.innerHTML = renderContent(d.desc || "", true, d.preamble);
         postProcessDom(descContainer);
         
         document.getElementById('problem-display-area').style.display = 'block';
         document.getElementById('problem-editor-wrapper').style.display = 'none';
         
         const ansList = document.getElementById('ans-list');
+        // [新增] 这里的笔记也应用了卡片样式 .ans-card
         ansList.innerHTML = (d.answers || []).map((a, i) => `
-            <div style="background:#fafbfc; border:1px solid #eee; padding:15px; margin-bottom:10px; border-radius:5px;">
+            <div class="ans-card">
                 <div class="markdown-body ans-content">${renderContent(a.text, true, d.preamble)}</div>
-                <div style="font-size:12px; color:#aaa; margin-top:5px; display:flex; justify-content:space-between; align-items:center;">
-                    <span>${new Date(a.date).toLocaleString()}</span>
-                    <div>
-                        <button class="bar-btn secondary" style="font-size:11px; padding:2px 8px; margin-right:5px;" onclick="editAns(${i})">✏️ 编辑</button>
-                        <button class="bar-btn warn" style="font-size:11px; padding:2px 8px;" onclick="deleteAns(${i})">删除</button>
+                <div class="ans-footer">
+                    <span>📅 ${new Date(a.date).toLocaleString()}</span>
+                    <div class="ans-actions">
+                        <button class="bar-btn secondary" style="font-size:11px; padding:3px 8px; margin-right:5px;" onclick="editAns(${i})">✏️ 编辑</button>
+                        <button class="bar-btn warn" style="font-size:11px; padding:3px 8px;" onclick="deleteAns(${i})">🗑️ 删除</button>
                     </div>
                 </div>
             </div>
         `).join('');
         
-        // 笔记也应用 sticky，虽然少见但一致性好
+        // 为笔记内容也应用 sticky 处理（虽然少见，但保持一致）
         ansList.querySelectorAll('.ans-content').forEach(el => postProcessDom(el));
         
         resolveReferences();
