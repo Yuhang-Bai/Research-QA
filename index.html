@@ -75,13 +75,11 @@
         .item.active { background: #e6effc; border-left: 4px solid #0052cc; }
         .item-title { font-weight: 600; font-size: 14px; white-space: normal; overflow: visible; word-break: break-word; flex: 1; line-height: 1.4; }
         
-        /* [修改] 置顶图标仅在置顶时显示，且样式微调 */
         .pin-indicator { color: #d97706; font-size: 12px; margin-right: 5px; margin-top: 3px; flex-shrink: 0; }
         
         .share-icon { font-size: 12px; margin-left: 5px; color: #00875a; display:none; flex-shrink: 0; margin-top: 3px; }
         .item.shared .share-icon { display: inline; }
 
-        /* [新增] 右键菜单样式 */
         #ctx-menu {
             display: none; position: fixed; z-index: 10001; background: #fff; border: 1px solid #d1d5da;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1); border-radius: 6px; padding: 5px 0; min-width: 120px;
@@ -167,7 +165,7 @@
 </head>
 <body>
 
-<!-- [新增] 右键菜单 -->
+<!-- 右键菜单 -->
 <div id="ctx-menu">
     <div class="ctx-item" onclick="togglePinFromCtx()">📌 置顶 / 取消置顶</div>
     <div class="ctx-item warn" onclick="deleteItemFromCtx()">🗑️ 删除此问题</div>
@@ -345,14 +343,14 @@
     let probCm, noteCm;
     let docState = { counters: {}, labels: {} };
     let editingNoteIndex = null;
-    let contextMenuTargetIdx = null; // 右键菜单的目标索引
+    let contextMenuTargetIdx = null;
 
     const urlParams = new URLSearchParams(window.location.search);
     const visitorGistId = urlParams.get('gist');
 
     window.onload = async function() {
         initEditors();
-        initContextMenu(); // 初始化右键菜单
+        initContextMenu();
         if (visitorGistId) { enterVisitorMode(); } 
         else { if (ghConfig.token && ghConfig.mainGistId) { await syncPullMain(); } else { document.getElementById('loading').style.display = 'none'; openConfig(); } }
         
@@ -374,10 +372,9 @@
 
         document.getElementById('prob-preamble-inp').addEventListener('input', () => {
              const val = probCm.getValue();
-             resetDocState();
              const el = document.getElementById('prob-live-preview');
              const preamble = document.getElementById('prob-preamble-inp').value;
-             el.innerHTML = renderContent(val, false, preamble);
+             el.innerHTML = renderContent(val, false, preamble, null); // 编辑预览使用本地 state (null)
              postProcessDom(el);
              if(window.MathJax && val.trim().length > 0) MathJax.typesetPromise([el]);
         });
@@ -406,7 +403,6 @@
             isResizing = true;
             document.body.style.cursor = 'col-resize';
             document.body.style.userSelect = 'none'; 
-            
             document.addEventListener('mousemove', handleMouseMove);
             document.addEventListener('mouseup', stopResize);
         });
@@ -431,50 +427,29 @@
         }
     }
 
-    // [新增] 初始化右键菜单
     function initContextMenu() {
         const menu = document.getElementById('ctx-menu');
-        // 点击页面其他地方隐藏菜单
-        document.addEventListener('click', (e) => {
-            if (!menu.contains(e.target)) menu.style.display = 'none';
-        });
-        // 滚动时隐藏菜单
+        document.addEventListener('click', (e) => { if (!menu.contains(e.target)) menu.style.display = 'none'; });
         document.addEventListener('scroll', () => menu.style.display = 'none', true);
     }
 
     function openContextMenu(e, idx) {
-        e.preventDefault(); // 阻止默认右键菜单
-        e.stopPropagation();
-        
+        e.preventDefault(); e.stopPropagation();
         contextMenuTargetIdx = idx;
         const menu = document.getElementById('ctx-menu');
-        
-        // 计算位置
-        let x = e.clientX;
-        let y = e.clientY;
-        
-        // 简单的边界检查
+        let x = e.clientX, y = e.clientY;
         if (x + 150 > window.innerWidth) x = window.innerWidth - 160;
         if (y + 100 > window.innerHeight) y = window.innerHeight - 110;
-
-        menu.style.left = x + 'px';
-        menu.style.top = y + 'px';
-        menu.style.display = 'block';
+        menu.style.left = x + 'px'; menu.style.top = y + 'px'; menu.style.display = 'block';
     }
 
-    // [新增] 右键菜单功能
     function togglePinFromCtx() {
         if (contextMenuTargetIdx === null) return;
         const idx = contextMenuTargetIdx;
         document.getElementById('ctx-menu').style.display = 'none';
-        
         db.items[idx].isPinned = !db.items[idx].isPinned;
-        if(db.items[idx].isPinned) {
-            const [item] = db.items.splice(idx, 1);
-            db.items.unshift(item);
-        }
-        renderList();
-        saveMainDB(true);
+        if(db.items[idx].isPinned) { const [item] = db.items.splice(idx, 1); db.items.unshift(item); }
+        renderList(); saveMainDB(true);
     }
 
     async function deleteItemFromCtx() {
@@ -482,62 +457,36 @@
         const idx = contextMenuTargetIdx;
         const item = db.items[idx];
         document.getElementById('ctx-menu').style.display = 'none';
-        
         if(!confirm(`确定要彻底删除问题 "${item.title}" 吗？`)) return;
-        
         try {
-            // 如果正好是当前选中的，清空视图
-            if (item.id === currentId) {
-                currentId = null;
-                document.getElementById('detail-view').style.display = 'none';
-                document.getElementById('empty-msg').style.display = 'block';
-            }
-            
-            db.items.splice(idx, 1);
-            await saveMainDB(true);
-            renderList();
-        } catch(e) {
-            alert(e.message);
-        }
+            if (item.id === currentId) { currentId = null; document.getElementById('detail-view').style.display = 'none'; document.getElementById('empty-msg').style.display = 'block'; }
+            db.items.splice(idx, 1); await saveMainDB(true); renderList();
+        } catch(e) { alert(e.message); }
     }
 
     function jumpToSource(cm, event) {
         let target = event.target;
-        if (target.tagName.toLowerCase().includes('mjx')) {
-            target = target.closest('p, li, h1, h2, h3, h4, h5, h6, .env-block') || target;
-        }
-        
+        if (target.tagName.toLowerCase().includes('mjx')) { target = target.closest('p, li, h1, h2, h3, h4, h5, h6, .env-block') || target; }
         let text = target.innerText || target.textContent;
         if (!text) return;
-
         let searchPhrase = text.slice(0, 30).replace(/\s+/g, ' ').trim();
         if (searchPhrase.length < 3) return; 
-
         let cursor = cm.getSearchCursor(searchPhrase);
-        if (cursor.findNext()) {
-            let pos = cursor.from();
-            cm.setCursor(pos);
-            cm.scrollIntoView(pos, 200); 
-            cm.setSelection(cursor.from(), cursor.to());
-            cm.focus();
-        }
+        if (cursor.findNext()) { let pos = cursor.from(); cm.setCursor(pos); cm.scrollIntoView(pos, 200); cm.setSelection(cursor.from(), cursor.to()); cm.focus(); }
     }
 
     function setupCmEvents(cm, previewId, isGlobal, getPreambleFn) {
         let debounceTimer = null;
-        
-        cm.on("inputRead", function(cm, change) { 
-            if (change.text[0].match(/[\\a-zA-Z]/)) { CodeMirror.commands.autocomplete(cm, null, { completeSingle: false }); } 
-        });
-        
+        cm.on("inputRead", function(cm, change) { if (change.text[0].match(/[\\a-zA-Z]/)) { CodeMirror.commands.autocomplete(cm, null, { completeSingle: false }); } });
         cm.on("change", () => {
             if (debounceTimer) clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
                 const val = cm.getValue();
-                if(!isGlobal) resetDocState();
                 const el = document.getElementById(previewId);
                 const preamble = getPreambleFn ? getPreambleFn() : "";
-                el.innerHTML = renderContent(val, isGlobal, preamble);
+                // 编辑器预览使用局部 state
+                const localState = { counters: { thm: 0, lemma: 0, defn: 0, conj: 0, problem: 0 }, labels: {} };
+                el.innerHTML = renderContent(val, false, preamble, localState);
                 postProcessDom(el);
                 if(window.MathJax && val.trim().length > 0) MathJax.typesetPromise([el]);
             }, 300);
@@ -556,28 +505,23 @@
                 const wrapper = document.createElement('div');
                 wrapper.className = 'thm-proof-wrapper';
                 prev.parentNode.insertBefore(wrapper, prev);
-                wrapper.appendChild(prev);
-                wrapper.appendChild(proof);
-                prev.classList.add('sticky-mode');
-                proof.classList.add('attached');
+                wrapper.appendChild(prev); wrapper.appendChild(proof);
+                prev.classList.add('sticky-mode'); proof.classList.add('attached');
             }
         });
     }
 
-    function renderContent(text, isGlobal, preamble = "") {
+    // [核心] 渲染函数支持传入状态对象
+    function renderContent(text, isGlobal, preamble = "", customState = null) {
         if (!text) return "";
+        const state = customState || docState; // 使用传入状态或全局状态
 
         const mathBlocks = [];
-        const storeMath = (content) => {
-            mathBlocks.push(content);
-            return `MATHBLOCK${mathBlocks.length - 1}ENDMATHBLOCK`;
-        };
+        const storeMath = (content) => { mathBlocks.push(content); return `MATHBLOCK${mathBlocks.length - 1}ENDMATHBLOCK`; };
 
         let processedText = text;
 
-        if (preamble && preamble.trim()) {
-             processedText = `$$ ${preamble} $$ \n` + processedText;
-        }
+        if (preamble && preamble.trim()) { processedText = `$$ ${preamble} $$ \n` + processedText; }
 
         processedText = processedText.replace(/\$\$([\s\S]*?)\$\$/g, (match) => { return storeMath(match); });
         processedText = processedText.replace(/\$((?:\\.|[^$\\])*)\$/g, (match) => { return storeMath(match); });
@@ -588,24 +532,15 @@
         const envRegex = new RegExp(`\\\\begin\\{(${envsToProtect.join('|')})\\}([\\s\\S]*?)\\\\end\\{\\1\\}`, 'g');
         processedText = processedText.replace(envRegex, (match) => { return storeMath(match); });
 
-        // [修复] 将 ~ 替换为空格
         processedText = processedText.replace(/~/g, ' ');
-
-        processedText = processedText
-            .replace(/\\textbf\{([^{}]+)\}/g, '<strong>$1</strong>')
-            .replace(/\\textit\{([^{}]+)\}/g, '<em>$1</em>')
-            .replace(/\\emph\{([^{}]+)\}/g, '<em>$1</em>')
-            .replace(/\\underline\{([^{}]+)\}/g, '<u>$1</u>')
-            .replace(/\\texttt\{([^{}]+)\}/g, '<code>$1</code>');
+        processedText = processedText.replace(/\\textbf\{([^{}]+)\}/g, '<strong>$1</strong>').replace(/\\textit\{([^{}]+)\}/g, '<em>$1</em>').replace(/\\emph\{([^{}]+)\}/g, '<em>$1</em>').replace(/\\underline\{([^{}]+)\}/g, '<u>$1</u>').replace(/\\texttt\{([^{}]+)\}/g, '<code>$1</code>');
 
         let html = marked.parse(processedText);
 
         html = html.replace(/<p>MATHBLOCK(\d+)ENDMATHBLOCK<\/p>/g, (m, id) => mathBlocks[id]);
         html = html.replace(/MATHBLOCK(\d+)ENDMATHBLOCK/g, (m, id) => mathBlocks[id]);
         
-        if (preamble && preamble.trim() && mathBlocks.length > 0) {
-             html = html.replace(/^<p>(\$\$[\s\S]*?\$\$)< \/p>/, '$1'); 
-        }
+        if (preamble && preamble.trim() && mathBlocks.length > 0) { html = html.replace(/^<p>(\$\$[\s\S]*?\$\$)< \/p>/, '$1'); }
 
         const envs = [ 
             { tags: ['thm','theorem'], name: 'Theorem', key: 'thm', class: 'env-thm' }, 
@@ -622,12 +557,12 @@
                 html = html.replace(regex, (m, c) => {
                     let numStr = ""; let anchorId = "";
                     if (env.key) {
-                        docState.counters[env.key] = (docState.counters[env.key] || 0) + 1;
-                        const num = docState.counters[env.key];
+                        state.counters[env.key] = (state.counters[env.key] || 0) + 1; // 使用 state
+                        const num = state.counters[env.key];
                         numStr = ` ${num}`; anchorId = `env-${env.key}-${num}`;
                         const labelRegex = /\\label\{([^}]+)\}/g; let match;
                         while ((match = labelRegex.exec(c)) !== null) {
-                            const labelName = match[1]; docState.labels[labelName] = { num: num, id: anchorId };
+                            const labelName = match[1]; state.labels[labelName] = { num: num, id: anchorId }; // 使用 state
                         }
                         c = c.replace(labelRegex, ''); 
                     }
@@ -646,10 +581,16 @@
         return html;
     }
 
-    function resolveReferences() {
-        document.querySelectorAll('.latex-ref').forEach(el => {
+    // [修改] 解析引用也支持传入 state
+    function resolveReferences(customState = null) {
+        const state = customState || docState;
+        // 如果提供了 customState，则只解析其容器内的 ref？不，这里通过 DOM 查询
+        // 为了支持全屏模式的局部解析，我们需要限制查询范围。
+        // 但这里我们简单化：如果在全屏模式下，我们在那里手动调用解析逻辑。
+        // 这个函数主要用于主视图的全局解析。
+        document.querySelectorAll('#detail-view .latex-ref').forEach(el => {
             const refKey = el.getAttribute('data-ref');
-            const target = docState.labels[refKey];
+            const target = state.labels[refKey];
             if (target) { el.innerHTML = target.num; el.href = "#" + target.id; } 
             else { el.innerHTML = "<strong>?</strong>"; el.title = "未找到引用"; el.style.color = "red"; }
         });
@@ -669,10 +610,8 @@
         document.getElementById('problem-display-area').style.display = 'none';
         document.getElementById('problem-editor-wrapper').style.display = 'flex';
         document.getElementById('prob-title-inp').value = currentItemData.title;
-        
         document.getElementById('prob-preamble-inp').value = currentItemData.preamble || "";
         document.getElementById('preamble-section').style.display = currentItemData.preamble ? 'block' : 'none';
-
         probCm.setValue(currentItemData.desc);
         setTimeout(() => { probCm.refresh(); probCm.focus(); }, 50);
     }
@@ -711,20 +650,28 @@
     function toggleNote(idx) {
         const content = document.getElementById(`ans-content-${idx}`);
         const btn = document.getElementById(`ans-btn-toggle-${idx}`);
-        
-        if (content.classList.contains('collapsed')) {
-            content.classList.remove('collapsed');
-            btn.innerText = "🔼 收起";
-        } else {
-            content.classList.add('collapsed');
-            btn.innerText = "🔽 展开";
-        }
+        if (content.classList.contains('collapsed')) { content.classList.remove('collapsed'); btn.innerText = "🔼 收起"; } 
+        else { content.classList.add('collapsed'); btn.innerText = "🔽 展开"; }
     }
     
+    // [关键修复] 全屏阅读使用独立计数器
     function fullscreenNote(idx) {
         const note = currentItemData.answers[idx];
         const container = document.getElementById('fullscreen-content');
-        container.innerHTML = renderContent(note.text, true, currentItemData.preamble);
+        
+        // 创建独立的状态对象
+        const localState = { counters: { thm: 0, lemma: 0, defn: 0, conj: 0, problem: 0 }, labels: {} };
+        
+        container.innerHTML = renderContent(note.text, true, currentItemData.preamble, localState);
+        
+        // 局部解析引用
+        container.querySelectorAll('.latex-ref').forEach(el => {
+            const refKey = el.getAttribute('data-ref');
+            const target = localState.labels[refKey];
+            if (target) { el.innerHTML = target.num; el.href = "#"; } 
+            else { el.innerHTML = "<strong>?</strong>"; el.style.color = "red"; }
+        });
+
         postProcessDom(container);
         if(window.MathJax) MathJax.typesetPromise([container]);
         document.getElementById('fullscreen-reader').style.display = 'flex';
@@ -760,7 +707,6 @@
             finally { document.getElementById('loading').style.display = 'none'; }
         } else { await syncPullMain(); }
     }
-    // [修复] 增加错误捕获的访客入口
     async function enterVisitorMode() {
         document.body.classList.add('visitor-mode');
         document.getElementById('auth-controls').innerHTML = ''; 
@@ -770,20 +716,12 @@
 
         if (!ghConfig.token) { 
             const t = prompt("请输入 GitHub Token 以启用编辑权限："); 
-            if(t) {
-                ghConfig.token = t.trim();
-                localStorage.setItem(CFG_KEY, JSON.stringify(ghConfig)); // 保存 Token
-            }
+            if(t) { ghConfig.token = t.trim(); localStorage.setItem(CFG_KEY, JSON.stringify(ghConfig)); }
         }
         
-        try {
-            await loadSharedItem(visitorGistId);
-            setMsg("协作模式");
-        } catch(e) {
-            alert("连接失败: " + e.message);
-        } finally {
-            document.getElementById('loading').style.display = 'none';
-        }
+        try { await loadSharedItem(visitorGistId); setMsg("协作模式"); } 
+        catch(e) { alert("连接失败: " + e.message); } 
+        finally { document.getElementById('loading').style.display = 'none'; }
     }
     async function syncPullMain() {
         if(!ghConfig.token || !ghConfig.mainGistId) return;
@@ -819,31 +757,19 @@
         } catch (e) { handleNetworkError(e); } 
         finally { document.getElementById('loading').style.display = 'none'; setMsg("就绪"); }
     }
-    // [修复] 增强的文件读取逻辑
     async function loadSharedItem(gistId) {
         const headers = {};
         if (ghConfig.token) headers["Authorization"] = `token ${ghConfig.token}`;
-        
         const res = await fetch(`https://api.github.com/gists/${gistId}`, { headers: headers });
         await handleApiError(res);
         const json = await res.json();
-        
-        // 尝试读取 shared_item.json，如果不存在则读取第一个 json 文件
         let fileObj = json.files["shared_item.json"];
-        if (!fileObj) {
-             const key = Object.keys(json.files).find(k => k.endsWith('.json'));
-             if(key) fileObj = json.files[key];
-        }
-        
+        if (!fileObj) { const key = Object.keys(json.files).find(k => k.endsWith('.json')); if(key) fileObj = json.files[key]; }
         if (!fileObj) throw new Error("Gist 数据损坏");
-        
         currentItemData = JSON.parse(fileObj.content);
         if(!currentId) currentId = currentItemData.id;
-        
-        // [关键] 强制显示 detail-view
         document.getElementById('empty-msg').style.display = 'none';
         document.getElementById('detail-view').style.display = 'flex';
-        
         renderDetailView();
     }
 
@@ -854,6 +780,7 @@
         document.getElementById('d-date').innerText = new Date(d.date).toLocaleDateString();
         
         const descContainer = document.getElementById('d-desc');
+        // 主界面渲染使用全局 docState (renderContent 默认使用 docState)
         descContainer.innerHTML = renderContent(d.desc || "", true, d.preamble);
         postProcessDom(descContainer);
         
@@ -868,7 +795,6 @@
                         <button class="btn-text" id="ans-btn-toggle-${i}" onclick="toggleNote(${i})">🔽 展开</button>
                         <button class="btn-text" onclick="fullscreenNote(${i})">⛶ 全屏阅读</button>
                     </div>
-                    
                     <div style="display:flex; align-items:center; gap:10px;">
                         <span>${new Date(a.date).toLocaleString()}</span>
                         <button class="bar-btn secondary" style="font-size:11px; padding:3px 8px;" onclick="editAns(${i})">✏️ 编辑</button>
