@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>科研管理器 v31</title>
+    <title>科研管理器 v32</title>
     
     <!-- 依赖库 -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -84,7 +84,7 @@
         #detail-toolbar {
             position: sticky; top: 0; z-index: 90; background: rgba(255,255,255,0.98); backdrop-filter: blur(8px);
             border-bottom: 1px solid #eee; padding: 12px 50px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05); height: 60px; box-sizing: border-box;
         }
 
         .content-wrap { padding: 30px 50px; max-width: 900px; margin: 0 auto; width: 100%; box-sizing: border-box; }
@@ -162,7 +162,7 @@
 
 <div id="status-bar">
     <div style="display:flex; align-items:center; gap:10px;">
-        <span id="app-title" style="font-weight:bold;">科研管理器 v31</span>
+        <span id="app-title" style="font-weight:bold;">科研管理器 v32</span>
         <span id="sync-status" style="font-size:12px; color:#aaa;">⚪ 就绪</span>
     </div>
     <div id="auth-controls">
@@ -474,6 +474,7 @@
         });
     }
 
+    // [核心修复] 渲染器
     function renderContent(text, isGlobal, preamble = "") {
         if (!text) return "";
 
@@ -485,10 +486,13 @@
 
         let processedText = text;
 
-        if (preamble && preamble.trim()) {
-             processedText = `$$ ${preamble} $$ \n` + processedText;
-        }
-
+        // [修复] 将 LaTeX 的 ~ 替换为标准空格，避免被 Markdown 误判为删除线
+        // 注意：我们只替换非数学环境中的波浪号。
+        // 由于这里还没分离 math，我们先简单替换。
+        // 为了安全，我们先保护数学块，然后再替换剩余文本的 ~
+        
+        // 1. 保护所有数学环境
+        if (preamble && preamble.trim()) { processedText = `$$ ${preamble} $$ \n` + processedText; }
         processedText = processedText.replace(/\$\$([\s\S]*?)\$\$/g, (match) => { return storeMath(match); });
         processedText = processedText.replace(/\$((?:\\.|[^$\\])*)\$/g, (match) => { return storeMath(match); });
         processedText = processedText.replace(/\\\(((?:\\.|[^\\])*)\\\)/g, (match) => { return storeMath(match); });
@@ -498,6 +502,10 @@
         const envRegex = new RegExp(`\\\\begin\\{(${envsToProtect.join('|')})\\}([\\s\\S]*?)\\\\end\\{\\1\\}`, 'g');
         processedText = processedText.replace(envRegex, (match) => { return storeMath(match); });
 
+        // [核心修复] 替换剩余文本中的波浪号
+        processedText = processedText.replace(/~/g, ' ');
+
+        // 2. 文本命令替换
         processedText = processedText
             .replace(/\\textbf\{([^{}]+)\}/g, '<strong>$1</strong>')
             .replace(/\\textit\{([^{}]+)\}/g, '<em>$1</em>')
@@ -505,8 +513,10 @@
             .replace(/\\underline\{([^{}]+)\}/g, '<u>$1</u>')
             .replace(/\\texttt\{([^{}]+)\}/g, '<code>$1</code>');
 
+        // 3. Markdown 渲染
         let html = marked.parse(processedText);
 
+        // 4. 恢复数学块
         html = html.replace(/<p>MATHBLOCK(\d+)ENDMATHBLOCK<\/p>/g, (m, id) => mathBlocks[id]);
         html = html.replace(/MATHBLOCK(\d+)ENDMATHBLOCK/g, (m, id) => mathBlocks[id]);
         
@@ -514,6 +524,7 @@
              html = html.replace(/^<p>(\$\$[\s\S]*?\$\$)< \/p>/, '$1'); 
         }
 
+        // 5. 自定义环境
         const envs = [ 
             { tags: ['thm','theorem'], name: 'Theorem', key: 'thm', class: 'env-thm' }, 
             { tags: ['conjecture','conj'], name: 'Conjecture', key: 'conj', class: 'env-conj' }, 
@@ -746,6 +757,11 @@
         
         currentItemData = JSON.parse(fileObj.content);
         if(!currentId) currentId = currentItemData.id;
+        
+        // [关键] 强制显示 detail-view
+        document.getElementById('empty-msg').style.display = 'none';
+        document.getElementById('detail-view').style.display = 'flex';
+        
         renderDetailView();
     }
 
