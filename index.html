@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>科研管理器 v29</title>
+    <title>科研管理器 v30</title>
     
     <!-- 依赖库 -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -53,6 +53,9 @@
         .bar-btn.warn { background: #d73a49; border-color: #d73a49; }
         .bar-btn.secondary { background: #f6f8fa; border-color: #d1d5da; color: #24292e; }
         .bar-btn.secondary:hover { background: #e1e4e8; }
+        /* 纯文本按钮 */
+        .btn-text { background: none; border: none; color: #0366d6; cursor: pointer; font-size: 12px; padding: 0 5px; }
+        .btn-text:hover { text-decoration: underline; }
 
         #status-bar { position: absolute; top: 0; left: 0; width: 100%; height: 40px; background: #24292e; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 15px; box-sizing: border-box; z-index: 1000; }
 
@@ -82,7 +85,7 @@
         #detail-toolbar {
             position: sticky; top: 0; z-index: 90; background: rgba(255,255,255,0.98); backdrop-filter: blur(8px);
             border-bottom: 1px solid #eee; padding: 12px 50px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05); height: 60px; box-sizing: border-box;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
 
         .content-wrap { padding: 30px 50px; max-width: 900px; margin: 0 auto; width: 100%; box-sizing: border-box; }
@@ -106,7 +109,7 @@
         #preamble-section { background: #fff8dc; padding: 10px; border-bottom: 1px solid #ddd; display:none; }
         #prob-preamble-inp { width: 100%; height: 80px; box-sizing: border-box; border: 1px solid #ccc; font-family: monospace; font-size: 13px; padding: 5px; border-radius: 4px; resize: vertical; }
 
-        /* [新增] 笔记卡片样式 */
+        /* 笔记卡片 */
         .ans-card {
             background: #fff;
             border: 1px solid #e1e4e8;
@@ -122,9 +125,21 @@
             transform: translateY(-2px);
             border-color: #d1d5da;
         }
-        /* 左侧装饰条已移除 */
+        
+        /* [新增] 笔记折叠样式 */
+        .ans-content {
+            transition: max-height 0.3s ease;
+        }
+        .ans-content.collapsed {
+            max-height: 200px;
+            overflow: hidden;
+            /* 渐隐遮罩 */
+            -webkit-mask-image: linear-gradient(180deg, black 60%, transparent 100%);
+            mask-image: linear-gradient(180deg, black 60%, transparent 100%);
+        }
+
         .ans-footer {
-            margin-top: 20px;
+            margin-top: 15px;
             padding-top: 15px;
             border-top: 1px dashed #eee;
             display: flex;
@@ -135,10 +150,9 @@
             font-family: -apple-system, BlinkMacSystemFont, sans-serif;
         }
 
-        /* 智能吸顶样式 */
+        /* 智能吸顶 */
         .thm-proof-wrapper { position: relative; margin-bottom: 1em; }
         .env-block { margin: 1em 0; padding: 15px; border-radius: 4px; border-left: 4px solid #555; background: #f9f9f9; position: relative; transition: box-shadow 0.2s; }
-        
         .env-block.sticky-mode {
             position: sticky; top: 60px; z-index: 80;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
@@ -146,19 +160,31 @@
             border-bottom-left-radius: 0; border-bottom-right-radius: 0;
             opacity: 0.98; max-height: 30vh; overflow-y: auto;
         }
-        
         .env-thm { background: #e6effc; border-left-color: #0052cc; } .env-thm .env-title { color: #0052cc; font-weight: bold; }
         .env-conj { background: #fff7e6; border-left-color: #ff9900; } .env-conj .env-title { color: #d97706; }
         .env-lemma { background: #f4f5f7; border-left-color: #5e6c84; } .env-lemma .env-title { color: #42526e; font-weight: bold; }
         .env-defn { background: #e3fcef; border-left-color: #00875a; } .env-defn .env-title { color: #006644; font-weight: bold; }
         .env-problem { background: #fff0f0; border-left-color: #d73a49; } .env-problem .env-title { color: #d73a49; font-weight: bold; }
-        
         .env-proof { background: #fff; border-left: 2px solid #ddd; color: #333; font-style: normal; margin: 1em 0; padding-left: 15px;} 
         .env-proof .env-title { font-style: italic; font-weight: bold; color:#555; }
         .env-proof.attached { margin-top: 0; border-top-left-radius: 0; border-top-right-radius: 0; padding-top: 15px; }
 
         .latex-ref { color: #0052cc; cursor: pointer; text-decoration: none; border-bottom: none; font-weight: bold;}
         .latex-ref:hover { text-decoration: underline; background: #e6effc; }
+
+        /* [新增] 全屏阅读覆盖层 */
+        #fullscreen-reader {
+            display: none;
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #fff; z-index: 2000; flex-direction: column;
+        }
+        #fullscreen-reader .header {
+            padding: 15px 30px; background: #f9f9f9; border-bottom: 1px solid #ddd;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        #fullscreen-content {
+            flex: 1; overflow-y: auto; padding: 40px; max-width: 900px; margin: 0 auto; width: 100%; box-sizing: border-box;
+        }
 
         #collab-banner { display: none; background: #e6ffed; color: #0052cc; padding: 8px; text-align: center; border-bottom: 1px solid #bfebbb; font-size: 13px; }
         #loading { display: flex; position: fixed; inset: 0; background: rgba(255,255,255,0.8); z-index: 2000; justify-content: center; align-items: center; font-weight: bold; font-size: 18px; color: #333; flex-direction: column; gap: 10px; }
@@ -180,7 +206,7 @@
 
 <div id="status-bar">
     <div style="display:flex; align-items:center; gap:10px;">
-        <span id="app-title" style="font-weight:bold;">科研管理器 v29</span>
+        <span id="app-title" style="font-weight:bold;">科研管理器 v30</span>
         <span id="sync-status" style="font-size:12px; color:#aaa;">⚪ 就绪</span>
     </div>
     <div id="auth-controls">
@@ -285,6 +311,15 @@
     </div>
 </div>
 
+<!-- 全屏阅读覆盖层 -->
+<div id="fullscreen-reader">
+    <div class="header">
+        <span style="font-weight:bold; font-size:18px;">📖 全屏阅读</span>
+        <button class="bar-btn" onclick="document.getElementById('fullscreen-reader').style.display='none'">✕ 关闭 (Esc)</button>
+    </div>
+    <div id="fullscreen-content" class="markdown-body"></div>
+</div>
+
 <!-- Config Modal -->
 <div id="config-modal" class="modal">
     <div class="modal-box">
@@ -344,6 +379,11 @@
         initEditors();
         if (visitorGistId) { enterVisitorMode(); } 
         else { if (ghConfig.token && ghConfig.mainGistId) { await syncPullMain(); } else { document.getElementById('loading').style.display = 'none'; openConfig(); } }
+        
+        // Esc 退出全屏阅读
+        document.addEventListener('keydown', (e) => {
+            if(e.key === "Escape") document.getElementById('fullscreen-reader').style.display = 'none';
+        });
     };
 
     function initEditors() {
@@ -619,6 +659,30 @@
         setTimeout(() => { noteCm.refresh(); noteCm.focus(); }, 100);
         document.getElementById('note-section-footer').scrollIntoView({ behavior: 'smooth' });
     }
+    
+    // [新增] 切换折叠
+    function toggleNote(idx) {
+        const content = document.getElementById(`ans-content-${idx}`);
+        const btn = document.getElementById(`ans-btn-toggle-${idx}`);
+        
+        if (content.classList.contains('collapsed')) {
+            content.classList.remove('collapsed');
+            btn.innerText = "🔼 收起";
+        } else {
+            content.classList.add('collapsed');
+            btn.innerText = "🔽 展开";
+        }
+    }
+    
+    // [新增] 全屏查看
+    function fullscreenNote(idx) {
+        const note = currentItemData.answers[idx];
+        const container = document.getElementById('fullscreen-content');
+        container.innerHTML = renderContent(note.text, true, currentItemData.preamble);
+        postProcessDom(container);
+        if(window.MathJax) MathJax.typesetPromise([container]);
+        document.getElementById('fullscreen-reader').style.display = 'flex';
+    }
 
     async function saveProblem() {
         currentItemData.title = document.getElementById('prob-title-inp').value;
@@ -706,7 +770,6 @@
         document.getElementById('d-title').innerText = d.title;
         document.getElementById('d-date').innerText = new Date(d.date).toLocaleDateString();
         
-        // [核心逻辑] 应用 Sticky Post Processing
         const descContainer = document.getElementById('d-desc');
         descContainer.innerHTML = renderContent(d.desc || "", true, d.preamble);
         postProcessDom(descContainer);
@@ -714,23 +777,26 @@
         document.getElementById('problem-display-area').style.display = 'block';
         document.getElementById('problem-editor-wrapper').style.display = 'none';
         
-        const ansList = document.getElementById('ans-list');
-        // [新增] 这里的笔记也应用了卡片样式 .ans-card
-        ansList.innerHTML = (d.answers || []).map((a, i) => `
+        document.getElementById('ans-list').innerHTML = (d.answers || []).map((a, i) => `
             <div class="ans-card">
-                <div class="markdown-body ans-content">${renderContent(a.text, true, d.preamble)}</div>
+                <div id="ans-content-${i}" class="markdown-body ans-content collapsed">${renderContent(a.text, true, d.preamble)}</div>
                 <div class="ans-footer">
-                    <span>📅 ${new Date(a.date).toLocaleString()}</span>
-                    <div class="ans-actions">
-                        <button class="bar-btn secondary" style="font-size:11px; padding:3px 8px; margin-right:5px;" onclick="editAns(${i})">✏️ 编辑</button>
-                        <button class="bar-btn warn" style="font-size:11px; padding:3px 8px;" onclick="deleteAns(${i})">🗑️ 删除</button>
+                    <div>
+                        <button class="btn-text" id="ans-btn-toggle-${i}" onclick="toggleNote(${i})">🔽 展开</button>
+                        <button class="btn-text" onclick="fullscreenNote(${i})">⛶ 全屏阅读</button>
+                    </div>
+                    
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <span>${new Date(a.date).toLocaleString()}</span>
+                        <button class="bar-btn secondary" style="font-size:11px; padding:3px 8px;" onclick="editAns(${i})">✏️ 编辑</button>
+                        <button class="bar-btn warn" style="font-size:11px; padding:3px 8px;" onclick="deleteAns(${i})">🗑️</button>
                     </div>
                 </div>
             </div>
         `).join('');
         
-        // 为笔记内容也应用 sticky 处理（虽然少见，但保持一致）
-        ansList.querySelectorAll('.ans-content').forEach(el => postProcessDom(el));
+        // Apply Sticky & MathJax
+        document.getElementById('ans-list').querySelectorAll('.ans-content').forEach(el => postProcessDom(el));
         
         resolveReferences();
         if(!visitorGistId) renderList(); 
