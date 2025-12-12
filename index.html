@@ -3,11 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>科研管理器</title>
+    <title>科研管理器 v35</title>
     
     <!-- 依赖库 -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script>
+        // 配置 Marked 选项，确保列表渲染正常
+        marked.use({
+            breaks: true, // 允许回车换行
+            gfm: true     // 启用 GitHub 风格 Markdown (支持列表等)
+        });
+
         MathJax = {
             loader: { load: ['[tex]/physics', '[tex]/mhchem', '[tex]/color', '[tex]/cancel', '[tex]/boldsymbol'] },
             tex: { 
@@ -74,7 +80,6 @@
         .item:hover { background: #eaeaea; }
         .item.active { background: #e6effc; border-left: 4px solid #0052cc; }
         
-        /* [修改] 垃圾桶模式下的样式 */
         .item.trash-mode { border-left-color: #d73a49; background: #fff0f0; }
         .item.trash-mode:hover { background: #ffeef0; }
         .item.trash-mode .item-title { color: #555; text-decoration: line-through; }
@@ -148,7 +153,6 @@
         .modal-box { background:white; padding:25px; width:500px; border-radius:8px; display:flex; flex-direction:column; gap:15px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); max-height: 90vh; overflow-y: auto;}
         .inp { padding: 10px; border: 1px solid #ddd; border-radius: 4px; width: 100%; box-sizing: border-box; }
         
-        /* 仅在 Trash 模式下显示的提示 */
         #trash-banner { display:none; background:#d73a49; color:white; padding:5px; text-align:center; font-size:12px; }
         
         body.visitor-mode .only-owner { display: none !important; }
@@ -158,11 +162,9 @@
 </head>
 <body>
 
-<!-- 右键菜单 -->
 <div id="ctx-menu">
     <div class="ctx-item" id="ctx-pin" onclick="togglePinFromCtx()">📌 置顶 / 取消置顶</div>
     <div class="ctx-item warn" id="ctx-del" onclick="deleteItemFromCtx()">🗑️ 删除此问题</div>
-    <!-- 回收站专用菜单 -->
     <div class="ctx-item" id="ctx-restore" style="display:none" onclick="restoreItemFromCtx()">♻️ 恢复</div>
     <div class="ctx-item warn" id="ctx-hard-del" style="display:none" onclick="hardDeleteFromCtx()">❌ 彻底删除</div>
 </div>
@@ -186,7 +188,6 @@
 <div id="container">
     <div id="sidebar">
         <div class="sidebar-header">
-            <!-- 模式切换区 -->
             <div style="display:flex; align-items:center;">
                 <h3 style="margin:0; margin-right:10px;" id="sidebar-title">📚 问题库</h3>
             </div>
@@ -291,7 +292,6 @@
     </div>
 </div>
 
-<!-- 全屏阅读覆盖层 -->
 <div id="fullscreen-reader">
     <div class="header">
         <span style="font-weight:bold; font-size:18px;">📖 全屏阅读</span>
@@ -300,21 +300,17 @@
     <div id="fullscreen-content" class="markdown-body"></div>
 </div>
 
-<!-- Config Modal -->
 <div id="config-modal" class="modal">
     <div class="modal-box">
         <h3 style="margin:0">⚙️ 设置与配置</h3>
         <div style="background:#f9f9f9; padding:10px; margin-top:10px; border-radius:4px;">
             <label style="font-size:12px; font-weight:bold;">GitHub Token (必填):</label>
             <input class="inp" id="cfg-token" type="password" placeholder="ghp_xxxxxxxxxxxx">
-            <div style="font-size:11px; color:#888; margin-top:3px;">需勾选 <b>gist</b> 权限。</div>
         </div>
-        
         <div style="background:#f9f9f9; padding:10px; margin-top:10px; border-radius:4px;">
             <label style="font-size:12px; font-weight:bold;">主数据库 Gist ID:</label>
             <input class="inp" id="cfg-id" placeholder="初次使用请留空">
         </div>
-
         <div style="text-align:right; margin-top:15px;">
             <button class="bar-btn" onclick="document.getElementById('config-modal').style.display='none'">关闭</button>
             <button class="bar-btn primary" onclick="saveConfig()">保存并生效</button>
@@ -345,14 +341,14 @@
         "\\alpha", "\\beta", "\\gamma", "\\lambda", "\\sum", "\\prod", "\\int", "\\infty", "\\ex", "\\PP", "\\boldsymbol"
     ];
 
-    let db = { items: [], trash: [] }; // [修改] 增加 trash
+    let db = { items: [], trash: [] };
     let currentId = null;
     let currentItemData = null; 
     let probCm, noteCm;
     let docState = { counters: {}, labels: {} };
     let editingNoteIndex = null;
     let contextMenuTargetIdx = null;
-    let viewMode = 'active'; // 'active' or 'trash'
+    let viewMode = 'active';
 
     const urlParams = new URLSearchParams(window.location.search);
     const visitorGistId = urlParams.get('gist');
@@ -362,10 +358,7 @@
         initContextMenu();
         if (visitorGistId) { enterVisitorMode(); } 
         else { if (ghConfig.token && ghConfig.mainGistId) { await syncPullMain(); } else { document.getElementById('loading').style.display = 'none'; openConfig(); } }
-        
-        document.addEventListener('keydown', (e) => {
-            if(e.key === "Escape") document.getElementById('fullscreen-reader').style.display = 'none';
-        });
+        document.addEventListener('keydown', (e) => { if(e.key === "Escape") document.getElementById('fullscreen-reader').style.display = 'none'; });
     };
 
     function initEditors() {
@@ -446,8 +439,6 @@
         e.preventDefault(); e.stopPropagation();
         contextMenuTargetIdx = idx;
         const menu = document.getElementById('ctx-menu');
-        
-        // 根据模式显示不同的菜单项
         if (viewMode === 'active') {
             document.getElementById('ctx-pin').style.display = 'block';
             document.getElementById('ctx-del').style.display = 'block';
@@ -459,33 +450,27 @@
             document.getElementById('ctx-restore').style.display = 'block';
             document.getElementById('ctx-hard-del').style.display = 'block';
         }
-
         let x = e.clientX, y = e.clientY;
         if (x + 150 > window.innerWidth) x = window.innerWidth - 160;
         if (y + 100 > window.innerHeight) y = window.innerHeight - 110;
         menu.style.left = x + 'px'; menu.style.top = y + 'px'; menu.style.display = 'block';
     }
 
-    // --- 回收站与模式切换 ---
     function toggleTrashMode() {
         viewMode = viewMode === 'active' ? 'trash' : 'active';
         const btn = document.getElementById('btn-trash');
         const banner = document.getElementById('trash-banner');
-        
         if (viewMode === 'trash') {
-            btn.innerText = "🔙";
-            btn.title = "返回问题库";
+            btn.innerText = "🔙"; btn.title = "返回问题库";
             document.getElementById('sidebar-title').innerText = "🗑️ 回收站";
             document.getElementById('btn-new').style.display = 'none';
             banner.style.display = 'block';
         } else {
-            btn.innerText = "♻️";
-            btn.title = "回收站";
+            btn.innerText = "♻️"; btn.title = "回收站";
             document.getElementById('sidebar-title').innerText = "📚 问题库";
             document.getElementById('btn-new').style.display = 'inline-block';
             banner.style.display = 'none';
         }
-        // 清空详情视图
         currentId = null;
         document.getElementById('detail-view').style.display = 'none';
         document.getElementById('empty-msg').style.display = 'block';
@@ -507,32 +492,23 @@
         const item = db.items[idx];
         document.getElementById('ctx-menu').style.display = 'none';
         if(!confirm(`确认将 "${item.title}" 移入回收站？`)) return;
-        
         if (item.id === currentId) { currentId = null; document.getElementById('detail-view').style.display = 'none'; document.getElementById('empty-msg').style.display = 'block'; }
-        
-        // 软删除
         const deleted = db.items.splice(idx, 1)[0];
         deleted.deletedAt = new Date().toISOString();
-        deleted.type = 'item'; // 标记类型
+        deleted.type = 'item';
         if(!db.trash) db.trash = [];
         db.trash.unshift(deleted);
-        
         await saveMainDB(true); renderList();
     }
 
-    // [新增] 恢复逻辑
     async function restoreItemFromCtx() {
         if (contextMenuTargetIdx === null) return;
         const idx = contextMenuTargetIdx;
         document.getElementById('ctx-menu').style.display = 'none';
-        
         const item = db.trash[idx];
-        
         if (item.type === 'note') {
-            // 恢复笔记：尝试找回原问题
             let parent = db.items.find(x => x.id === item.parentId);
             if (!parent) {
-                // 如果原问题不存在，创建一个归档问题
                 parent = db.items.find(x => x.title === "📂 恢复的归档笔记");
                 if (!parent) {
                     parent = { id: Date.now(), title: "📂 恢复的归档笔记", desc: "自动创建的归档，用于存放原问题已丢失的恢复笔记。", answers: [], date: new Date().toISOString() };
@@ -544,12 +520,10 @@
             parent.answers.push(item.data);
             db.trash.splice(idx, 1);
         } else {
-            // 恢复问题
             const restored = db.trash.splice(idx, 1)[0];
             delete restored.deletedAt;
             db.items.unshift(restored);
         }
-        
         await saveMainDB(true); renderList();
     }
 
@@ -558,41 +532,18 @@
         const idx = contextMenuTargetIdx;
         document.getElementById('ctx-menu').style.display = 'none';
         if(!confirm("⚠️ 彻底删除无法恢复，确定吗？")) return;
-        
         db.trash.splice(idx, 1);
-        
-        if (viewMode === 'trash' && currentId) { // 如果正在查看该垃圾项
-            // 其实 loadItem 时 currentId 指向的是 trash 中的 item，这里 id 匹配可能会有问题如果 id 重复。
-            // 简单处理：清空视图
-            currentId = null; 
-            document.getElementById('detail-view').style.display = 'none';
-        }
-
+        if (viewMode === 'trash' && currentId) { currentId = null; document.getElementById('detail-view').style.display = 'none'; }
         await saveMainDB(true); renderList();
     }
 
     async function restoreCurrentItem() {
-        // 在详情页点击恢复
-        const trashIdx = db.trash.findIndex(x => x.id === currentId || (x.data && x.data.date === currentItemData.date)); // 简单匹配
-        if (trashIdx !== -1) {
-            contextMenuTargetIdx = trashIdx;
-            await restoreItemFromCtx();
-            // 恢复后切换回普通视图查看
-            if(viewMode === 'trash') {
-                 // 自动切回 active 模式并选中
-                 toggleTrashMode(); 
-                 // 需要找到在 items 中的新位置，通常是 0
-                 loadItem(db.items[0].id);
-            }
-        }
+        const trashIdx = db.trash.findIndex(x => x.id === currentId || (x.data && x.data.date === currentItemData.date)); 
+        if (trashIdx !== -1) { contextMenuTargetIdx = trashIdx; await restoreItemFromCtx(); if(viewMode === 'trash') { toggleTrashMode(); loadItem(db.items[0].id); } }
     }
-
     async function hardDeleteCurrentItem() {
         const trashIdx = db.trash.findIndex(x => x.id === currentId);
-        if (trashIdx !== -1) {
-            contextMenuTargetIdx = trashIdx;
-            await hardDeleteFromCtx();
-        }
+        if (trashIdx !== -1) { contextMenuTargetIdx = trashIdx; await hardDeleteFromCtx(); }
     }
 
     function jumpToSource(cm, event) {
@@ -644,9 +595,13 @@
     function renderContent(text, isGlobal, preamble = "", customState = null) {
         if (!text) return "";
         const state = customState || docState; 
-
         const mathBlocks = [];
-        const storeMath = (content) => { mathBlocks.push(content); return `MATHBLOCK${mathBlocks.length - 1}ENDMATHBLOCK`; };
+        // [核心修复] 使用 HTML 标签占位符
+        const storeMath = (content) => { 
+            const id = mathBlocks.length;
+            mathBlocks.push(content); 
+            return `<span class="math-ph" data-id="${id}"></span>`; 
+        };
 
         let processedText = text;
         if (preamble && preamble.trim()) { processedText = `$$ ${preamble} $$ \n` + processedText; }
@@ -660,13 +615,23 @@
         const envRegex = new RegExp(`\\\\begin\\{(${envsToProtect.join('|')})\\}([\\s\\S]*?)\\\\end\\{\\1\\}`, 'g');
         processedText = processedText.replace(envRegex, (match) => { return storeMath(match); });
 
+        // [核心修复] 替换 ~ 为空格，避免 Markdown 删除线误判
         processedText = processedText.replace(/~/g, ' ');
-        processedText = processedText.replace(/\\textbf\{([^{}]+)\}/g, '<strong>$1</strong>').replace(/\\textit\{([^{}]+)\}/g, '<em>$1</em>').replace(/\\emph\{([^{}]+)\}/g, '<em>$1</em>').replace(/\\underline\{([^{}]+)\}/g, '<u>$1</u>').replace(/\\texttt\{([^{}]+)\}/g, '<code>$1</code>');
+
+        // 限制 \textbf 等只在单行内匹配
+        processedText = processedText
+            .replace(/\\textbf\{([^{}\n]+)\}/g, '<strong>$1</strong>')
+            .replace(/\\textit\{([^{}\n]+)\}/g, '<em>$1</em>')
+            .replace(/\\emph\{([^{}\n]+)\}/g, '<em>$1</em>')
+            .replace(/\\underline\{([^{}\n]+)\}/g, '<u>$1</u>')
+            .replace(/\\texttt\{([^{}\n]+)\}/g, '<code>$1</code>');
 
         let html = marked.parse(processedText);
 
-        html = html.replace(/<p>MATHBLOCK(\d+)ENDMATHBLOCK<\/p>/g, (m, id) => mathBlocks[id]);
-        html = html.replace(/MATHBLOCK(\d+)ENDMATHBLOCK/g, (m, id) => mathBlocks[id]);
+        // [核心修复] 还原 HTML 占位符
+        // 处理可能被包裹在 <p> 中的占位符
+        html = html.replace(/<p><span class="math-ph" data-id="(\d+)"><\/span><\/p>/g, (m, id) => mathBlocks[id]);
+        html = html.replace(/<span class="math-ph" data-id="(\d+)"><\/span>/g, (m, id) => mathBlocks[id]);
         
         if (preamble && preamble.trim() && mathBlocks.length > 0) { html = html.replace(/^<p>(\$\$[\s\S]*?\$\$)< \/p>/, '$1'); }
 
@@ -685,12 +650,12 @@
                 html = html.replace(regex, (m, c) => {
                     let numStr = ""; let anchorId = "";
                     if (env.key) {
-                        state.counters[env.key] = (state.counters[env.key] || 0) + 1; // 使用 state
+                        state.counters[env.key] = (state.counters[env.key] || 0) + 1;
                         const num = state.counters[env.key];
                         numStr = ` ${num}`; anchorId = `env-${env.key}-${num}`;
                         const labelRegex = /\\label\{([^}]+)\}/g; let match;
                         while ((match = labelRegex.exec(c)) !== null) {
-                            const labelName = match[1]; state.labels[labelName] = { num: num, id: anchorId }; // 使用 state
+                            const labelName = match[1]; state.labels[labelName] = { num: num, id: anchorId };
                         }
                         c = c.replace(labelRegex, ''); 
                     }
@@ -705,7 +670,6 @@
         });
         
         html = html.replace(/\\ref\{([^}]+)\}/g, (m, labelName) => { return `<a class="latex-ref" data-ref="${labelName}">[?]</a>`; });
-        
         return html;
     }
 
@@ -823,7 +787,6 @@
             finally { document.getElementById('loading').style.display = 'none'; }
         } else { await syncPullMain(); }
     }
-    
     async function enterVisitorMode() {
         document.body.classList.add('visitor-mode');
         document.getElementById('auth-controls').innerHTML = ''; 
@@ -861,45 +824,32 @@
             if (!fileObj) throw new Error("Gist 中未找到有效的数据文件");
             db = JSON.parse(fileObj.content);
             if(!db.items) { db = Array.isArray(db) ? { items: db } : { items: [] }; }
-            // 兼容性初始化
             if(!db.trash) db.trash = [];
             renderList();
             setMsg("就绪");
         } catch(e) { handleNetworkError(e); } 
         finally { document.getElementById('loading').style.display = 'none'; }
     }
-    
     async function loadItem(id) {
-        // [修复] 支持加载 trash 中的 item
         let itemRef;
-        if (viewMode === 'active') {
-            itemRef = db.items.find(x => x.id === id);
-        } else {
-            itemRef = db.trash.find(x => x.id === id);
-        }
-        
+        if (viewMode === 'active') { itemRef = db.items.find(x => x.id === id); } 
+        else { itemRef = db.trash.find(x => x.id === id); }
         if(!itemRef) return;
         currentId = id;
         document.getElementById('empty-msg').style.display = 'none';
         document.getElementById('detail-view').style.display = 'flex';
         document.getElementById('collab-banner').style.display = 'none';
-        
-        // 垃圾桶模式下隐藏常规工具栏，显示垃圾桶工具栏
         if (viewMode === 'trash') {
             document.getElementById('normal-toolbar-btns').style.display = 'none';
             document.getElementById('trash-toolbar-btns').style.display = 'flex';
-            // 垃圾桶模式下的内容是只读的，所以不需要 complex editing logic, but we still use currentItemData for rendering
             currentItemData = itemRef;
             renderDetailView();
-            // 禁用编辑按钮
             document.querySelectorAll('.bar-btn.secondary').forEach(b => b.style.display = 'none');
-            // 隐藏添加笔记
             document.getElementById('note-section-footer').style.display = 'none';
         } else {
             document.getElementById('normal-toolbar-btns').style.display = 'flex';
             document.getElementById('trash-toolbar-btns').style.display = 'none';
             document.getElementById('note-section-footer').style.display = 'block';
-            
             document.getElementById('loading').style.display = 'flex';
             document.getElementById('loading-tip').innerText = "加载内容中...";
             closeNoteEditor(); closeProblemEditor();
@@ -910,11 +860,9 @@
             finally { document.getElementById('loading').style.display = 'none'; setMsg("就绪"); }
         }
     }
-    
     async function loadSharedItem(gistId) {
         const headers = {};
         if (ghConfig.token) headers["Authorization"] = `token ${ghConfig.token}`;
-        
         const res = await fetch(`https://api.github.com/gists/${gistId}`, { headers: headers });
         await handleApiError(res);
         const json = await res.json();
@@ -933,16 +881,12 @@
         const d = currentItemData;
         document.getElementById('d-title').innerText = d.title;
         document.getElementById('d-date').innerText = new Date(d.date).toLocaleDateString();
-        
         const descContainer = document.getElementById('d-desc');
         descContainer.innerHTML = renderContent(d.desc || "", true, d.preamble);
         postProcessDom(descContainer);
-        
         document.getElementById('problem-display-area').style.display = 'block';
         document.getElementById('problem-editor-wrapper').style.display = 'none';
-        
-        const ansList = document.getElementById('ans-list');
-        ansList.innerHTML = (d.answers || []).map((a, i) => `
+        document.getElementById('ans-list').innerHTML = (d.answers || []).map((a, i) => `
             <div class="ans-card">
                 <div id="ans-content-${i}" class="markdown-body ans-content collapsed">${renderContent(a.text, true, d.preamble)}</div>
                 <div class="ans-footer">
@@ -950,64 +894,42 @@
                         <button class="btn-text" id="ans-btn-toggle-${i}" onclick="toggleNote(${i})">🔽 展开</button>
                         <button class="btn-text" onclick="fullscreenNote(${i})">⛶ 全屏阅读</button>
                     </div>
-                    
                     <div style="display:flex; align-items:center; gap:10px;">
                         <span>${new Date(a.date).toLocaleString()}</span>
-                        ${viewMode === 'active' ? `
-                        <button class="bar-btn secondary" style="font-size:11px; padding:3px 8px;" onclick="editAns(${i})">✏️ 编辑</button>
-                        <button class="bar-btn warn" style="font-size:11px; padding:3px 8px;" onclick="deleteAns(${i})">🗑️</button>
-                        ` : ''}
+                        ${viewMode === 'active' ? `<button class="bar-btn secondary" style="font-size:11px; padding:3px 8px;" onclick="editAns(${i})">✏️ 编辑</button><button class="bar-btn warn" style="font-size:11px; padding:3px 8px;" onclick="deleteAns(${i})">🗑️</button>` : ''}
                     </div>
                 </div>
             </div>
         `).join('');
-        
-        ansList.querySelectorAll('.ans-content').forEach(el => postProcessDom(el));
-        
+        document.getElementById('ans-list').querySelectorAll('.ans-content').forEach(el => postProcessDom(el));
         resolveReferences();
         if(!visitorGistId) renderList(); 
         if(window.MathJax) MathJax.typesetPromise();
     }
 
-    // [修改] 删除问题 -> 移入 Trash
     async function deleteItem() {
         if(!currentId) return;
         if(!confirm("⚠️ 确定要移入回收站吗？")) return;
-        
         const idx = db.items.findIndex(x => x.id === currentId);
         if(idx === -1) return;
-        
         const deleted = db.items.splice(idx, 1)[0];
         deleted.deletedAt = new Date().toISOString();
         deleted.type = 'item';
-        
         if(!db.trash) db.trash = [];
         db.trash.unshift(deleted);
-        
         currentId = null;
         document.getElementById('detail-view').style.display = 'none';
         document.getElementById('empty-msg').style.display = 'block';
-        
         await saveMainDB(true); 
         renderList();
     }
     
-    // [修改] 删除笔记 -> 移入 Trash
     async function deleteAns(idx) {
         if(!confirm("删除笔记并移入回收站?")) return;
-        
         const note = currentItemData.answers.splice(idx, 1)[0];
-        const trashNote = {
-            type: 'note',
-            data: note,
-            parentId: currentItemData.id,
-            parentTitle: currentItemData.title,
-            deletedAt: new Date().toISOString()
-        };
-        
+        const trashNote = { type: 'note', data: note, parentId: currentItemData.id, parentTitle: currentItemData.title, deletedAt: new Date().toISOString() };
         if(!db.trash) db.trash = [];
         db.trash.unshift(trashNote);
-        
         await performSave();
         renderDetailView();
     }
@@ -1032,53 +954,31 @@
     async function handleApiError(res) { if (res.ok) return; throw new Error(`Error ${res.status}: ${res.statusText}`); }
     function handleNetworkError(e) { alert("⚠️ " + e.message); setMsg("❌ 失败"); openConfig(); }
     
-    // [修改] 渲染列表逻辑 (支持回收站视图)
     function renderList() { 
         const term = document.getElementById('search-input') ? document.getElementById('search-input').value.toLowerCase() : "";
         const isSearching = term.length > 0;
-        
         let sourceList = (viewMode === 'trash') ? db.trash : db.items;
-        
         let displayItems = sourceList;
         if(isSearching) {
             displayItems = sourceList.filter(item => {
-                if (item.type === 'note') {
-                    return (item.data.text && item.data.text.toLowerCase().includes(term));
-                }
+                if (item.type === 'note') { return (item.data.text && item.data.text.toLowerCase().includes(term)); }
                 return (item.title && item.title.toLowerCase().includes(term)) || (item.desc && item.desc.toLowerCase().includes(term));
             });
         }
-        
         document.getElementById('list').innerHTML = displayItems.map((item) => {
-            // Note: In trash mode, we use the trash array index
             const idx = sourceList.indexOf(item); 
-            const activeClass = (item.id === currentId) ? 'active' : ''; // Only valid for problem items
-            
-            // Trash Item Rendering
+            const activeClass = (item.id === currentId) ? 'active' : ''; 
             if (viewMode === 'trash') {
                 if (item.type === 'note') {
-                    return `<li class="item trash-mode" onclick="alert('这是单条笔记，请恢复后查看')">
-                        <span class="item-title" style="font-size:12px">📄 笔记 (原问题: ${item.parentTitle}) <br> <span style="color:#999">${item.data.text.substring(0,30)}...</span></span>
-                        <div style="font-size:10px; color:#d73a49; margin-top:5px; cursor:pointer;" onclick="contextMenuTargetIdx=${idx}; restoreItemFromCtx(); event.stopPropagation()">♻️ 恢复</div>
-                         <div style="font-size:10px; color:#555; margin-top:5px; cursor:pointer; margin-left:10px;" onclick="contextMenuTargetIdx=${idx}; hardDeleteFromCtx(); event.stopPropagation()">❌ 销毁</div>
-                    </li>`;
+                    return `<li class="item trash-mode" onclick="alert('这是单条笔记，请恢复后查看')"><span class="item-title" style="font-size:12px">📄 笔记 (原问题: ${item.parentTitle}) <br> <span style="color:#999">${item.data.text.substring(0,30)}...</span></span><div style="font-size:10px; color:#d73a49; margin-top:5px; cursor:pointer;" onclick="contextMenuTargetIdx=${idx}; restoreItemFromCtx(); event.stopPropagation()">♻️ 恢复</div><div style="font-size:10px; color:#555; margin-top:5px; cursor:pointer; margin-left:10px;" onclick="contextMenuTargetIdx=${idx}; hardDeleteFromCtx(); event.stopPropagation()">❌ 销毁</div></li>`;
                 } else {
-                    return `<li class="item trash-mode ${activeClass}" onclick="loadItem(${item.id})" oncontextmenu="openContextMenu(event, ${idx})">
-                        <span class="item-title">${item.title} <span class="trash-badge">已删除</span></span>
-                    </li>`;
+                    return `<li class="item trash-mode ${activeClass}" onclick="loadItem(${item.id})" oncontextmenu="openContextMenu(event, ${idx})"><span class="item-title">${item.title} <span class="trash-badge">已删除</span></span></li>`;
                 }
             }
-
-            // Normal Item Rendering
             const sharedClass = item.shareId ? 'shared' : '';
             const pinnedIndicator = item.isPinned ? `<span class="pin-indicator">📌</span>` : '';
             const draggableAttr = isSearching ? '' : `draggable="true" ondragstart="dragStart(event, ${idx})" ondrop="dragDrop(event, ${idx})" ondragover="event.preventDefault()"`;
-            
-            return `<li class="item ${activeClass} ${sharedClass}" ${draggableAttr} onclick="loadItem(${item.id})" oncontextmenu="openContextMenu(event, ${idx})">
-                ${pinnedIndicator}
-                <span class="item-title">${item.title}</span>
-                <span class="share-icon" title="协作中">🔗</span>
-            </li>`;
+            return `<li class="item ${activeClass} ${sharedClass}" ${draggableAttr} onclick="loadItem(${item.id})" oncontextmenu="openContextMenu(event, ${idx})">${pinnedIndicator}<span class="item-title">${item.title}</span><span class="share-icon" title="协作中">🔗</span></li>`;
         }).join(''); 
     }
 
