@@ -73,17 +73,20 @@
         .item { padding: 12px 10px; border-bottom: 1px solid #eee; cursor: pointer; border-left: 4px solid transparent; display: flex; align-items: flex-start; gap: 8px; user-select: none; position: relative; }
         .item:hover { background: #eaeaea; }
         .item.active { background: #e6effc; border-left: 4px solid #0052cc; }
+        
+        /* [修改] 垃圾桶模式下的样式 */
+        .item.trash-mode { border-left-color: #d73a49; background: #fff0f0; }
+        .item.trash-mode:hover { background: #ffeef0; }
+        .item.trash-mode .item-title { color: #555; text-decoration: line-through; }
+
         .item-title { font-weight: 600; font-size: 14px; white-space: normal; overflow: visible; word-break: break-word; flex: 1; line-height: 1.4; }
-        
         .pin-indicator { color: #d97706; font-size: 12px; margin-right: 5px; margin-top: 3px; flex-shrink: 0; }
-        
         .share-icon { font-size: 12px; margin-left: 5px; color: #00875a; display:none; flex-shrink: 0; margin-top: 3px; }
         .item.shared .share-icon { display: inline; }
+        
+        .trash-badge { font-size: 10px; background: #d73a49; color: white; padding: 1px 4px; border-radius: 3px; margin-left: 5px; vertical-align: middle; }
 
-        #ctx-menu {
-            display: none; position: fixed; z-index: 10001; background: #fff; border: 1px solid #d1d5da;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1); border-radius: 6px; padding: 5px 0; min-width: 120px;
-        }
+        #ctx-menu { display: none; position: fixed; z-index: 10001; background: #fff; border: 1px solid #d1d5da; box-shadow: 0 2px 10px rgba(0,0,0,0.1); border-radius: 6px; padding: 5px 0; min-width: 120px; }
         .ctx-item { padding: 8px 15px; cursor: pointer; font-size: 13px; color: #333; display: block; }
         .ctx-item:hover { background: #0366d6; color: white; }
         .ctx-item.warn { color: #d73a49; border-top: 1px solid #eee; }
@@ -91,11 +94,7 @@
 
         #detail-view { display: none; width: 100%; height: 100%; flex-direction: column; overflow-y: auto; position: relative; }
         
-        #detail-toolbar {
-            position: sticky; top: 0; z-index: 90; background: rgba(255,255,255,0.98); backdrop-filter: blur(8px);
-            border-bottom: 1px solid #eee; padding: 12px 50px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05); height: 60px; box-sizing: border-box;
-        }
+        #detail-toolbar { position: sticky; top: 0; z-index: 90; background: rgba(255,255,255,0.98); backdrop-filter: blur(8px); border-bottom: 1px solid #eee; padding: 12px 50px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05); height: 60px; box-sizing: border-box; }
 
         .content-wrap { padding: 30px 50px; max-width: 900px; margin: 0 auto; width: 100%; box-sizing: border-box; }
         .markdown-body { font-family: "Times New Roman", "SimSun", "Songti SC", "NSimSun", serif; font-size: 17px; line-height: 1.8; color: #24292e; }
@@ -118,10 +117,7 @@
         #preamble-section { background: #fff8dc; padding: 10px; border-bottom: 1px solid #ddd; display:none; }
         #prob-preamble-inp { width: 100%; height: 80px; box-sizing: border-box; border: 1px solid #ccc; font-family: monospace; font-size: 13px; padding: 5px; border-radius: 4px; resize: vertical; }
 
-        .ans-card {
-            background: #fff; border: 1px solid #e1e4e8; border-radius: 6px; padding: 25px; margin-bottom: 25px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.04); position: relative; transition: all 0.2s ease-in-out;
-        }
+        .ans-card { background: #fff; border: 1px solid #e1e4e8; border-radius: 6px; padding: 25px; margin-bottom: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); position: relative; transition: all 0.2s ease-in-out; }
         .ans-card:hover { box-shadow: 0 5px 15px rgba(0,0,0,0.08); transform: translateY(-2px); border-color: #d1d5da; }
         .ans-content { transition: max-height 0.3s ease; }
         .ans-content.collapsed { max-height: 200px; overflow: hidden; -webkit-mask-image: linear-gradient(180deg, black 60%, transparent 100%); mask-image: linear-gradient(180deg, black 60%, transparent 100%); }
@@ -129,13 +125,7 @@
 
         .thm-proof-wrapper { position: relative; margin-bottom: 1em; }
         .env-block { margin: 1em 0; padding: 15px; border-radius: 4px; border-left: 4px solid #555; background: #f9f9f9; position: relative; transition: box-shadow 0.2s; }
-        .env-block.sticky-mode {
-            position: sticky; top: 60px; z-index: 80;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            border-bottom: 1px solid #ddd; margin-bottom: 0;
-            border-bottom-left-radius: 0; border-bottom-right-radius: 0;
-            opacity: 0.98; max-height: 30vh; overflow-y: auto;
-        }
+        .env-block.sticky-mode { position: sticky; top: 60px; z-index: 80; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border-bottom: 1px solid #ddd; margin-bottom: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; opacity: 0.98; max-height: 30vh; overflow-y: auto; }
         .env-thm { background: #e6effc; border-left-color: #0052cc; } .env-thm .env-title { color: #0052cc; font-weight: bold; }
         .env-conj { background: #fff7e6; border-left-color: #ff9900; } .env-conj .env-title { color: #d97706; }
         .env-lemma { background: #f4f5f7; border-left-color: #5e6c84; } .env-lemma .env-title { color: #42526e; font-weight: bold; }
@@ -158,6 +148,9 @@
         .modal-box { background:white; padding:25px; width:500px; border-radius:8px; display:flex; flex-direction:column; gap:15px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); max-height: 90vh; overflow-y: auto;}
         .inp { padding: 10px; border: 1px solid #ddd; border-radius: 4px; width: 100%; box-sizing: border-box; }
         
+        /* 仅在 Trash 模式下显示的提示 */
+        #trash-banner { display:none; background:#d73a49; color:white; padding:5px; text-align:center; font-size:12px; }
+        
         body.visitor-mode .only-owner { display: none !important; }
         body.visitor-mode #sidebar { display: none; }
         body.visitor-mode #resizer { display: none; }
@@ -167,8 +160,11 @@
 
 <!-- 右键菜单 -->
 <div id="ctx-menu">
-    <div class="ctx-item" onclick="togglePinFromCtx()">📌 置顶 / 取消置顶</div>
-    <div class="ctx-item warn" onclick="deleteItemFromCtx()">🗑️ 删除此问题</div>
+    <div class="ctx-item" id="ctx-pin" onclick="togglePinFromCtx()">📌 置顶 / 取消置顶</div>
+    <div class="ctx-item warn" id="ctx-del" onclick="deleteItemFromCtx()">🗑️ 删除此问题</div>
+    <!-- 回收站专用菜单 -->
+    <div class="ctx-item" id="ctx-restore" style="display:none" onclick="restoreItemFromCtx()">♻️ 恢复</div>
+    <div class="ctx-item warn" id="ctx-hard-del" style="display:none" onclick="hardDeleteFromCtx()">❌ 彻底删除</div>
 </div>
 
 <div id="loading">
@@ -190,11 +186,18 @@
 <div id="container">
     <div id="sidebar">
         <div class="sidebar-header">
-            <h3>📚 问题库</h3>
-            <button class="bar-btn primary" onclick="createNewLocal()">+</button>
+            <!-- 模式切换区 -->
+            <div style="display:flex; align-items:center;">
+                <h3 style="margin:0; margin-right:10px;" id="sidebar-title">📚 问题库</h3>
+            </div>
+            <div>
+                <button class="bar-btn primary" id="btn-new" onclick="createNewLocal()">+</button>
+                <button class="bar-btn secondary" id="btn-trash" onclick="toggleTrashMode()" title="回收站">♻️</button>
+            </div>
         </div>
+        <div id="trash-banner">🗑️ 回收站模式 (只读)</div>
         <div class="search-box">
-            <input id="search-input" class="search-inp" placeholder="🔍 搜索标题或内容..." oninput="renderList()">
+            <input id="search-input" class="search-inp" placeholder="🔍 搜索..." oninput="renderList()">
         </div>
         <ul id="list"></ul>
     </div>
@@ -207,10 +210,15 @@
         <div id="detail-view">
             <div id="detail-toolbar">
                 <span id="d-date" style="color:#888; font-size:12px;"></span>
-                <div style="display:flex; gap:10px;">
+                <div style="display:flex; gap:10px;" id="normal-toolbar-btns">
                     <button class="bar-btn only-owner" id="btn-share" onclick="manageCollaboration()">🔗 管理协作</button>
                     <button class="bar-btn" onclick="openProblemEditor()">✏️ 编辑问题</button>
                     <button class="bar-btn warn only-owner" onclick="deleteItem()">🗑️</button>
+                </div>
+                <div style="display:none; gap:10px;" id="trash-toolbar-btns">
+                    <span style="color:#d73a49; font-weight:bold; font-size:12px; display:flex; align-items:center;">🗑️ 已删除内容</span>
+                    <button class="bar-btn primary" onclick="restoreCurrentItem()">♻️ 恢复此问题</button>
+                    <button class="bar-btn warn" onclick="hardDeleteCurrentItem()">❌ 彻底删除</button>
                 </div>
             </div>
 
@@ -337,13 +345,14 @@
         "\\alpha", "\\beta", "\\gamma", "\\lambda", "\\sum", "\\prod", "\\int", "\\infty", "\\ex", "\\PP", "\\boldsymbol"
     ];
 
-    let db = { items: [] };
+    let db = { items: [], trash: [] }; // [修改] 增加 trash
     let currentId = null;
     let currentItemData = null; 
     let probCm, noteCm;
     let docState = { counters: {}, labels: {} };
     let editingNoteIndex = null;
     let contextMenuTargetIdx = null;
+    let viewMode = 'active'; // 'active' or 'trash'
 
     const urlParams = new URLSearchParams(window.location.search);
     const visitorGistId = urlParams.get('gist');
@@ -374,7 +383,7 @@
              const val = probCm.getValue();
              const el = document.getElementById('prob-live-preview');
              const preamble = document.getElementById('prob-preamble-inp').value;
-             el.innerHTML = renderContent(val, false, preamble, null); // 编辑预览使用本地 state (null)
+             el.innerHTML = renderContent(val, false, preamble, null);
              postProcessDom(el);
              if(window.MathJax && val.trim().length > 0) MathJax.typesetPromise([el]);
         });
@@ -437,10 +446,50 @@
         e.preventDefault(); e.stopPropagation();
         contextMenuTargetIdx = idx;
         const menu = document.getElementById('ctx-menu');
+        
+        // 根据模式显示不同的菜单项
+        if (viewMode === 'active') {
+            document.getElementById('ctx-pin').style.display = 'block';
+            document.getElementById('ctx-del').style.display = 'block';
+            document.getElementById('ctx-restore').style.display = 'none';
+            document.getElementById('ctx-hard-del').style.display = 'none';
+        } else {
+            document.getElementById('ctx-pin').style.display = 'none';
+            document.getElementById('ctx-del').style.display = 'none';
+            document.getElementById('ctx-restore').style.display = 'block';
+            document.getElementById('ctx-hard-del').style.display = 'block';
+        }
+
         let x = e.clientX, y = e.clientY;
         if (x + 150 > window.innerWidth) x = window.innerWidth - 160;
         if (y + 100 > window.innerHeight) y = window.innerHeight - 110;
         menu.style.left = x + 'px'; menu.style.top = y + 'px'; menu.style.display = 'block';
+    }
+
+    // --- 回收站与模式切换 ---
+    function toggleTrashMode() {
+        viewMode = viewMode === 'active' ? 'trash' : 'active';
+        const btn = document.getElementById('btn-trash');
+        const banner = document.getElementById('trash-banner');
+        
+        if (viewMode === 'trash') {
+            btn.innerText = "🔙";
+            btn.title = "返回问题库";
+            document.getElementById('sidebar-title').innerText = "🗑️ 回收站";
+            document.getElementById('btn-new').style.display = 'none';
+            banner.style.display = 'block';
+        } else {
+            btn.innerText = "♻️";
+            btn.title = "回收站";
+            document.getElementById('sidebar-title').innerText = "📚 问题库";
+            document.getElementById('btn-new').style.display = 'inline-block';
+            banner.style.display = 'none';
+        }
+        // 清空详情视图
+        currentId = null;
+        document.getElementById('detail-view').style.display = 'none';
+        document.getElementById('empty-msg').style.display = 'block';
+        renderList();
     }
 
     function togglePinFromCtx() {
@@ -457,11 +506,93 @@
         const idx = contextMenuTargetIdx;
         const item = db.items[idx];
         document.getElementById('ctx-menu').style.display = 'none';
-        if(!confirm(`确定要彻底删除问题 "${item.title}" 吗？`)) return;
-        try {
-            if (item.id === currentId) { currentId = null; document.getElementById('detail-view').style.display = 'none'; document.getElementById('empty-msg').style.display = 'block'; }
-            db.items.splice(idx, 1); await saveMainDB(true); renderList();
-        } catch(e) { alert(e.message); }
+        if(!confirm(`确认将 "${item.title}" 移入回收站？`)) return;
+        
+        if (item.id === currentId) { currentId = null; document.getElementById('detail-view').style.display = 'none'; document.getElementById('empty-msg').style.display = 'block'; }
+        
+        // 软删除
+        const deleted = db.items.splice(idx, 1)[0];
+        deleted.deletedAt = new Date().toISOString();
+        deleted.type = 'item'; // 标记类型
+        if(!db.trash) db.trash = [];
+        db.trash.unshift(deleted);
+        
+        await saveMainDB(true); renderList();
+    }
+
+    // [新增] 恢复逻辑
+    async function restoreItemFromCtx() {
+        if (contextMenuTargetIdx === null) return;
+        const idx = contextMenuTargetIdx;
+        document.getElementById('ctx-menu').style.display = 'none';
+        
+        const item = db.trash[idx];
+        
+        if (item.type === 'note') {
+            // 恢复笔记：尝试找回原问题
+            let parent = db.items.find(x => x.id === item.parentId);
+            if (!parent) {
+                // 如果原问题不存在，创建一个归档问题
+                parent = db.items.find(x => x.title === "📂 恢复的归档笔记");
+                if (!parent) {
+                    parent = { id: Date.now(), title: "📂 恢复的归档笔记", desc: "自动创建的归档，用于存放原问题已丢失的恢复笔记。", answers: [], date: new Date().toISOString() };
+                    db.items.unshift(parent);
+                }
+                alert(`原问题已不存在，笔记将恢复到 "${parent.title}" 中。`);
+            }
+            if(!parent.answers) parent.answers = [];
+            parent.answers.push(item.data);
+            db.trash.splice(idx, 1);
+        } else {
+            // 恢复问题
+            const restored = db.trash.splice(idx, 1)[0];
+            delete restored.deletedAt;
+            db.items.unshift(restored);
+        }
+        
+        await saveMainDB(true); renderList();
+    }
+
+    async function hardDeleteFromCtx() {
+        if (contextMenuTargetIdx === null) return;
+        const idx = contextMenuTargetIdx;
+        document.getElementById('ctx-menu').style.display = 'none';
+        if(!confirm("⚠️ 彻底删除无法恢复，确定吗？")) return;
+        
+        db.trash.splice(idx, 1);
+        
+        if (viewMode === 'trash' && currentId) { // 如果正在查看该垃圾项
+            // 其实 loadItem 时 currentId 指向的是 trash 中的 item，这里 id 匹配可能会有问题如果 id 重复。
+            // 简单处理：清空视图
+            currentId = null; 
+            document.getElementById('detail-view').style.display = 'none';
+        }
+
+        await saveMainDB(true); renderList();
+    }
+
+    async function restoreCurrentItem() {
+        // 在详情页点击恢复
+        const trashIdx = db.trash.findIndex(x => x.id === currentId || (x.data && x.data.date === currentItemData.date)); // 简单匹配
+        if (trashIdx !== -1) {
+            contextMenuTargetIdx = trashIdx;
+            await restoreItemFromCtx();
+            // 恢复后切换回普通视图查看
+            if(viewMode === 'trash') {
+                 // 自动切回 active 模式并选中
+                 toggleTrashMode(); 
+                 // 需要找到在 items 中的新位置，通常是 0
+                 loadItem(db.items[0].id);
+            }
+        }
+    }
+
+    async function hardDeleteCurrentItem() {
+        const trashIdx = db.trash.findIndex(x => x.id === currentId);
+        if (trashIdx !== -1) {
+            contextMenuTargetIdx = trashIdx;
+            await hardDeleteFromCtx();
+        }
     }
 
     function jumpToSource(cm, event) {
@@ -484,7 +615,6 @@
                 const val = cm.getValue();
                 const el = document.getElementById(previewId);
                 const preamble = getPreambleFn ? getPreambleFn() : "";
-                // 编辑器预览使用局部 state
                 const localState = { counters: { thm: 0, lemma: 0, defn: 0, conj: 0, problem: 0 }, labels: {} };
                 el.innerHTML = renderContent(val, false, preamble, localState);
                 postProcessDom(el);
@@ -511,16 +641,14 @@
         });
     }
 
-    // [核心] 渲染函数支持传入状态对象
     function renderContent(text, isGlobal, preamble = "", customState = null) {
         if (!text) return "";
-        const state = customState || docState; // 使用传入状态或全局状态
+        const state = customState || docState; 
 
         const mathBlocks = [];
         const storeMath = (content) => { mathBlocks.push(content); return `MATHBLOCK${mathBlocks.length - 1}ENDMATHBLOCK`; };
 
         let processedText = text;
-
         if (preamble && preamble.trim()) { processedText = `$$ ${preamble} $$ \n` + processedText; }
 
         processedText = processedText.replace(/\$\$([\s\S]*?)\$\$/g, (match) => { return storeMath(match); });
@@ -581,13 +709,8 @@
         return html;
     }
 
-    // [修改] 解析引用也支持传入 state
     function resolveReferences(customState = null) {
         const state = customState || docState;
-        // 如果提供了 customState，则只解析其容器内的 ref？不，这里通过 DOM 查询
-        // 为了支持全屏模式的局部解析，我们需要限制查询范围。
-        // 但这里我们简单化：如果在全屏模式下，我们在那里手动调用解析逻辑。
-        // 这个函数主要用于主视图的全局解析。
         document.querySelectorAll('#detail-view .latex-ref').forEach(el => {
             const refKey = el.getAttribute('data-ref');
             const target = state.labels[refKey];
@@ -654,24 +777,17 @@
         else { content.classList.add('collapsed'); btn.innerText = "🔽 展开"; }
     }
     
-    // [关键修复] 全屏阅读使用独立计数器
     function fullscreenNote(idx) {
         const note = currentItemData.answers[idx];
         const container = document.getElementById('fullscreen-content');
-        
-        // 创建独立的状态对象
         const localState = { counters: { thm: 0, lemma: 0, defn: 0, conj: 0, problem: 0 }, labels: {} };
-        
         container.innerHTML = renderContent(note.text, true, currentItemData.preamble, localState);
-        
-        // 局部解析引用
         container.querySelectorAll('.latex-ref').forEach(el => {
             const refKey = el.getAttribute('data-ref');
             const target = localState.labels[refKey];
             if (target) { el.innerHTML = target.num; el.href = "#"; } 
             else { el.innerHTML = "<strong>?</strong>"; el.style.color = "red"; }
         });
-
         postProcessDom(container);
         if(window.MathJax) MathJax.typesetPromise([container]);
         document.getElementById('fullscreen-reader').style.display = 'flex';
@@ -707,6 +823,7 @@
             finally { document.getElementById('loading').style.display = 'none'; }
         } else { await syncPullMain(); }
     }
+    
     async function enterVisitorMode() {
         document.body.classList.add('visitor-mode');
         document.getElementById('auth-controls').innerHTML = ''; 
@@ -716,12 +833,20 @@
 
         if (!ghConfig.token) { 
             const t = prompt("请输入 GitHub Token 以启用编辑权限："); 
-            if(t) { ghConfig.token = t.trim(); localStorage.setItem(CFG_KEY, JSON.stringify(ghConfig)); }
+            if(t) {
+                ghConfig.token = t.trim();
+                localStorage.setItem(CFG_KEY, JSON.stringify(ghConfig));
+            }
         }
         
-        try { await loadSharedItem(visitorGistId); setMsg("协作模式"); } 
-        catch(e) { alert("连接失败: " + e.message); } 
-        finally { document.getElementById('loading').style.display = 'none'; }
+        try {
+            await loadSharedItem(visitorGistId);
+            setMsg("协作模式");
+        } catch(e) {
+            alert("连接失败: " + e.message);
+        } finally {
+            document.getElementById('loading').style.display = 'none';
+        }
     }
     async function syncPullMain() {
         if(!ghConfig.token || !ghConfig.mainGistId) return;
@@ -736,30 +861,60 @@
             if (!fileObj) throw new Error("Gist 中未找到有效的数据文件");
             db = JSON.parse(fileObj.content);
             if(!db.items) { db = Array.isArray(db) ? { items: db } : { items: [] }; }
+            // 兼容性初始化
+            if(!db.trash) db.trash = [];
             renderList();
             setMsg("就绪");
         } catch(e) { handleNetworkError(e); } 
         finally { document.getElementById('loading').style.display = 'none'; }
     }
+    
     async function loadItem(id) {
-        currentId = id;
-        const itemRef = db.items.find(x => x.id === id);
+        // [修复] 支持加载 trash 中的 item
+        let itemRef;
+        if (viewMode === 'active') {
+            itemRef = db.items.find(x => x.id === id);
+        } else {
+            itemRef = db.trash.find(x => x.id === id);
+        }
+        
         if(!itemRef) return;
+        currentId = id;
         document.getElementById('empty-msg').style.display = 'none';
         document.getElementById('detail-view').style.display = 'flex';
         document.getElementById('collab-banner').style.display = 'none';
-        document.getElementById('loading').style.display = 'flex';
-        document.getElementById('loading-tip').innerText = "加载内容中...";
-        closeNoteEditor(); closeProblemEditor();
-        try {
-            if (itemRef.shareId) { document.getElementById('collab-banner').style.display = 'block'; await loadSharedItem(itemRef.shareId); } 
-            else { currentItemData = itemRef; renderDetailView(); }
-        } catch (e) { handleNetworkError(e); } 
-        finally { document.getElementById('loading').style.display = 'none'; setMsg("就绪"); }
+        
+        // 垃圾桶模式下隐藏常规工具栏，显示垃圾桶工具栏
+        if (viewMode === 'trash') {
+            document.getElementById('normal-toolbar-btns').style.display = 'none';
+            document.getElementById('trash-toolbar-btns').style.display = 'flex';
+            // 垃圾桶模式下的内容是只读的，所以不需要 complex editing logic, but we still use currentItemData for rendering
+            currentItemData = itemRef;
+            renderDetailView();
+            // 禁用编辑按钮
+            document.querySelectorAll('.bar-btn.secondary').forEach(b => b.style.display = 'none');
+            // 隐藏添加笔记
+            document.getElementById('note-section-footer').style.display = 'none';
+        } else {
+            document.getElementById('normal-toolbar-btns').style.display = 'flex';
+            document.getElementById('trash-toolbar-btns').style.display = 'none';
+            document.getElementById('note-section-footer').style.display = 'block';
+            
+            document.getElementById('loading').style.display = 'flex';
+            document.getElementById('loading-tip').innerText = "加载内容中...";
+            closeNoteEditor(); closeProblemEditor();
+            try {
+                if (itemRef.shareId) { document.getElementById('collab-banner').style.display = 'block'; await loadSharedItem(itemRef.shareId); } 
+                else { currentItemData = itemRef; renderDetailView(); }
+            } catch (e) { handleNetworkError(e); } 
+            finally { document.getElementById('loading').style.display = 'none'; setMsg("就绪"); }
+        }
     }
+    
     async function loadSharedItem(gistId) {
         const headers = {};
         if (ghConfig.token) headers["Authorization"] = `token ${ghConfig.token}`;
+        
         const res = await fetch(`https://api.github.com/gists/${gistId}`, { headers: headers });
         await handleApiError(res);
         const json = await res.json();
@@ -780,14 +935,14 @@
         document.getElementById('d-date').innerText = new Date(d.date).toLocaleDateString();
         
         const descContainer = document.getElementById('d-desc');
-        // 主界面渲染使用全局 docState (renderContent 默认使用 docState)
         descContainer.innerHTML = renderContent(d.desc || "", true, d.preamble);
         postProcessDom(descContainer);
         
         document.getElementById('problem-display-area').style.display = 'block';
         document.getElementById('problem-editor-wrapper').style.display = 'none';
         
-        document.getElementById('ans-list').innerHTML = (d.answers || []).map((a, i) => `
+        const ansList = document.getElementById('ans-list');
+        ansList.innerHTML = (d.answers || []).map((a, i) => `
             <div class="ans-card">
                 <div id="ans-content-${i}" class="markdown-body ans-content collapsed">${renderContent(a.text, true, d.preamble)}</div>
                 <div class="ans-footer">
@@ -795,20 +950,66 @@
                         <button class="btn-text" id="ans-btn-toggle-${i}" onclick="toggleNote(${i})">🔽 展开</button>
                         <button class="btn-text" onclick="fullscreenNote(${i})">⛶ 全屏阅读</button>
                     </div>
+                    
                     <div style="display:flex; align-items:center; gap:10px;">
                         <span>${new Date(a.date).toLocaleString()}</span>
+                        ${viewMode === 'active' ? `
                         <button class="bar-btn secondary" style="font-size:11px; padding:3px 8px;" onclick="editAns(${i})">✏️ 编辑</button>
                         <button class="bar-btn warn" style="font-size:11px; padding:3px 8px;" onclick="deleteAns(${i})">🗑️</button>
+                        ` : ''}
                     </div>
                 </div>
             </div>
         `).join('');
         
-        document.getElementById('ans-list').querySelectorAll('.ans-content').forEach(el => postProcessDom(el));
+        ansList.querySelectorAll('.ans-content').forEach(el => postProcessDom(el));
         
         resolveReferences();
         if(!visitorGistId) renderList(); 
         if(window.MathJax) MathJax.typesetPromise();
+    }
+
+    // [修改] 删除问题 -> 移入 Trash
+    async function deleteItem() {
+        if(!currentId) return;
+        if(!confirm("⚠️ 确定要移入回收站吗？")) return;
+        
+        const idx = db.items.findIndex(x => x.id === currentId);
+        if(idx === -1) return;
+        
+        const deleted = db.items.splice(idx, 1)[0];
+        deleted.deletedAt = new Date().toISOString();
+        deleted.type = 'item';
+        
+        if(!db.trash) db.trash = [];
+        db.trash.unshift(deleted);
+        
+        currentId = null;
+        document.getElementById('detail-view').style.display = 'none';
+        document.getElementById('empty-msg').style.display = 'block';
+        
+        await saveMainDB(true); 
+        renderList();
+    }
+    
+    // [修改] 删除笔记 -> 移入 Trash
+    async function deleteAns(idx) {
+        if(!confirm("删除笔记并移入回收站?")) return;
+        
+        const note = currentItemData.answers.splice(idx, 1)[0];
+        const trashNote = {
+            type: 'note',
+            data: note,
+            parentId: currentItemData.id,
+            parentTitle: currentItemData.title,
+            deletedAt: new Date().toISOString()
+        };
+        
+        if(!db.trash) db.trash = [];
+        db.trash.unshift(trashNote);
+        
+        await performSave();
+        renderDetailView();
     }
 
     async function performSave() {
@@ -831,20 +1032,48 @@
     async function handleApiError(res) { if (res.ok) return; throw new Error(`Error ${res.status}: ${res.statusText}`); }
     function handleNetworkError(e) { alert("⚠️ " + e.message); setMsg("❌ 失败"); openConfig(); }
     
+    // [修改] 渲染列表逻辑 (支持回收站视图)
     function renderList() { 
         const term = document.getElementById('search-input') ? document.getElementById('search-input').value.toLowerCase() : "";
         const isSearching = term.length > 0;
-        let displayItems = db.items;
+        
+        let sourceList = (viewMode === 'trash') ? db.trash : db.items;
+        
+        let displayItems = sourceList;
         if(isSearching) {
-            displayItems = db.items.filter(item => (item.title && item.title.toLowerCase().includes(term)) || (item.desc && item.desc.toLowerCase().includes(term)));
+            displayItems = sourceList.filter(item => {
+                if (item.type === 'note') {
+                    return (item.data.text && item.data.text.toLowerCase().includes(term));
+                }
+                return (item.title && item.title.toLowerCase().includes(term)) || (item.desc && item.desc.toLowerCase().includes(term));
+            });
         }
+        
         document.getElementById('list').innerHTML = displayItems.map((item) => {
-            const idx = db.items.indexOf(item); 
-            const activeClass = item.id === currentId ? 'active' : '';
+            // Note: In trash mode, we use the trash array index
+            const idx = sourceList.indexOf(item); 
+            const activeClass = (item.id === currentId) ? 'active' : ''; // Only valid for problem items
+            
+            // Trash Item Rendering
+            if (viewMode === 'trash') {
+                if (item.type === 'note') {
+                    return `<li class="item trash-mode" onclick="alert('这是单条笔记，请恢复后查看')">
+                        <span class="item-title" style="font-size:12px">📄 笔记 (原问题: ${item.parentTitle}) <br> <span style="color:#999">${item.data.text.substring(0,30)}...</span></span>
+                        <div style="font-size:10px; color:#d73a49; margin-top:5px; cursor:pointer;" onclick="contextMenuTargetIdx=${idx}; restoreItemFromCtx(); event.stopPropagation()">♻️ 恢复</div>
+                         <div style="font-size:10px; color:#555; margin-top:5px; cursor:pointer; margin-left:10px;" onclick="contextMenuTargetIdx=${idx}; hardDeleteFromCtx(); event.stopPropagation()">❌ 销毁</div>
+                    </li>`;
+                } else {
+                    return `<li class="item trash-mode ${activeClass}" onclick="loadItem(${item.id})" oncontextmenu="openContextMenu(event, ${idx})">
+                        <span class="item-title">${item.title} <span class="trash-badge">已删除</span></span>
+                    </li>`;
+                }
+            }
+
+            // Normal Item Rendering
             const sharedClass = item.shareId ? 'shared' : '';
-            const pinnedClass = item.isPinned ? 'pinned' : '';
-            const draggableAttr = isSearching ? '' : `draggable="true" ondragstart="dragStart(event, ${idx})" ondrop="dragDrop(event, ${idx})" ondragover="event.preventDefault()"`;
             const pinnedIndicator = item.isPinned ? `<span class="pin-indicator">📌</span>` : '';
+            const draggableAttr = isSearching ? '' : `draggable="true" ondragstart="dragStart(event, ${idx})" ondrop="dragDrop(event, ${idx})" ondragover="event.preventDefault()"`;
+            
             return `<li class="item ${activeClass} ${sharedClass}" ${draggableAttr} onclick="loadItem(${item.id})" oncontextmenu="openContextMenu(event, ${idx})">
                 ${pinnedIndicator}
                 <span class="item-title">${item.title}</span>
@@ -856,10 +1085,7 @@
     function createNewLocal() { const newItem = { id: Date.now(), title: "新问题", desc: "", answers: [], date: new Date().toISOString(), isPinned: false }; db.items.unshift(newItem); saveMainDB(); loadItem(newItem.id); }
     function dragStart(e, idx) { e.dataTransfer.setData('idx', idx); }
     function dragDrop(e, targetIdx) { e.preventDefault(); const srcIdx = e.dataTransfer.getData('idx'); const [moved] = db.items.splice(srcIdx, 1); db.items.splice(targetIdx, 0, moved); renderList(); saveMainDB(true); }
-    // 移除 togglePin，因为现在通过右键菜单操作
     
-    async function deleteAns(idx) { if(!confirm("删除笔记?")) return; currentItemData.answers.splice(idx, 1); await performSave(); renderDetailView(); }
-    async function deleteItem() { if(!confirm("彻底删除?")) return; try { db.items = db.items.filter(x => x.id !== currentId); await saveMainDB(true); location.reload(); } catch(e) { alert(e.message); } }
     async function manageCollaboration() { const item = db.items.find(x => x.id === currentId); if(item.shareId) { const a = prompt("1.获取链接 2.停止协作", "1"); if(a==="1") prompt("链接:", `${location.origin}${location.pathname}?gist=${item.shareId}`); else if(a==="2") stopCollaboration(item); } else convertToShared(); }
     async function stopCollaboration(item) { if(!confirm("停止协作并存回本地?")) return; try { item.desc=currentItemData.desc; item.answers=currentItemData.answers; delete item.shareId; await saveMainDB(true); alert("已停止"); loadItem(item.id); } catch(e){alert(e.message);} }
     async function convertToShared() { const item = db.items.find(x => x.id === currentId); if(!confirm("开启协作?")) return; try { const res = await fetch("https://api.github.com/gists", { method: "POST", headers: { "Authorization": `token ${ghConfig.token}` }, body: JSON.stringify({ description: `[Shared] ${item.title}`, public: false, files: { "shared_item.json": { content: JSON.stringify(item, null, 2) } } }) }); const json = await res.json(); item.shareId = json.id; await saveMainDB(true); alert("已开启"); loadItem(currentId); } catch(e){alert(e.message);} }
