@@ -2,7 +2,7 @@ import { getConfigSource, hasLegacyConfig, loadConfig, loadLegacyConfig, saveCon
 import { getValue, setValue } from './data/idb.js';
 import { createMainDatabase, createSharedItem, fetchMainDatabase, fetchSharedItem, saveMainDatabase, saveSharedItem } from './data/gist.js';
 import { createMarkdownEditor } from './lib/editor.js';
-import { renderDocument, renderExcerpt, setRenderedHtml, toPlainExcerpt, typesetElement } from './lib/renderer.js';
+import { renderDocument, renderExcerpt, setRenderedHtml, typesetElement } from './lib/renderer.js';
 
 const LOCAL_DATABASE_KEY = 'rq_v2_local_database';
 const UI_LANGUAGE_KEY = 'rq_v2_language';
@@ -1135,7 +1135,9 @@ class ResearchQaApp {
 
         this.elements.noteList.innerHTML = notes.map((note) => {
             const expanded = this.expandedNotes.has(note.id);
-            const body = expanded ? `<div class="rich-text" data-note-render="${note.id}"></div>` : `<div class="note-excerpt">${toPlainExcerpt(note.text, 220)}</div>`;
+            const body = expanded
+                ? `<div class="rich-text" data-note-render="${note.id}"></div>`
+                : `<div class="note-excerpt rich-text" data-note-preview="${note.id}"></div>`;
             const toggleLabel = expanded ? this.text('collapse') : this.text('expand');
             const toolbar = this.viewMode === 'trash' || this.visitorGistId ? '' : `
                     <button class="pill-btn soft" data-note-action="edit" data-note-id="${note.id}">${this.text('editNote')}</button>
@@ -1157,16 +1159,21 @@ class ResearchQaApp {
         }).join('');
 
         notes.forEach((note) => {
-            if (!this.expandedNotes.has(note.id)) {
-                return;
-            }
-
-            const container = this.elements.noteList.querySelector(`[data-note-render="${note.id}"]`);
+            const expanded = this.expandedNotes.has(note.id);
+            const container = expanded
+                ? this.elements.noteList.querySelector(`[data-note-render="${note.id}"]`)
+                : this.elements.noteList.querySelector(`[data-note-preview="${note.id}"]`);
             if (!container) {
                 return;
             }
 
-            const rendered = renderDocument(note.text, { preamble: this.currentItem.preamble });
+            const rendered = expanded
+                ? renderDocument(note.text, { preamble: this.currentItem.preamble })
+                : renderExcerpt(note.text, {
+                    preamble: this.currentItem.preamble,
+                    length: 220,
+                    emptyText: this.language === 'zh' ? '暂无内容。' : 'No content yet.'
+                });
             setRenderedHtml(container, rendered);
             typesetElement(container);
         });
@@ -1541,7 +1548,7 @@ class ResearchQaApp {
             ? notes.map((note) => `
                 <article class="print-note">
                     <div class="print-note-meta">${escapeHtml(formatDate(note.date))}</div>
-                    <div class="rich-text">${renderDocument(note.text || '', { preamble: item.preamble })}</div>
+                    <div class="rich-text">${renderDocument(note.text || '', { preamble: item.preamble }).html}</div>
                 </article>
             `).join('')
             : `<p class="print-empty">${escapeHtml(this.text('noNotesTitle'))}</p>`;
@@ -1658,7 +1665,7 @@ class ResearchQaApp {
         </header>
         <section class="print-section">
             <h2>${escapeHtml(this.text('statement'))}</h2>
-            <div class="rich-text">${statementHtml}</div>
+            <div class="rich-text">${statementHtml.html}</div>
         </section>
         <section class="print-section">
             <h2>${escapeHtml(this.text('researchNotes'))}</h2>
@@ -1696,6 +1703,40 @@ class ResearchQaApp {
         if (!this.currentItem || (this.viewMode === 'trash' && this.currentSummary?.type === 'note')) {
             return;
         }
+
+        const frame = document.createElement('iframe');
+        frame.setAttribute('aria-hidden', 'true');
+        frame.style.position = 'fixed';
+        frame.style.right = '0';
+        frame.style.bottom = '0';
+        frame.style.width = '0';
+        frame.style.height = '0';
+        frame.style.opacity = '0';
+        frame.style.pointerEvents = 'none';
+        frame.style.border = '0';
+        const cleanup = () => frame.remove();
+        frame.addEventListener('load', () => {
+            window.setTimeout(() => {
+                try {
+                    if (!frame.contentWindow?.print) {
+                        throw new Error('Print is unavailable in this browser.');
+                    }
+                    frame.contentWindow.onafterprint = cleanup;
+                    frame.contentWindow.focus();
+                    frame.contentWindow.print();
+                } catch (error) {
+                    cleanup();
+                    const message = this.language === 'zh'
+                        ? '浏览器未能打开 PDF 打印窗口，请重试。'
+                        : 'Unable to open the PDF print dialog. Please try again.';
+                    this.toast(message, 'error');
+                }
+            }, 700);
+        }, { once: true });
+        document.body.appendChild(frame);
+        frame.srcdoc = this.buildPrintableProblemDocument(this.currentItem);
+        window.setTimeout(cleanup, 60000);
+        return;
 
         const popup = window.open('', '_blank', 'noopener,noreferrer');
         if (!popup) {
