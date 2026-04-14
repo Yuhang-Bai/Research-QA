@@ -19,7 +19,7 @@
     --radius-lg: 20px;
     --radius-md: 14px;
     --radius-sm: 10px;
-    --sidebar-width: clamp(400px, 28vw, 480px);
+    --sidebar-width: clamp(320px, 24vw, 410px);
 }
 
 * {
@@ -63,46 +63,46 @@ pre {
 
 .app-shell {
     min-height: 100vh;
-    padding: 10px;
+    padding: 8px;
 }
 
 .topbar {
-    height: 58px;
+    height: 52px;
     border: 1px solid rgba(255, 255, 255, 0.42);
     background: linear-gradient(120deg, rgba(40, 31, 24, 0.92), rgba(17, 25, 31, 0.88));
     color: #f7efe2;
-    border-radius: 20px;
+    border-radius: 18px;
     box-shadow: var(--shadow);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 14px;
+    padding: 0 12px;
     backdrop-filter: blur(20px);
 }
 
 .topbar-brand {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .brand-mark {
-    width: 32px;
-    height: 32px;
-    border-radius: 11px;
+    width: 28px;
+    height: 28px;
+    border-radius: 10px;
     background: linear-gradient(145deg, #f59e0b, #d97706);
     color: #1c1408;
     display: grid;
     place-items: center;
     font-weight: 700;
     letter-spacing: 0.08em;
-    font-size: 12px;
+    font-size: 11px;
 }
 
 .eyebrow {
     text-transform: uppercase;
     letter-spacing: 0.14em;
-    font-size: 10px;
+    font-size: 9px;
     color: rgba(247, 239, 226, 0.72);
 }
 
@@ -118,13 +118,13 @@ pre {
 }
 
 .topbar h1 {
-    font-size: 22px;
+    font-size: 20px;
     line-height: 1;
 }
 
 .topbar-actions {
     display: flex;
-    gap: 6px;
+    gap: 5px;
     align-items: center;
 }
 
@@ -140,15 +140,15 @@ pre {
 }
 
 .top-btn {
-    height: 32px;
-    padding: 0 12px;
+    height: 30px;
+    padding: 0 10px;
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.08);
     color: inherit;
     display: inline-flex;
     align-items: center;
     border: 1px solid rgba(255, 255, 255, 0.12);
-    font-size: 13px;
+    font-size: 12px;
 }
 
 .top-btn.ghost {
@@ -167,9 +167,9 @@ pre {
 .workspace {
     display: grid;
     grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
-    gap: 14px;
-    height: calc(100vh - 78px);
-    margin-top: 10px;
+    gap: 10px;
+    height: calc(100vh - 64px);
+    margin-top: 8px;
 }
 
 .workspace.composer-open {
@@ -185,7 +185,7 @@ pre {
 .sidebar {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
 }
 
 .sidebar-panel,
@@ -223,16 +223,16 @@ pre {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .sidebar-panel {
-    padding: 12px 14px;
+    padding: 10px 12px;
 }
 
 .panel-kicker,
 .section-kicker {
-    font-size: 11px;
+    font-size: 10px;
     letter-spacing: 0.16em;
     text-transform: uppercase;
     color: rgba(243, 245, 244, 0.72);
@@ -240,14 +240,14 @@ pre {
 
 .sidebar-panel h2 {
     margin: 2px 0 0;
-    font-size: 18px;
+    font-size: 16px;
     font-family: "STIX Two Text", Georgia, serif;
 }
 
 .status-strip {
-    margin-top: 8px;
+    margin-top: 6px;
     display: flex;
-    gap: 6px;
+    gap: 5px;
     flex-wrap: wrap;
 }
 
@@ -255,18 +255,18 @@ pre {
 .hero-chip {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    min-height: 24px;
+    gap: 5px;
+    min-height: 22px;
     border-radius: 999px;
-    padding: 0 8px;
-    font-size: 11px;
+    padding: 0 7px;
+    font-size: 10px;
     letter-spacing: 0.01em;
 }
 
 .sidebar > .sidebar-panel:not(.accent-panel) {
     display: grid;
-    grid-template-columns: minmax(170px, 0.9fr) minmax(0, 1.1fr);
-    gap: 10px 12px;
+    grid-template-columns: minmax(150px, 0.85fr) minmax(0, 1.15fr);
+    gap: 8px 10px;
     align-items: end;
 }
 
@@ -283,16 +283,16 @@ pre {
 .segmented {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 5px;
+    gap: 4px;
     margin-bottom: 0;
 }
 
 .segmented-btn {
-    height: 34px;
+    height: 30px;
     border-radius: 999px;
     background: var(--panel-soft);
     color: var(--muted);
-    font-size: 13px;
+    font-size: 12px;
 }
 
 .segmented-btn.active {
@@ -305,14 +305,14 @@ pre {
 .field {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    font-size: 13px;
+    gap: 6px;
+    font-size: 12px;
     color: var(--muted);
 }
 
 .search-shell {
     gap: 4px;
-    font-size: 11px;
+    font-size: 10px;
 }
 
 .search-shell input,
@@ -321,15 +321,15 @@ pre {
     width: 100%;
     border: 1px solid var(--line);
     background: rgba(255, 255, 255, 0.82);
-    border-radius: 12px;
+    border-radius: 10px;
     color: var(--text);
-    padding: 12px 14px;
+    padding: 10px 12px;
     outline: none;
 }
 
 .search-shell input {
-    min-height: 38px;
-    padding: 8px 12px;
+    min-height: 34px;
+    padding: 7px 11px;
 }
 
 .search-shell input:focus,
@@ -347,17 +347,17 @@ pre {
 .sidebar-scroll {
     min-height: 0;
     overflow: auto;
-    padding-right: 4px;
+    padding-right: 2px;
 }
 
 .list-card {
     display: grid;
-    gap: 10px;
+    gap: 8px;
 }
 
 .problem-row {
-    border-radius: 18px;
-    padding: 14px 16px;
+    border-radius: 16px;
+    padding: 12px 14px;
     border: 1px solid rgba(255, 255, 255, 0.44);
     background: rgba(255, 250, 244, 0.78);
     box-shadow: 0 18px 34px rgba(68, 47, 18, 0.08);
@@ -389,22 +389,22 @@ pre {
 
 .problem-row h3 {
     margin: 0;
-    font-size: 16px;
-    line-height: 1.45;
+    font-size: 15px;
+    line-height: 1.35;
 }
 
 .problem-row p {
-    margin: 8px 0 0;
+    margin: 6px 0 0;
     color: var(--muted);
-    line-height: 1.7;
-    font-size: 14px;
+    line-height: 1.55;
+    font-size: 13px;
 }
 
 .problem-row-excerpt {
-    margin-top: 8px;
+    margin-top: 6px;
     color: var(--muted);
-    font-size: 14px;
-    line-height: 1.7;
+    font-size: 13px;
+    line-height: 1.55;
     overflow: hidden;
 }
 
@@ -430,15 +430,15 @@ pre {
 
 .item-meta {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     flex-wrap: wrap;
-    margin-top: 12px;
+    margin-top: 8px;
 }
 
 .meta-pill {
-    font-size: 12px;
+    font-size: 11px;
     color: var(--muted);
-    padding: 4px 10px;
+    padding: 3px 8px;
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.72);
 }
@@ -446,13 +446,13 @@ pre {
 .main-panel {
     min-width: 0;
     overflow: auto;
-    padding-right: 6px;
+    padding-right: 4px;
 }
 
 .hero-card,
 .reader-card {
-    padding: 24px 28px;
-    margin-bottom: 18px;
+    padding: 18px 20px;
+    margin-bottom: 12px;
 }
 
 .hero-meta,
@@ -461,37 +461,37 @@ pre {
 .modal-actions,
 .composer-actions {
     display: flex;
-    gap: 10px;
+    gap: 8px;
     flex-wrap: wrap;
     align-items: center;
 }
 
 .hero-header {
-    margin-top: 18px;
+    margin-top: 12px;
     display: flex;
     justify-content: space-between;
-    gap: 18px;
+    gap: 14px;
     align-items: flex-start;
 }
 
 .hero-card h2 {
-    font-size: clamp(30px, 3vw, 44px);
+    font-size: clamp(24px, 2.4vw, 34px);
     margin: 0;
 }
 
 .hero-card p,
 .empty-card p,
 .modal-note {
-    margin: 10px 0 0;
+    margin: 8px 0 0;
     color: var(--muted);
-    line-height: 1.7;
+    line-height: 1.6;
 }
 
 .pill-btn,
 .primary-btn,
 .secondary-btn {
-    min-height: 42px;
-    padding: 0 16px;
+    min-height: 36px;
+    padding: 0 13px;
     border-radius: 999px;
 }
 
@@ -525,25 +525,25 @@ pre {
 }
 
 .icon-btn {
-    width: 40px;
-    height: 40px;
+    width: 34px;
+    height: 34px;
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.7);
     color: var(--text);
 }
 
 .section-heading {
-    margin-bottom: 18px;
+    margin-bottom: 12px;
 }
 
 .section-heading h3 {
-    font-size: 24px;
+    font-size: 20px;
 }
 
 .rich-text {
     color: var(--text);
-    line-height: 1.88;
-    font-size: 17px;
+    line-height: 1.72;
+    font-size: 15.5px;
     font-family: "STIX Two Text", Georgia, serif;
 }
 
@@ -572,8 +572,8 @@ pre {
 
 .rich-text pre {
     margin: 0 0 1.2em;
-    padding: 16px 18px;
-    border-radius: 18px;
+    padding: 14px 16px;
+    border-radius: 16px;
     background: #1c2026;
     color: #e7edf6;
     overflow: auto;
@@ -591,16 +591,16 @@ pre {
 }
 
 .rich-text blockquote {
-    padding: 10px 16px;
+    padding: 8px 14px;
     border-left: 4px solid rgba(15, 118, 110, 0.28);
     background: rgba(15, 118, 110, 0.06);
-    border-radius: 0 14px 14px 0;
+    border-radius: 0 12px 12px 0;
 }
 
 .rich-text .env-block {
     margin: 1.1em 0;
-    padding: 16px 18px;
-    border-radius: 18px;
+    padding: 14px 16px;
+    border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.48);
 }
 
@@ -656,12 +656,12 @@ pre {
 
 .note-list {
     display: grid;
-    gap: 16px;
+    gap: 12px;
 }
 
 .note-card {
-    border-radius: 24px;
-    padding: 18px 20px;
+    border-radius: 18px;
+    padding: 14px 16px;
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(246, 239, 229, 0.84));
     border: 1px solid rgba(255, 255, 255, 0.5);
     box-shadow: 0 16px 34px rgba(68, 47, 18, 0.08);
@@ -670,25 +670,25 @@ pre {
 .note-card-head {
     display: flex;
     justify-content: space-between;
-    gap: 14px;
+    gap: 10px;
     align-items: center;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
 }
 
 .note-card time {
     color: var(--muted);
-    font-size: 13px;
+    font-size: 12px;
 }
 
 .note-toolbar {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     flex-wrap: wrap;
 }
 
 .note-excerpt {
     color: var(--muted);
-    line-height: 1.7;
+    line-height: 1.55;
     overflow: hidden;
 }
 
@@ -715,24 +715,24 @@ pre {
 .composer {
     display: flex;
     flex-direction: column;
-    padding: 24px 24px 20px;
+    padding: 18px 18px 16px;
     overflow: hidden;
     animation: slide-in 0.24s ease;
 }
 
 .composer-form {
     display: grid;
-    gap: 14px;
-    margin-top: 18px;
+    gap: 10px;
+    margin-top: 12px;
 }
 
 .composer-grid {
     display: grid;
     grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
-    gap: 18px;
+    gap: 14px;
     min-height: 0;
     flex: 1;
-    margin-top: 18px;
+    margin-top: 12px;
 }
 
 .editor-panel,
@@ -740,11 +740,11 @@ pre {
     min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
 }
 
 .panel-caption {
-    font-size: 12px;
+    font-size: 11px;
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--muted);
@@ -754,20 +754,20 @@ pre {
 .preview-body {
     min-height: 0;
     flex: 1;
-    min-height: 420px;
-    border-radius: 22px;
+    min-height: 360px;
+    border-radius: 18px;
     border: 1px solid var(--line);
     background: rgba(255, 255, 255, 0.78);
     overflow: auto;
 }
 
 .preview-body {
-    padding: 18px;
+    padding: 14px;
 }
 
 .composer-actions {
     justify-content: flex-end;
-    margin-top: 18px;
+    margin-top: 12px;
 }
 
 .main-panel::-webkit-scrollbar,
@@ -807,7 +807,7 @@ pre {
 
 .empty-card {
     width: min(720px, 100%);
-    padding: 34px;
+    padding: 24px;
 }
 
 .modal {
@@ -822,18 +822,18 @@ pre {
 
 .modal-card {
     width: min(560px, calc(100vw - 24px));
-    padding: 24px;
+    padding: 18px;
 }
 
 .modal-body {
     display: grid;
-    gap: 16px;
-    margin-top: 18px;
+    gap: 12px;
+    margin-top: 12px;
 }
 
 .modal-actions {
     justify-content: flex-end;
-    margin-top: 18px;
+    margin-top: 12px;
 }
 
 .toast-stack {
@@ -841,15 +841,15 @@ pre {
     right: 24px;
     bottom: 24px;
     display: grid;
-    gap: 10px;
+    gap: 8px;
     z-index: 40;
 }
 
 .toast {
     min-width: 280px;
     max-width: 420px;
-    padding: 14px 16px;
-    border-radius: 18px;
+    padding: 12px 14px;
+    border-radius: 16px;
     background: rgba(40, 31, 24, 0.92);
     color: #f7efe2;
     box-shadow: 0 18px 40px rgba(31, 26, 22, 0.28);
@@ -923,12 +923,12 @@ pre {
 
 @media (max-width: 1320px) {
     .workspace.composer-open {
-        grid-template-columns: 360px minmax(0, 1fr);
+        grid-template-columns: 320px minmax(0, 1fr);
     }
 
     .composer {
         position: fixed;
-        inset: 84px 14px 14px 14px;
+        inset: 72px 10px 10px 10px;
         z-index: 20;
     }
 }
@@ -940,15 +940,15 @@ pre {
 
     .app-shell {
         min-height: 100vh;
-        padding: 12px;
+        padding: 10px;
     }
 
     .topbar {
         height: auto;
-        padding: 14px;
+        padding: 12px;
         flex-direction: column;
         align-items: stretch;
-        gap: 10px;
+        gap: 8px;
     }
 
     .workspace,
@@ -981,6 +981,6 @@ pre {
 
     .composer-grid {
         grid-template-columns: 1fr;
-        min-height: 640px;
+        min-height: 560px;
     }
 }
