@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --open /",
+    "dev": "vite --open /index.src.html",
     "build": "vite build",
     "preview": "vite preview --open /"
   },

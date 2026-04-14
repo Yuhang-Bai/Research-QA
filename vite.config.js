@@ -7,13 +7,13 @@ const rootDir = dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
     base: './',
     server: {
-        open: '/'
+        open: '/index.src.html'
     },
     build: {
         rollupOptions: {
             input: {
-                index: resolve(rootDir, 'index.html'),
-                app: resolve(rootDir, 'app.html')
+                index: resolve(rootDir, 'index.src.html'),
+                app: resolve(rootDir, 'app.src.html')
             }
         }
     }
