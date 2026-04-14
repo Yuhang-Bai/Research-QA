@@ -404,18 +404,20 @@ function formatDate(dateString) {
 
 class ResearchQaApp {
     constructor() {
+        const initialRoute = this.readRouteFromLocation();
         this.language = persistLanguage(readStoredLanguage());
         this.configSource = getConfigSource();
         this.config = loadConfig();
         this.db = normalizeDatabase({});
-        this.viewMode = 'active';
-        this.currentId = null;
+        this.viewMode = initialRoute.viewMode;
+        this.pageMode = initialRoute.pageMode;
+        this.currentId = initialRoute.itemId;
         this.currentItem = null;
         this.currentSummary = null;
         this.currentSource = 'local';
         this.selectionToken = 0;
         this.expandedNotes = new Set();
-        this.visitorGistId = new URLSearchParams(window.location.search).get('gist');
+        this.visitorGistId = initialRoute.visitorGistId;
         this.composerState = {
             open: false,
             kind: 'problem',
@@ -430,9 +432,11 @@ class ResearchQaApp {
         const readerCards = document.querySelectorAll('.reader-card');
 
         this.elements = {
+            appShell: document.querySelector('.app-shell'),
             workspace: document.querySelector('.workspace'),
             topbarActions: document.querySelector('.topbar-actions'),
             brandEyebrow: document.querySelector('.topbar-brand .eyebrow'),
+            backHomeButton: document.getElementById('back-home-btn'),
             list: document.getElementById('problem-list'),
             searchInput: document.getElementById('search-input'),
             searchLabel: document.querySelector('.search-shell span'),
@@ -554,6 +558,7 @@ class ResearchQaApp {
         document.title = this.text('documentTitle');
 
         this.elements.brandEyebrow.textContent = this.text('brandEyebrow');
+        this.elements.backHomeButton.textContent = this.language === 'zh' ? '返回问题列表' : 'Back to problems';
         this.elements.syncButton.textContent = this.text('sync');
         this.elements.exportButton.textContent = this.text('export');
         this.elements.importButton.textContent = this.text('import');
@@ -647,6 +652,7 @@ class ResearchQaApp {
         this.elements.createItemButton.addEventListener('click', () => this.createNewItem());
         this.elements.emptyCreateButton.addEventListener('click', () => this.createNewItem());
         this.elements.emptyConfigButton.addEventListener('click', () => this.openConfigModal());
+        this.elements.backHomeButton.addEventListener('click', () => this.goHome());
         this.elements.editProblemButton.addEventListener('click', () => this.openProblemEditor());
         this.elements.newNoteButton.addEventListener('click', () => this.openNoteEditor());
         this.elements.deleteItemButton.addEventListener('click', () => this.handleDeleteAction());
@@ -676,7 +682,7 @@ class ResearchQaApp {
                 return;
             }
 
-            this.selectItem(row.dataset.itemId);
+            this.openItemPage(row.dataset.itemId);
         });
 
         this.elements.noteList.addEventListener('click', (event) => {
@@ -700,12 +706,15 @@ class ResearchQaApp {
                     break;
             }
         });
+
+        window.addEventListener('popstate', () => this.handlePopState());
     }
 
     async init() {
         this.ensureUtilityButtons();
         this.bindEvents();
         this.applyLanguage({ rerender: false });
+        this.applyRouteMode();
 
         if (this.visitorGistId) {
             this.elements.createItemButton.disabled = true;
@@ -717,8 +726,12 @@ class ResearchQaApp {
         const cached = await getValue(this.databaseCacheKey);
         if (cached) {
             this.db = normalizeDatabase(cached);
-            this.currentId = this.db.items[0]?.id ?? null;
-            await this.renderCurrentSelection();
+            this.reconcileRouteSelection({ replaceRoute: true });
+            if (this.pageMode === 'detail') {
+                await this.renderCurrentSelection();
+            } else {
+                this.renderAll();
+            }
             this.setStatusKey('statusLoadedCache');
         } else {
             this.renderAll();
@@ -752,6 +765,139 @@ class ResearchQaApp {
 
     refreshStatus() {
         this.elements.syncStatus.textContent = this.text(this.statusState.key, this.statusState.params);
+    }
+
+    readRouteFromLocation() {
+        const params = new URLSearchParams(window.location.search);
+        const visitorGistId = params.get('gist')?.trim() || '';
+        const itemId = params.get('item')?.trim() || null;
+        const viewMode = params.get('view') === 'trash' ? 'trash' : 'active';
+        return {
+            visitorGistId,
+            viewMode,
+            itemId,
+            pageMode: visitorGistId || itemId ? 'detail' : 'home'
+        };
+    }
+
+    buildRouteUrl({ pageMode = this.pageMode, viewMode = this.viewMode, itemId = this.currentId } = {}) {
+        const url = new URL(window.location.href);
+
+        if (this.visitorGistId) {
+            url.search = '';
+            url.searchParams.set('gist', this.visitorGistId);
+            return url;
+        }
+
+        url.search = '';
+        if (viewMode === 'trash') {
+            url.searchParams.set('view', 'trash');
+        }
+        if (pageMode === 'detail' && itemId) {
+            url.searchParams.set('item', itemId);
+        }
+        return url;
+    }
+
+    syncRouteState({ replace = false } = {}) {
+        if (this.visitorGistId) {
+            this.applyRouteMode();
+            return;
+        }
+
+        const method = replace ? 'replaceState' : 'pushState';
+        const nextItemId = this.pageMode === 'detail' ? this.currentId : null;
+        window.history[method]({ pageMode: this.pageMode, viewMode: this.viewMode, itemId: nextItemId }, '', this.buildRouteUrl({
+            pageMode: this.pageMode,
+            viewMode: this.viewMode,
+            itemId: nextItemId
+        }));
+        this.applyRouteMode();
+    }
+
+    applyRouteMode() {
+        const homeRoute = !this.visitorGistId && this.pageMode === 'home';
+        this.elements.appShell.classList.toggle('route-home', homeRoute);
+        this.elements.appShell.classList.toggle('route-detail', !homeRoute);
+        this.elements.workspace.classList.toggle('route-home', homeRoute);
+        this.elements.workspace.classList.toggle('route-detail', !homeRoute);
+        this.elements.backHomeButton.classList.toggle('hidden', homeRoute || Boolean(this.visitorGistId));
+    }
+
+    reconcileRouteSelection({ replaceRoute = false } = {}) {
+        if (this.visitorGistId) {
+            return;
+        }
+
+        if (this.pageMode !== 'detail') {
+            this.currentId = null;
+            this.currentItem = null;
+            this.currentSummary = null;
+            if (replaceRoute) {
+                this.syncRouteState({ replace: true });
+            }
+            return;
+        }
+
+        const collection = this.getCurrentCollection();
+        const exists = collection.some((entry) => String(entry.id) === String(this.currentId));
+        if (!exists) {
+            this.currentId = null;
+        }
+
+        if (!this.currentId) {
+            this.pageMode = 'home';
+            this.currentItem = null;
+            this.currentSummary = null;
+        }
+
+        if (replaceRoute) {
+            this.syncRouteState({ replace: true });
+        }
+    }
+
+    async goHome({ replace = false } = {}) {
+        if (this.visitorGistId) {
+            return;
+        }
+
+        this.pageMode = 'home';
+        this.currentId = null;
+        this.currentItem = null;
+        this.currentSummary = null;
+        this.syncRouteState({ replace });
+        this.renderAll();
+    }
+
+    async openItemPage(itemId, { replace = false } = {}) {
+        if (!itemId) {
+            return;
+        }
+
+        this.pageMode = 'detail';
+        this.currentId = itemId;
+        this.syncRouteState({ replace });
+        await this.selectItem(itemId, { silent: true });
+    }
+
+    handlePopState() {
+        if (this.visitorGistId) {
+            return;
+        }
+
+        const route = this.readRouteFromLocation();
+        this.viewMode = route.viewMode;
+        this.pageMode = route.pageMode;
+        this.currentId = route.itemId;
+        this.updateViewModeButtons();
+        this.applyRouteMode();
+        if (this.pageMode === 'detail') {
+            this.renderCurrentSelection();
+            return;
+        }
+        this.currentItem = null;
+        this.currentSummary = null;
+        this.renderAll();
     }
 
     updateViewModeButtons() {
@@ -817,17 +963,12 @@ class ResearchQaApp {
             const remoteDatabase = normalizeDatabase(await fetchMainDatabase(this.config));
             this.db = remoteDatabase;
             await setValue(this.databaseCacheKey, this.db);
-
-            if (!this.currentId) {
-                this.currentId = this.db.items[0]?.id ?? null;
+            this.reconcileRouteSelection({ replaceRoute: true });
+            if (this.pageMode === 'detail') {
+                await this.renderCurrentSelection();
             } else {
-                const stillExists = [...this.db.items, ...this.db.trash].some((entry) => String(entry.id) === String(this.currentId));
-                if (!stillExists) {
-                    this.currentId = this.db.items[0]?.id ?? null;
-                }
+                this.renderAll();
             }
-
-            await this.renderCurrentSelection();
             if (options.announceLegacyImport) {
                 this.setStatusKey('statusImportedLegacy');
                 this.toast(this.text('toastImportedLegacy', {
@@ -878,6 +1019,11 @@ class ResearchQaApp {
         if (!summary) {
             this.currentItem = null;
             this.currentSummary = null;
+            if (!this.visitorGistId) {
+                this.pageMode = 'home';
+                this.currentId = null;
+                this.syncRouteState({ replace: true });
+            }
             this.renderAll();
             return;
         }
@@ -935,6 +1081,7 @@ class ResearchQaApp {
     }
 
     renderAll() {
+        this.applyRouteMode();
         this.renderList();
         this.renderDetail();
     }
@@ -1034,6 +1181,12 @@ class ResearchQaApp {
     }
 
     renderDetail() {
+        if (!this.visitorGistId && this.pageMode !== 'detail') {
+            this.elements.emptyState.classList.add('hidden');
+            this.elements.detailView.classList.add('hidden');
+            return;
+        }
+
         if (!this.currentItem) {
             this.elements.emptyState.classList.remove('hidden');
             this.elements.detailView.classList.add('hidden');
@@ -1189,7 +1342,7 @@ class ResearchQaApp {
         });
     }
 
-    setViewMode(mode) {
+    async setViewMode(mode) {
         if (mode === this.viewMode) {
             return;
         }
@@ -1197,13 +1350,25 @@ class ResearchQaApp {
         this.viewMode = mode;
         this.updateViewModeButtons();
 
-        if (mode === 'trash') {
-            this.currentId = this.db.trash[0]?.id ?? null;
-        } else {
-            this.currentId = this.db.items[0]?.id ?? null;
+        if (this.pageMode !== 'detail') {
+            this.syncRouteState();
+            this.renderAll();
+            return;
         }
 
-        this.renderCurrentSelection();
+        const collection = this.getCurrentCollection();
+        const exists = collection.some((entry) => String(entry.id) === String(this.currentId));
+        if (!exists) {
+            this.currentId = null;
+        }
+
+        if (!this.currentId) {
+            await this.goHome();
+            return;
+        }
+
+        this.syncRouteState();
+        await this.renderCurrentSelection();
     }
 
     createNewItem() {
@@ -1217,6 +1382,8 @@ class ResearchQaApp {
         this.currentItem = clone(nextItem);
         this.currentSummary = nextItem;
         this.currentSource = 'local';
+        this.pageMode = 'detail';
+        this.syncRouteState();
         this.renderAll();
         this.openProblemEditor();
     }
@@ -1396,13 +1563,13 @@ class ResearchQaApp {
 
         const deleted = this.db.items.splice(index, 1)[0];
         this.db.trash.unshift({ ...deleted, type: 'item', deletedAt: new Date().toISOString() });
-        this.currentId = this.db.items[0]?.id ?? null;
+        this.currentId = null;
         this.currentItem = null;
         this.currentSummary = null;
 
         try {
             await this.saveDatabaseSnapshot();
-            await this.renderCurrentSelection();
+            await this.goHome({ replace: true });
             this.toast(this.text('toastProblemMovedToTrash'));
         } catch (error) {
             this.toast(error.message, 'error');
@@ -1451,7 +1618,9 @@ class ResearchQaApp {
             await this.saveDatabaseSnapshot();
             this.viewMode = 'active';
             this.updateViewModeButtons();
-            this.currentId = nextActiveId ?? this.db.items[0]?.id ?? null;
+            this.pageMode = nextActiveId ? 'detail' : 'home';
+            this.currentId = nextActiveId ?? null;
+            this.syncRouteState({ replace: true });
             await this.renderCurrentSelection();
             this.toast(this.text('toastRestoredFromTrash'));
         } catch (error) {
@@ -1476,6 +1645,8 @@ class ResearchQaApp {
 
         try {
             await this.saveDatabaseSnapshot();
+            this.pageMode = this.currentId ? 'detail' : 'home';
+            this.syncRouteState({ replace: true });
             await this.renderCurrentSelection();
             this.toast(this.text('toastPermanentlyDeleted'));
         } catch (error) {
@@ -1823,8 +1994,12 @@ class ResearchQaApp {
             await setValue(this.databaseCacheKey, this.db);
             this.viewMode = 'active';
             this.updateViewModeButtons();
-            this.currentId = this.db.items[0]?.id ?? null;
-            await this.renderCurrentSelection();
+            this.reconcileRouteSelection({ replaceRoute: true });
+            if (this.pageMode === 'detail') {
+                await this.renderCurrentSelection();
+            } else {
+                this.renderAll();
+            }
             this.closeConfigModal();
             this.setStatusKey('statusImportedLegacy');
             this.toast(this.text('toastImportedLegacy', {
@@ -1868,9 +2043,13 @@ class ResearchQaApp {
             }
 
             this.db = nextDatabase;
-            this.currentId = this.db.items[0]?.id ?? null;
             await this.saveDatabaseSnapshot();
-            await this.renderCurrentSelection();
+            this.reconcileRouteSelection({ replaceRoute: true });
+            if (this.pageMode === 'detail') {
+                await this.renderCurrentSelection();
+            } else {
+                this.renderAll();
+            }
             this.toast(this.text('toastImportCompleted'));
         } catch (error) {
             this.toast(this.text('toastImportFailed', { message: error.message }), 'error');

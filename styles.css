@@ -172,6 +172,49 @@ pre {
     margin-top: 8px;
 }
 
+.workspace.route-home {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.workspace.route-home .sidebar {
+    width: min(1180px, 100%);
+    margin: 0 auto;
+}
+
+.workspace.route-home .main-panel {
+    display: none;
+}
+
+.workspace.route-home .sidebar-scroll {
+    padding-right: 0;
+}
+
+.workspace.route-home .list-card {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+}
+
+.workspace.route-home .problem-row {
+    height: 100%;
+}
+
+.workspace.route-detail {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.workspace.route-detail.composer-open {
+    grid-template-columns: minmax(0, 1fr) minmax(560px, 54vw);
+}
+
+.workspace.route-detail .sidebar {
+    display: none;
+}
+
+.workspace.route-detail .main-panel {
+    width: min(1120px, 100%);
+    margin: 0 auto;
+    padding-right: 0;
+}
+
 .workspace.composer-open {
     grid-template-columns: var(--sidebar-width) minmax(0, 1fr) minmax(560px, 54vw);
 }
