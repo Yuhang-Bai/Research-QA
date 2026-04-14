@@ -47,6 +47,15 @@ const MATH_ENVIRONMENTS = [
 
 let mathQueue = Promise.resolve();
 
+function escapeHtml(text) {
+    return String(text ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 function escapeRegExp(text) {
     return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -312,12 +321,16 @@ export function renderDocument(source, options = {}) {
 }
 
 function normalizeExcerptSource(source) {
-    return String(source || '')
+    const lines = String(source || '')
         .replace(/\r\n?/g, '\n')
         .replace(/\\begin\{(theorem|thm|lemma|lem|definition|defn|conjecture|conj|problem|proof)\}\s*/gi, '')
         .replace(/\s*\\end\{(theorem|thm|lemma|lem|definition|defn|conjecture|conj|problem|proof)\}/gi, '')
         .replace(/\\label\{[^}]+\}/g, '')
-        .trim();
+        .split('\n')
+        .map((line) => line.replace(/^\s{0,3}#{1,6}\s+/, ''))
+        .filter((line) => !/^\s{0,3}(=+|-+)\s*$/.test(line));
+
+    return lines.join('\n').trim();
 }
 
 function estimateMathDisplayLength(source) {
@@ -416,6 +429,22 @@ export function renderExcerpt(source, options = {}) {
     }
 
     return renderDocument(excerptSource, options);
+}
+
+export function renderInlineMath(source, options = {}) {
+    const text = String(source || '')
+        .replace(/\r\n?/g, '\n')
+        .trim();
+
+    if (!text) {
+        return '';
+    }
+
+    const { output, placeholders } = protectMath(text, options.preamble || '');
+    return restoreMath(
+        escapeHtml(output).replace(/\s*\n+\s*/g, ' '),
+        placeholders
+    );
 }
 
 export function toPlainExcerpt(source, length = 160) {

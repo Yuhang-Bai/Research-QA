@@ -2,7 +2,7 @@ import { getConfigSource, hasLegacyConfig, loadConfig, loadLegacyConfig, saveCon
 import { getValue, setValue } from './data/idb.js';
 import { createMainDatabase, createSharedItem, fetchMainDatabase, fetchSharedItem, saveMainDatabase, saveSharedItem } from './data/gist.js';
 import { createMarkdownEditor } from './lib/editor.js';
-import { renderDocument, renderExcerpt, setRenderedHtml, typesetElement } from './lib/renderer.js';
+import { renderDocument, renderExcerpt, renderInlineMath, setRenderedHtml, typesetElement } from './lib/renderer.js';
 
 const LOCAL_DATABASE_KEY = 'rq_v2_local_database';
 const UI_LANGUAGE_KEY = 'rq_v2_language';
@@ -992,7 +992,7 @@ class ResearchQaApp {
             return `
                 <article class="problem-row trash ${activeClass}" data-item-id="${entry.id}">
                     <div class="problem-row-top">
-                        <h3>${this.text('archivedNoteTitle', { title: entry.parentTitle })}</h3>
+                        <h3>${renderInlineMath(this.text('archivedNoteTitle', { title: entry.parentTitle }), { preamble: entry.parentPreamble })}</h3>
                         <span class="meta-pill">${this.text('note')}</span>
                     </div>
                     <div class="problem-row-excerpt rich-text">${excerpt.html}</div>
@@ -1020,7 +1020,7 @@ class ResearchQaApp {
         return `
             <article class="problem-row ${activeClass} ${trashClass}" data-item-id="${entry.id}">
                 <div class="problem-row-top">
-                    <h3>${entry.title || this.text('defaultUntitledProblem')}</h3>
+                    <h3>${renderInlineMath(entry.title || this.text('defaultUntitledProblem'), { preamble: entry.preamble })}</h3>
                     <span class="meta-pill">${this.text('notesCount', { count: noteCount })}</span>
                 </div>
                 <div class="problem-row-excerpt rich-text">${excerpt.html}</div>
@@ -1045,7 +1045,13 @@ class ResearchQaApp {
 
         if (this.viewMode === 'trash' && this.currentSummary?.type === 'note') {
             const archivedNote = this.currentSummary;
-            this.elements.detailTitle.textContent = this.text('archivedNoteTitle', { title: archivedNote.parentTitle });
+            setRenderedHtml(this.elements.detailTitle, {
+                html: renderInlineMath(
+                    this.text('archivedNoteTitle', { title: archivedNote.parentTitle }),
+                    { preamble: archivedNote.parentPreamble }
+                )
+            });
+            typesetElement(this.elements.detailTitle);
             this.elements.detailSubtitle.textContent = this.text('restoreNoteHint');
             this.elements.heroKind.textContent = this.text('archivedNote');
             this.elements.heroUpdated.textContent = this.text('deletedAt', { date: formatDate(archivedNote.deletedAt) });
@@ -1060,13 +1066,14 @@ class ResearchQaApp {
                     <div class="note-card-head">
                         <div>
                             <div class="eyebrow">${this.text('originalProblem')}</div>
-                            <strong>${archivedNote.parentTitle}</strong>
+                            <strong>${renderInlineMath(archivedNote.parentTitle, { preamble: archivedNote.parentPreamble })}</strong>
                         </div>
                         <span class="meta-pill">${this.text('readyToRestore')}</span>
                     </div>
                     <div class="note-excerpt">${this.text('restoreNoteDescription')}</div>
                 </article>
             `;
+            typesetElement(this.elements.noteList);
 
             this.elements.newNoteButton.disabled = true;
             this.elements.editProblemButton.disabled = true;
@@ -1083,7 +1090,10 @@ class ResearchQaApp {
         const subtitle = this.viewMode === 'trash'
             ? this.text('detailTrashSubtitle')
             : this.text('detailProblemSubtitle');
-        this.elements.detailTitle.textContent = title;
+        setRenderedHtml(this.elements.detailTitle, {
+            html: renderInlineMath(title, { preamble: this.currentItem.preamble })
+        });
+        typesetElement(this.elements.detailTitle);
         this.elements.detailSubtitle.textContent = subtitle;
         this.elements.heroKind.textContent = this.viewMode === 'trash' ? this.text('trashedProblem') : this.text('heroProblem');
         this.elements.heroUpdated.textContent = this.text('updatedAt', { date: formatDate(this.currentItem.date) });
