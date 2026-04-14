@@ -682,7 +682,17 @@ class ResearchQaApp {
                 return;
             }
 
-            this.openItemPage(row.dataset.itemId);
+            this.openItemPageInNewTab(row.dataset.itemId);
+        });
+
+        this.elements.list.addEventListener('contextmenu', (event) => {
+            const row = event.target.closest('[data-item-id]');
+            if (!row || this.visitorGistId || this.viewMode !== 'active') {
+                return;
+            }
+
+            event.preventDefault();
+            this.deleteItemById(row.dataset.itemId, { prompt: true });
         });
 
         this.elements.noteList.addEventListener('click', (event) => {
@@ -878,6 +888,19 @@ class ResearchQaApp {
         this.currentId = itemId;
         this.syncRouteState({ replace });
         await this.selectItem(itemId, { silent: true });
+    }
+
+    openItemPageInNewTab(itemId) {
+        if (!itemId) {
+            return;
+        }
+
+        const detailUrl = this.buildRouteUrl({
+            pageMode: 'detail',
+            viewMode: this.viewMode,
+            itemId
+        }).toString();
+        window.open(detailUrl, '_blank', 'noopener');
     }
 
     handlePopState() {
@@ -1552,24 +1575,52 @@ class ResearchQaApp {
     }
 
     async deleteCurrentItem() {
-        if (!this.currentItem || !window.confirm(this.text('confirmMoveProblemToTrash'))) {
+        if (!this.currentItem) {
             return;
         }
 
-        const index = this.db.items.findIndex((entry) => String(entry.id) === String(this.currentItem.id));
+        await this.deleteItemById(this.currentItem.id, {
+            prompt: true,
+            returnHomeOnCurrentDelete: true
+        });
+    }
+
+    async deleteItemById(itemId, options = {}) {
+        const {
+            prompt = false,
+            returnHomeOnCurrentDelete = false
+        } = options;
+
+        if (!itemId || this.viewMode === 'trash' || this.visitorGistId) {
+            return;
+        }
+
+        if (prompt && !window.confirm(this.text('confirmMoveProblemToTrash'))) {
+            return;
+        }
+
+        const index = this.db.items.findIndex((entry) => String(entry.id) === String(itemId));
         if (index === -1) {
             return;
         }
 
         const deleted = this.db.items.splice(index, 1)[0];
         this.db.trash.unshift({ ...deleted, type: 'item', deletedAt: new Date().toISOString() });
-        this.currentId = null;
-        this.currentItem = null;
-        this.currentSummary = null;
+        const deletedCurrent = String(this.currentId) === String(itemId);
+
+        if (deletedCurrent) {
+            this.currentId = null;
+            this.currentItem = null;
+            this.currentSummary = null;
+        }
 
         try {
             await this.saveDatabaseSnapshot();
-            await this.goHome({ replace: true });
+            if (deletedCurrent && returnHomeOnCurrentDelete) {
+                await this.goHome({ replace: true });
+            } else {
+                this.renderAll();
+            }
             this.toast(this.text('toastProblemMovedToTrash'));
         } catch (error) {
             this.toast(error.message, 'error');
