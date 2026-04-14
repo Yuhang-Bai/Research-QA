@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --open /index.src.html",
-    "build": "vite build",
+    "build": "vite build && node scripts/prepare-pages-dist.mjs",
     "preview": "vite preview --open /"
   },
   "dependencies": {
