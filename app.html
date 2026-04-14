@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Research QA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=STIX+Two+Text:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./styles.css">
+    <script>
+        window.MathJax = {
+            loader: { load: ['[tex]/physics', '[tex]/mhchem', '[tex]/color', '[tex]/cancel', '[tex]/boldsymbol'] },
+            tex: {
+                packages: { '[+]': ['physics', 'mhchem', 'color', 'cancel', 'boldsymbol'] },
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                processEscapes: true,
+                tags: 'ams'
+            },
+            startup: { typeset: false }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+</head>
+<body>
+    <div class="app-shell">
+        <header class="topbar">
+            <div class="topbar-brand">
+                <div class="brand-mark">RQ</div>
+                <div>
+                    <div class="eyebrow">Mathematical Problem Ledger</div>
+                    <h1>Research QA</h1>
+                </div>
+            </div>
+            <div class="topbar-actions">
+                <button class="top-btn" id="sync-btn">同步</button>
+                <button class="top-btn" id="export-btn">导出</button>
+                <button class="top-btn" id="import-btn">导入</button>
+                <button class="top-btn" id="config-btn">设置</button>
+                <a class="top-btn ghost" href="./legacy/index-legacy.html">旧版入口</a>
+            </div>
+        </header>
+
+        <div class="workspace">
+            <aside class="sidebar">
+                <div class="sidebar-panel accent-panel">
+                    <div class="panel-row">
+                        <div>
+                            <div class="panel-kicker" id="storage-label">本地优先</div>
+                            <h2>问题库</h2>
+                        </div>
+                        <button class="pill-btn" id="create-item-btn">新建</button>
+                    </div>
+                    <div class="status-strip">
+                        <span class="status-chip" id="sync-status">未连接</span>
+                        <span class="status-chip soft" id="view-status">问题</span>
+                    </div>
+                </div>
+
+                <div class="sidebar-panel">
+                    <div class="segmented">
+                        <button class="segmented-btn active" data-view-mode="active">问题</button>
+                        <button class="segmented-btn" data-view-mode="trash">回收站</button>
+                    </div>
+                    <label class="search-shell">
+                        <span>检索</span>
+                        <input type="search" id="search-input" placeholder="标题、正文、笔记">
+                    </label>
+                </div>
+
+                <div class="sidebar-scroll" id="problem-list"></div>
+            </aside>
+
+            <main class="main-panel">
+                <section class="empty-state" id="empty-state">
+                    <div class="empty-orbit"></div>
+                    <div class="empty-card">
+                        <div class="eyebrow">Rewrite Ready</div>
+                        <h2>你的旧数据会继续保留</h2>
+                        <p>新版默认兼容旧的 GitHub gist 数据结构，并保留旧版入口。先从左侧选择一个问题，或者直接新建。</p>
+                        <div class="empty-actions">
+                            <button class="primary-btn" id="empty-create-btn">新建问题</button>
+                            <button class="secondary-btn" id="empty-config-btn">配置同步</button>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="detail-view hidden" id="detail-view">
+                    <section class="hero-card">
+                        <div class="hero-meta">
+                            <span class="hero-chip" id="hero-kind">问题</span>
+                            <span class="hero-chip muted" id="hero-updated">未加载</span>
+                            <span class="hero-chip muted" id="hero-remote">本地</span>
+                        </div>
+                        <div class="hero-header">
+                            <div>
+                                <h2 id="detail-title">未选择问题</h2>
+                                <p id="detail-subtitle">选择左侧问题查看正文与笔记。</p>
+                            </div>
+                            <div class="hero-actions">
+                                <button class="pill-btn soft" id="pin-item-btn">置顶</button>
+                                <button class="pill-btn soft" id="share-item-btn">共享</button>
+                                <button class="pill-btn" id="edit-problem-btn">编辑问题</button>
+                                <button class="pill-btn warn" id="delete-item-btn">删除</button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="reader-card">
+                        <div class="section-heading">
+                            <div>
+                                <div class="section-kicker">Problem Statement</div>
+                                <h3>问题正文</h3>
+                            </div>
+                        </div>
+                        <div class="rich-text" id="problem-render"></div>
+                    </section>
+
+                    <section class="reader-card">
+                        <div class="section-heading">
+                            <div>
+                                <div class="section-kicker">Notes Timeline</div>
+                                <h3>研究笔记</h3>
+                            </div>
+                            <button class="pill-btn" id="new-note-btn">新增笔记</button>
+                        </div>
+                        <div class="note-list" id="note-list"></div>
+                    </section>
+                </section>
+            </main>
+
+            <aside class="composer hidden" id="composer">
+                <div class="composer-header">
+                    <div>
+                        <div class="eyebrow" id="composer-mode-label">编辑问题</div>
+                        <h2 id="composer-title-text">内容编辑器</h2>
+                    </div>
+                    <button class="icon-btn" id="close-composer-btn" aria-label="关闭编辑器">×</button>
+                </div>
+                <div class="composer-form">
+                    <label class="field" id="composer-title-field">
+                        <span>标题</span>
+                        <input type="text" id="composer-title-input" placeholder="输入问题标题">
+                    </label>
+                    <label class="field" id="composer-preamble-field">
+                        <span>LaTeX 宏 / 预定义</span>
+                        <textarea id="composer-preamble-input" rows="4" placeholder="\def\R{\mathbb{R}}"></textarea>
+                    </label>
+                </div>
+                <div class="composer-grid">
+                    <div class="editor-panel">
+                        <div class="panel-caption">源码</div>
+                        <div id="editor-host" class="editor-host"></div>
+                    </div>
+                    <div class="preview-panel">
+                        <div class="panel-caption">预览</div>
+                        <div id="composer-preview" class="rich-text preview-body"></div>
+                    </div>
+                </div>
+                <div class="composer-actions">
+                    <button class="secondary-btn" id="cancel-composer-btn">取消</button>
+                    <button class="primary-btn" id="save-composer-btn">保存</button>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <div class="modal hidden" id="config-modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div>
+                    <div class="eyebrow">Sync Bridge</div>
+                    <h2>同步设置</h2>
+                </div>
+                <button class="icon-btn" id="close-config-btn" aria-label="关闭设置">×</button>
+            </div>
+            <div class="modal-body">
+                <label class="field">
+                    <span>GitHub Token</span>
+                    <input type="password" id="config-token-input" placeholder="用于读写私有 gist">
+                </label>
+                <label class="field">
+                    <span>主数据库 Gist ID</span>
+                    <input type="text" id="config-gist-input" placeholder="留空则只保存到本地缓存；有 token 时可自动创建">
+                </label>
+                <p class="modal-note">新版会兼容旧版保存在 <code>v7_config</code> 里的配置，也会继续读写 <code>main_db.json</code> / <code>shared_item.json</code>。</p>
+            </div>
+            <div class="modal-actions">
+                <button class="secondary-btn" id="cancel-config-btn">取消</button>
+                <button class="primary-btn" id="save-config-btn">保存设置</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-stack" id="toast-stack"></div>
+    <input type="file" id="import-file-input" accept="application/json" hidden>
+
+    <script type="module" src="./src/main.js"></script>
+</body>
+</html>
