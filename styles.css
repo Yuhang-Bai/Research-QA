@@ -19,7 +19,7 @@
     --radius-lg: 20px;
     --radius-md: 14px;
     --radius-sm: 10px;
-    --sidebar-width: 360px;
+    --sidebar-width: clamp(400px, 28vw, 480px);
 }
 
 * {
@@ -166,7 +166,7 @@ pre {
 }
 
 .workspace.composer-open {
-    grid-template-columns: var(--sidebar-width) minmax(0, 1fr) minmax(420px, 48vw);
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr) minmax(560px, 54vw);
 }
 
 .sidebar,
@@ -316,23 +316,23 @@ pre {
 
 .field textarea {
     resize: vertical;
-    min-height: 96px;
+    min-height: 120px;
 }
 
 .sidebar-scroll {
     min-height: 0;
     overflow: auto;
-    padding-right: 6px;
+    padding-right: 10px;
 }
 
 .list-card {
     display: grid;
-    gap: 12px;
+    gap: 14px;
 }
 
 .problem-row {
     border-radius: 22px;
-    padding: 16px 18px;
+    padding: 18px 20px;
     border: 1px solid rgba(255, 255, 255, 0.44);
     background: rgba(255, 250, 244, 0.78);
     box-shadow: 0 18px 34px rgba(68, 47, 18, 0.08);
@@ -364,15 +364,43 @@ pre {
 
 .problem-row h3 {
     margin: 0;
-    font-size: 16px;
+    font-size: 17px;
     line-height: 1.45;
 }
 
 .problem-row p {
     margin: 10px 0 0;
     color: var(--muted);
-    line-height: 1.55;
-    font-size: 13px;
+    line-height: 1.7;
+    font-size: 14px;
+}
+
+.problem-row-excerpt {
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.7;
+    overflow: hidden;
+}
+
+.problem-row-excerpt > :first-child {
+    margin-top: 0;
+}
+
+.problem-row-excerpt > :last-child {
+    margin-bottom: 0;
+}
+
+.problem-row-excerpt p,
+.problem-row-excerpt ul,
+.problem-row-excerpt ol,
+.problem-row-excerpt blockquote,
+.problem-row-excerpt .env-block {
+    margin: 0;
+}
+
+.problem-row-excerpt mjx-container {
+    font-size: 0.96em;
 }
 
 .item-meta {
@@ -642,7 +670,7 @@ pre {
 .composer {
     display: flex;
     flex-direction: column;
-    padding: 22px 22px 18px;
+    padding: 24px 24px 20px;
     overflow: hidden;
     animation: slide-in 0.24s ease;
 }
@@ -655,8 +683,8 @@ pre {
 
 .composer-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px;
+    grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
+    gap: 18px;
     min-height: 0;
     flex: 1;
     margin-top: 18px;
@@ -681,6 +709,7 @@ pre {
 .preview-body {
     min-height: 0;
     flex: 1;
+    min-height: 420px;
     border-radius: 22px;
     border: 1px solid var(--line);
     background: rgba(255, 255, 255, 0.78);
@@ -849,7 +878,7 @@ pre {
 
 @media (max-width: 1320px) {
     .workspace.composer-open {
-        grid-template-columns: 320px minmax(0, 1fr);
+        grid-template-columns: 360px minmax(0, 1fr);
     }
 
     .composer {

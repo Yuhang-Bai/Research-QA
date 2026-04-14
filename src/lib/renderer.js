@@ -311,6 +311,113 @@ export function renderDocument(source, options = {}) {
     };
 }
 
+function normalizeExcerptSource(source) {
+    return String(source || '')
+        .replace(/\r\n?/g, '\n')
+        .replace(/\\begin\{(theorem|thm|lemma|lem|definition|defn|conjecture|conj|problem|proof)\}\s*/gi, '')
+        .replace(/\s*\\end\{(theorem|thm|lemma|lem|definition|defn|conjecture|conj|problem|proof)\}/gi, '')
+        .replace(/\\label\{[^}]+\}/g, '')
+        .trim();
+}
+
+function estimateMathDisplayLength(source) {
+    const text = String(source || '')
+        .replace(/^(\$\$|\$|\\\(|\\\[)/, '')
+        .replace(/(\$\$|\$|\\\)|\\\])$/, '')
+        .replace(/\\begin\{[^}]+\}/g, ' ')
+        .replace(/\\end\{[^}]+\}/g, ' ')
+        .replace(/\\[a-zA-Z]+\*?(?:\[[^\]]*\])?\{([^}]*)\}/g, '$1')
+        .replace(/\\[a-zA-Z]+\*?/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    return Math.min(Math.max(text.length || 12, 12), 48);
+}
+
+function buildMathAwareExcerptSource(source, length = 160) {
+    const normalized = normalizeExcerptSource(source);
+    if (!normalized) {
+        return '';
+    }
+
+    const { output, placeholders } = protectMath(normalized, '');
+    const compact = output.replace(/\s+/g, ' ').trim();
+    if (!compact) {
+        return placeholders[0] || '';
+    }
+
+    const tokenPattern = /@@RQ_MATH_(\d+)@@/g;
+    let result = '';
+    let visibleLength = 0;
+    let lastIndex = 0;
+    let truncated = false;
+
+    const appendText = (text) => {
+        if (!text || truncated) {
+            return;
+        }
+
+        const remaining = length - visibleLength;
+        if (remaining <= 0) {
+            truncated = true;
+            return;
+        }
+
+        if (text.length > remaining) {
+            result += text.slice(0, remaining).trimEnd();
+            visibleLength = length;
+            truncated = true;
+            return;
+        }
+
+        result += text;
+        visibleLength += text.length;
+    };
+
+    let match;
+    while ((match = tokenPattern.exec(compact))) {
+        appendText(compact.slice(lastIndex, match.index));
+        if (truncated) {
+            break;
+        }
+
+        const token = match[0];
+        const mathSource = placeholders[Number(match[1])] || '';
+        const weight = estimateMathDisplayLength(mathSource);
+        if (visibleLength + weight > length && result.trim()) {
+            truncated = true;
+            break;
+        }
+
+        result += token;
+        visibleLength += Math.min(weight, length - visibleLength);
+        lastIndex = tokenPattern.lastIndex;
+    }
+
+    if (!truncated) {
+        appendText(compact.slice(lastIndex));
+    }
+
+    const restored = restoreMath(result.trim(), placeholders);
+    if (!restored) {
+        return placeholders[0] || '';
+    }
+
+    return truncated ? `${restored}...` : restored;
+}
+
+export function renderExcerpt(source, options = {}) {
+    const excerptSource = buildMathAwareExcerptSource(source, options.length ?? 160);
+    if (!excerptSource) {
+        return {
+            html: renderMarkdown(options.emptyText || 'No content yet.', ''),
+            references: new Map()
+        };
+    }
+
+    return renderDocument(excerptSource, options);
+}
+
 export function toPlainExcerpt(source, length = 160) {
     const text = (source || '')
         .replace(/\\begin\{[^}]+\}/g, ' ')

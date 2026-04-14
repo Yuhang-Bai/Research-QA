@@ -2,7 +2,7 @@ import { getConfigSource, hasLegacyConfig, loadConfig, loadLegacyConfig, saveCon
 import { getValue, setValue } from './data/idb.js';
 import { createMainDatabase, createSharedItem, fetchMainDatabase, fetchSharedItem, saveMainDatabase, saveSharedItem } from './data/gist.js';
 import { createMarkdownEditor } from './lib/editor.js';
-import { renderDocument, setRenderedHtml, toPlainExcerpt, typesetElement } from './lib/renderer.js';
+import { renderDocument, renderExcerpt, setRenderedHtml, toPlainExcerpt, typesetElement } from './lib/renderer.js';
 
 const LOCAL_DATABASE_KEY = 'rq_v2_local_database';
 const UI_LANGUAGE_KEY = 'rq_v2_language';
@@ -18,6 +18,7 @@ const I18N = {
         legacy: 'Legacy',
         importLegacy: 'Import legacy data',
         importLegacyUnavailable: 'No legacy config',
+        exportPdf: 'Export PDF',
         storageLocalFirst: 'Local-first',
         storageGistSync: 'Gist sync',
         storageSharedReadOnly: 'Shared read-only',
@@ -30,7 +31,7 @@ const I18N = {
         searchPlaceholder: 'Search titles, body, and notes',
         emptyEyebrow: 'Rewrite Ready',
         emptyTitle: 'Your existing data stays intact',
-        emptyDescription: 'The new app keeps the legacy gist structure compatible, preserves the old entry, and moves the working copy into a local-first flow.',
+        emptyDescription: 'The new app keeps the legacy gist structure compatible and moves the working copy into a local-first flow without touching your saved problems.',
         newProblemButton: 'New problem',
         configureSync: 'Configure sync',
         heroProblem: 'Problem',
@@ -141,7 +142,8 @@ const I18N = {
         toastImportCompleted: 'Import completed',
         toastImportFailed: 'Import failed: {message}',
         toastNoLegacyConfig: 'No legacy config was found in this browser.',
-        confirmImportLegacyOverwrite: 'Importing legacy data will overwrite the current local cache with the old main gist. Continue?'
+        confirmImportLegacyOverwrite: 'Importing legacy data will overwrite the current local cache with the old main gist. Continue?',
+        toastPdfPopupBlocked: 'The browser blocked the PDF window. Allow pop-ups for this site and try again.'
     },
     zh: {
         documentTitle: 'Research QA',
@@ -304,6 +306,15 @@ function interpolate(text, params = {}) {
     return String(text).replace(/\{(\w+)\}/g, (_, key) => String(params[key] ?? ''));
 }
 
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 function createId(prefix = 'id') {
     if (window.crypto?.randomUUID) {
         return `${prefix}-${window.crypto.randomUUID()}`;
@@ -421,7 +432,6 @@ class ResearchQaApp {
         this.elements = {
             workspace: document.querySelector('.workspace'),
             topbarActions: document.querySelector('.topbar-actions'),
-            legacyLink: document.querySelector('.topbar-actions a[href="./legacy/index-legacy.html"]'),
             brandEyebrow: document.querySelector('.topbar-brand .eyebrow'),
             list: document.getElementById('problem-list'),
             searchInput: document.getElementById('search-input'),
@@ -483,7 +493,10 @@ class ResearchQaApp {
             trashViewButton: document.querySelector('[data-view-mode="trash"]'),
             pinItemButton: document.getElementById('pin-item-btn'),
             shareItemButton: document.getElementById('share-item-btn'),
+            pdfItemButton: document.getElementById('pdf-item-btn'),
             editProblemButton: document.getElementById('edit-problem-btn'),
+            restoreItemButton: document.getElementById('restore-item-btn'),
+            destroyItemButton: document.getElementById('destroy-item-btn'),
             deleteItemButton: document.getElementById('delete-item-btn'),
             newNoteButton: document.getElementById('new-note-btn'),
             cancelComposerButton: document.getElementById('cancel-composer-btn'),
@@ -545,7 +558,6 @@ class ResearchQaApp {
         this.elements.exportButton.textContent = this.text('export');
         this.elements.importButton.textContent = this.text('import');
         this.elements.configButton.textContent = this.text('settings');
-        this.elements.legacyLink.textContent = this.text('legacy');
         this.elements.sidebarTitle.textContent = this.text('sidebarTitle');
         this.elements.createItemButton.textContent = this.text('new');
         this.elements.activeViewButton.textContent = this.text('viewProblems');
@@ -564,7 +576,10 @@ class ResearchQaApp {
         this.elements.newNoteButton.textContent = this.text('addNote');
         this.elements.pinItemButton.textContent = this.text('pin');
         this.elements.shareItemButton.textContent = this.text('share');
+        this.elements.pdfItemButton.textContent = this.language === 'zh' ? '导出 PDF' : this.text('exportPdf');
         this.elements.editProblemButton.textContent = this.text('edit');
+        this.elements.restoreItemButton.textContent = this.language === 'zh' ? '恢复' : 'Restore';
+        this.elements.destroyItemButton.textContent = this.language === 'zh' ? '彻底删除' : 'Delete permanently';
         this.elements.composerTitleLabel.textContent = this.text('titleLabel');
         this.elements.composerTitleInput.placeholder = this.text('titlePlaceholder');
         this.elements.composerPreambleLabel.textContent = this.text('preambleLabel');
@@ -635,8 +650,11 @@ class ResearchQaApp {
         this.elements.editProblemButton.addEventListener('click', () => this.openProblemEditor());
         this.elements.newNoteButton.addEventListener('click', () => this.openNoteEditor());
         this.elements.deleteItemButton.addEventListener('click', () => this.handleDeleteAction());
+        this.elements.restoreItemButton.addEventListener('click', () => this.restoreTrashItem());
+        this.elements.destroyItemButton.addEventListener('click', () => this.destroyTrashItem());
         this.elements.pinItemButton.addEventListener('click', () => this.togglePin());
         this.elements.shareItemButton.addEventListener('click', () => this.handleShare());
+        this.elements.pdfItemButton.addEventListener('click', () => this.exportCurrentItemPdf());
         this.elements.composerCloseButton.addEventListener('click', () => this.closeComposer());
         this.elements.cancelComposerButton.addEventListener('click', () => this.closeComposer());
         this.elements.saveComposerButton.addEventListener('click', () => this.saveComposer());
@@ -942,32 +960,42 @@ class ResearchQaApp {
         });
 
         if (!items.length) {
-            this.elements.list.innerHTML = `
+            setRenderedHtml(this.elements.list, {
+                html: `
                 <div class="sidebar-panel">
                     <div class="eyebrow">${this.text('noMatch')}</div>
                     <p class="modal-note">${term ? this.text('noResults') : this.text('noProblems')}</p>
                 </div>
-            `;
+            `
+            });
             return;
         }
 
-        this.elements.list.innerHTML = `
+        setRenderedHtml(this.elements.list, {
+            html: `
             <div class="list-card">
                 ${items.map((entry) => this.renderListRow(entry)).join('')}
             </div>
-        `;
+        `
+        });
+        typesetElement(this.elements.list);
     }
 
     renderListRow(entry) {
         if (entry.type === 'note') {
             const activeClass = String(entry.id) === String(this.currentId) ? 'active' : '';
+            const excerpt = renderExcerpt(entry.data.text, {
+                preamble: entry.parentPreamble,
+                length: 180,
+                emptyText: this.language === 'zh' ? '暂无内容。' : 'No content yet.'
+            });
             return `
                 <article class="problem-row trash ${activeClass}" data-item-id="${entry.id}">
                     <div class="problem-row-top">
                         <h3>${this.text('archivedNoteTitle', { title: entry.parentTitle })}</h3>
                         <span class="meta-pill">${this.text('note')}</span>
                     </div>
-                    <p>${toPlainExcerpt(entry.data.text, 120)}</p>
+                    <div class="problem-row-excerpt rich-text">${excerpt.html}</div>
                     <div class="item-meta">
                         <span class="meta-pill">${this.text('deletedAt', { date: formatDate(entry.deletedAt) })}</span>
                     </div>
@@ -980,6 +1008,11 @@ class ResearchQaApp {
         const syncBadge = entry.shareId ? `<span class="meta-pill">${this.text('sharedBadge')}</span>` : '';
         const pinBadge = entry.isPinned ? `<span class="meta-pill">${this.text('pinnedBadge')}</span>` : '';
         const noteCount = Array.isArray(entry.answers) ? entry.answers.length : 0;
+        const excerpt = renderExcerpt(entry.desc, {
+            preamble: entry.preamble,
+            length: 200,
+            emptyText: this.language === 'zh' ? '暂无内容。' : 'No content yet.'
+        });
         const deletionBadge = entry.deletedAt
             ? `<span class="meta-pill">${this.text('deletedAt', { date: formatDate(entry.deletedAt) })}</span>`
             : `<span class="meta-pill">${formatDate(entry.date)}</span>`;
@@ -990,7 +1023,7 @@ class ResearchQaApp {
                     <h3>${entry.title || this.text('defaultUntitledProblem')}</h3>
                     <span class="meta-pill">${this.text('notesCount', { count: noteCount })}</span>
                 </div>
-                <p>${toPlainExcerpt(entry.desc, 120)}</p>
+                <div class="problem-row-excerpt rich-text">${excerpt.html}</div>
                 <div class="item-meta">
                     ${deletionBadge}
                     ${pinBadge}
@@ -1039,7 +1072,10 @@ class ResearchQaApp {
             this.elements.editProblemButton.disabled = true;
             this.elements.pinItemButton.disabled = true;
             this.elements.shareItemButton.disabled = true;
-            this.elements.deleteItemButton.textContent = this.text('restoreDelete');
+            this.elements.pdfItemButton.disabled = true;
+            this.elements.restoreItemButton.classList.remove('hidden');
+            this.elements.destroyItemButton.classList.remove('hidden');
+            this.elements.deleteItemButton.classList.add('hidden');
             return;
         }
 
@@ -1066,7 +1102,11 @@ class ResearchQaApp {
         this.elements.editProblemButton.disabled = this.viewMode === 'trash' || Boolean(this.visitorGistId);
         this.elements.pinItemButton.disabled = this.viewMode === 'trash' || Boolean(this.visitorGistId);
         this.elements.shareItemButton.disabled = this.viewMode === 'trash' || Boolean(this.visitorGistId);
-        this.elements.deleteItemButton.textContent = this.viewMode === 'trash' ? this.text('restoreDelete') : this.text('delete');
+        this.elements.pdfItemButton.disabled = false;
+        this.elements.restoreItemButton.classList.toggle('hidden', this.viewMode !== 'trash');
+        this.elements.destroyItemButton.classList.toggle('hidden', this.viewMode !== 'trash');
+        this.elements.deleteItemButton.classList.toggle('hidden', this.viewMode === 'trash');
+        this.elements.deleteItemButton.textContent = this.text('delete');
     }
 
     renderNotes() {
@@ -1324,16 +1364,6 @@ class ResearchQaApp {
     }
 
     async handleDeleteAction() {
-        if (this.viewMode === 'trash') {
-            const mode = window.prompt(this.text('promptTrashAction'), '1');
-            if (mode === '1') {
-                await this.restoreTrashItem();
-            } else if (mode === '2') {
-                await this.destroyTrashItem();
-            }
-            return;
-        }
-
         await this.deleteCurrentItem();
     }
 
@@ -1501,6 +1531,184 @@ class ResearchQaApp {
         } catch (error) {
             this.toast(error.message, 'error');
         }
+    }
+
+    buildPrintableProblemDocument(item) {
+        const title = escapeHtml(item.title || this.text('defaultUntitledProblem'));
+        const statementHtml = renderDocument(item.desc || '', { preamble: item.preamble });
+        const notes = Array.isArray(item.answers) ? item.answers : [];
+        const notesHtml = notes.length
+            ? notes.map((note) => `
+                <article class="print-note">
+                    <div class="print-note-meta">${escapeHtml(formatDate(note.date))}</div>
+                    <div class="rich-text">${renderDocument(note.text || '', { preamble: item.preamble })}</div>
+                </article>
+            `).join('')
+            : `<p class="print-empty">${escapeHtml(this.text('noNotesTitle'))}</p>`;
+
+        return `<!DOCTYPE html>
+<html lang="${this.language === 'zh' ? 'zh-CN' : 'en'}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=STIX+Two+Text:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            color-scheme: light;
+            --ink: #201913;
+            --muted: #675c50;
+            --line: rgba(94, 76, 56, 0.18);
+            --accent: #0f766e;
+            --paper: #fffdf9;
+        }
+        @page {
+            size: A4;
+            margin: 15mm;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+            color: var(--ink);
+            background: var(--paper);
+        }
+        main {
+            max-width: 920px;
+            margin: 0 auto;
+            padding: 28px 12px 36px;
+        }
+        h1, h2 {
+            margin: 0;
+            font-family: "STIX Two Text", Georgia, serif;
+            font-weight: 600;
+        }
+        .print-header {
+            border-bottom: 1px solid var(--line);
+            padding-bottom: 18px;
+            margin-bottom: 24px;
+        }
+        .print-kicker {
+            font-size: 12px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin-bottom: 10px;
+        }
+        .print-meta {
+            margin-top: 10px;
+            color: var(--muted);
+            font-size: 14px;
+        }
+        .print-section {
+            margin-top: 28px;
+        }
+        .print-section h2 {
+            font-size: 24px;
+            margin-bottom: 14px;
+        }
+        .print-note {
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            padding: 16px 18px;
+            margin-top: 14px;
+            break-inside: avoid;
+            background: #fffcf7;
+        }
+        .print-note-meta {
+            margin-bottom: 12px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+        .print-empty {
+            color: var(--muted);
+        }
+        .rich-text {
+            line-height: 1.75;
+        }
+        .rich-text img {
+            max-width: 100%;
+        }
+    </style>
+    <script>
+        window.MathJax = {
+            loader: { load: ['[tex]/physics', '[tex]/mhchem', '[tex]/color', '[tex]/cancel', '[tex]/boldsymbol'] },
+            tex: {
+                packages: { '[+]': ['physics', 'mhchem', 'color', 'cancel', 'boldsymbol'] },
+                inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
+                displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
+                processEscapes: true,
+                tags: 'ams'
+            },
+            startup: { typeset: false }
+        };
+    </script>
+    <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+</head>
+<body>
+    <main>
+        <header class="print-header">
+            <div class="print-kicker">${escapeHtml(this.text('heroProblem'))}</div>
+            <h1>${title}</h1>
+            <div class="print-meta">${escapeHtml(this.text('updatedAt', { date: formatDate(item.date) }))}</div>
+        </header>
+        <section class="print-section">
+            <h2>${escapeHtml(this.text('statement'))}</h2>
+            <div class="rich-text">${statementHtml}</div>
+        </section>
+        <section class="print-section">
+            <h2>${escapeHtml(this.text('researchNotes'))}</h2>
+            ${notesHtml}
+        </section>
+    </main>
+    <script>
+        async function waitForMathJax() {
+            const deadline = Date.now() + 6000;
+            while (Date.now() < deadline) {
+                if (window.MathJax && window.MathJax.startup && window.MathJax.startup.promise) {
+                    await window.MathJax.startup.promise;
+                    if (window.MathJax.typesetPromise) {
+                        await window.MathJax.typesetPromise();
+                    }
+                    return;
+                }
+                await new Promise((resolve) => setTimeout(resolve, 60));
+            }
+        }
+
+        window.addEventListener('load', async () => {
+            await waitForMathJax();
+            window.focus();
+            setTimeout(() => window.print(), 120);
+        });
+
+        window.addEventListener('afterprint', () => window.close());
+    </script>
+</body>
+</html>`;
+    }
+
+    exportCurrentItemPdf() {
+        if (!this.currentItem || (this.viewMode === 'trash' && this.currentSummary?.type === 'note')) {
+            return;
+        }
+
+        const popup = window.open('', '_blank', 'noopener,noreferrer');
+        if (!popup) {
+            const message = this.language === 'zh'
+                ? '浏览器拦截了 PDF 窗口。请允许本站弹窗后再试。'
+                : this.text('toastPdfPopupBlocked');
+            this.toast(message, 'error');
+            return;
+        }
+
+        popup.document.open();
+        popup.document.write(this.buildPrintableProblemDocument(this.currentItem));
+        popup.document.close();
     }
 
     openConfigModal() {
