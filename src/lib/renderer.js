@@ -283,7 +283,7 @@ function renderEnvironment(block, state, preamble) {
 
     const body = renderMarkdown(cleaned, preamble);
     if (block.env === 'proof') {
-        return `<section class="env-block env-proof"><span class="env-title">${block.title}.</span> ${body} <span class="proof-end">□</span></section>`;
+        return `<section class="env-block env-proof"><span class="env-title">${block.title}.</span> ${body} <span class="proof-end">&#9633;</span></section>`;
     }
 
     return `<section id="${anchorId}" class="env-block env-${block.env}"><span class="env-title">${block.title}${suffix}.</span> ${body}</section>`;
@@ -321,7 +321,7 @@ export function toPlainExcerpt(source, length = 160) {
         .trim();
 
     if (!text) {
-        return '暂无内容';
+        return 'No content yet.';
     }
 
     return text.length > length ? `${text.slice(0, length).trim()}...` : text;

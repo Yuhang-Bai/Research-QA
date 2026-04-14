@@ -19,7 +19,7 @@ async function parseResponse(response) {
 async function fetchJsonFromRawUrl(url, token) {
     const response = await fetch(url, { headers: buildHeaders(token) });
     if (!response.ok) {
-        throw new Error(`无法读取 Gist 文件内容: ${response.status}`);
+        throw new Error(`Unable to read gist file content: ${response.status}`);
     }
 
     return response.text();
@@ -28,7 +28,7 @@ async function fetchJsonFromRawUrl(url, token) {
 async function readJsonFile(file, token) {
     const content = file.content ?? (file.raw_url ? await fetchJsonFromRawUrl(file.raw_url, token) : '');
     if (!content) {
-        throw new Error('Gist 文件为空');
+        throw new Error('The gist file is empty.');
     }
 
     return JSON.parse(content);
@@ -46,7 +46,7 @@ function pickJsonFile(files, preferredNames) {
 
 export async function fetchMainDatabase(config) {
     if (!config.mainGistId) {
-        throw new Error('未配置主数据库 Gist ID');
+        throw new Error('Main database gist ID is not configured.');
     }
 
     const response = await fetch(`${GITHUB_API}/gists/${config.mainGistId}`, {
@@ -56,7 +56,7 @@ export async function fetchMainDatabase(config) {
     const file = pickJsonFile(gist.files, ['main_db.json', 'research_data.json']);
 
     if (!file) {
-        throw new Error('Gist 中未找到主数据库 JSON 文件');
+        throw new Error('No main database JSON file was found in the gist.');
     }
 
     return readJsonFile(file, config.token);
@@ -64,7 +64,7 @@ export async function fetchMainDatabase(config) {
 
 export async function saveMainDatabase(config, database) {
     if (!config.mainGistId) {
-        throw new Error('未配置主数据库 Gist ID');
+        throw new Error('Main database gist ID is not configured.');
     }
 
     const response = await fetch(`${GITHUB_API}/gists/${config.mainGistId}`, {
@@ -90,7 +90,7 @@ export async function fetchSharedItem(gistId, token = '') {
     const file = pickJsonFile(gist.files, ['shared_item.json']);
 
     if (!file) {
-        throw new Error('共享 Gist 中未找到 shared_item.json');
+        throw new Error('The shared gist does not contain shared_item.json.');
     }
 
     return readJsonFile(file, token);
