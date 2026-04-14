@@ -17,18 +17,30 @@ function normalizeConfig(config = {}) {
     };
 }
 
+function hasMeaningfulConfig(config = {}) {
+    return Boolean(config.token || config.mainGistId);
+}
+
+function mergeConfig(current = {}, legacy = {}) {
+    return normalizeConfig({
+        token: current.token || legacy.token || '',
+        mainGistId: current.mainGistId || legacy.mainGistId || ''
+    });
+}
+
 export function loadConfig() {
-    const next = readJson(CONFIG_KEY);
-    if (next) {
-        return normalizeConfig(next);
+    const current = normalizeConfig(readJson(CONFIG_KEY) || {});
+    const legacy = normalizeConfig(readJson(LEGACY_CONFIG_KEY) || {});
+    const merged = mergeConfig(current, legacy);
+
+    if (hasMeaningfulConfig(legacy) && (
+        merged.token !== current.token ||
+        merged.mainGistId !== current.mainGistId
+    )) {
+        localStorage.setItem(CONFIG_KEY, JSON.stringify(merged));
     }
 
-    const legacy = readJson(LEGACY_CONFIG_KEY);
-    const normalized = normalizeConfig(legacy || {});
-    if (legacy) {
-        localStorage.setItem(CONFIG_KEY, JSON.stringify(normalized));
-    }
-    return normalized;
+    return merged;
 }
 
 export function saveConfig(config) {
@@ -37,14 +49,33 @@ export function saveConfig(config) {
     return normalized;
 }
 
+export function loadLegacyConfig() {
+    return normalizeConfig(readJson(LEGACY_CONFIG_KEY) || {});
+}
+
 export function getConfigSource() {
-    if (readJson(CONFIG_KEY)) {
+    const currentRaw = readJson(CONFIG_KEY);
+    const current = normalizeConfig(currentRaw || {});
+    const legacy = normalizeConfig(readJson(LEGACY_CONFIG_KEY) || {});
+
+    if (hasMeaningfulConfig(legacy) && (
+        (legacy.token && !current.token) ||
+        (legacy.mainGistId && !current.mainGistId)
+    )) {
+        return 'legacy';
+    }
+
+    if (currentRaw) {
         return 'current';
     }
 
-    if (readJson(LEGACY_CONFIG_KEY)) {
+    if (hasMeaningfulConfig(legacy)) {
         return 'legacy';
     }
 
     return 'none';
+}
+
+export function hasLegacyConfig() {
+    return hasMeaningfulConfig(normalizeConfig(readJson(LEGACY_CONFIG_KEY) || {}));
 }

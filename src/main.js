@@ -1,10 +1,308 @@
-import { getConfigSource, loadConfig, saveConfig } from './data/config.js';
+import { getConfigSource, hasLegacyConfig, loadConfig, loadLegacyConfig, saveConfig } from './data/config.js';
 import { getValue, setValue } from './data/idb.js';
 import { createMainDatabase, createSharedItem, fetchMainDatabase, fetchSharedItem, saveMainDatabase, saveSharedItem } from './data/gist.js';
 import { createMarkdownEditor } from './lib/editor.js';
 import { renderDocument, setRenderedHtml, toPlainExcerpt, typesetElement } from './lib/renderer.js';
 
 const LOCAL_DATABASE_KEY = 'rq_v2_local_database';
+const UI_LANGUAGE_KEY = 'rq_v2_language';
+
+const I18N = {
+    en: {
+        documentTitle: 'Research QA',
+        brandEyebrow: 'Mathematical Problem Ledger',
+        sync: 'Sync',
+        export: 'Export',
+        import: 'Import',
+        settings: 'Settings',
+        legacy: 'Legacy',
+        importLegacy: 'Import legacy data',
+        importLegacyUnavailable: 'No legacy config',
+        storageLocalFirst: 'Local-first',
+        storageGistSync: 'Gist sync',
+        storageSharedReadOnly: 'Shared read-only',
+        sidebarTitle: 'Problems',
+        new: 'New',
+        statusNotConnected: 'Not connected',
+        viewProblems: 'Problems',
+        viewTrash: 'Trash',
+        search: 'Search',
+        searchPlaceholder: 'Search titles, body, and notes',
+        emptyEyebrow: 'Rewrite Ready',
+        emptyTitle: 'Your existing data stays intact',
+        emptyDescription: 'The new app keeps the legacy gist structure compatible, preserves the old entry, and moves the working copy into a local-first flow.',
+        newProblemButton: 'New problem',
+        configureSync: 'Configure sync',
+        heroProblem: 'Problem',
+        heroNotLoaded: 'Not loaded',
+        heroRemoteDefault: 'Local-first',
+        detailEmptyTitle: 'No problem selected',
+        detailEmptySubtitle: 'Pick a problem on the left to read the statement and research notes.',
+        pin: 'Pin',
+        share: 'Share',
+        edit: 'Edit',
+        delete: 'Delete',
+        statementKicker: 'Problem Statement',
+        statement: 'Statement',
+        notesKicker: 'Notes Timeline',
+        researchNotes: 'Research Notes',
+        addNote: 'Add note',
+        editProblemMode: 'Edit problem',
+        contentEditor: 'Content editor',
+        closeEditor: 'Close editor',
+        titleLabel: 'Title',
+        titlePlaceholder: 'Enter a problem title',
+        preambleLabel: 'LaTeX preamble',
+        source: 'Source',
+        preview: 'Preview',
+        cancel: 'Cancel',
+        save: 'Save',
+        syncBridge: 'Sync Bridge',
+        syncSettings: 'Sync settings',
+        closeSettings: 'Close settings',
+        githubToken: 'GitHub Token',
+        githubTokenPlaceholder: 'Required for private gist read/write',
+        mainGistId: 'Main database Gist ID',
+        mainGistPlaceholder: 'Leave blank to stay local-first; with a token, a main gist can be created automatically',
+        configNote: 'The new app imports legacy v7_config settings automatically and keeps reading main_db.json / shared_item.json.',
+        saveSettings: 'Save settings',
+        statusLoadedCache: 'Loaded cache',
+        statusLoadingShare: 'Loading share',
+        statusSharedView: 'Shared view',
+        statusLoadFailed: 'Load failed',
+        toastNoRemoteGist: 'No remote gist configured. Changes will stay in local cache.',
+        statusLocalMode: 'Local mode',
+        statusSyncing: 'Syncing',
+        statusImportedLegacy: 'Imported legacy data',
+        toastImportedLegacy: 'Imported legacy data: {problems} problems, {trash} trash items',
+        statusSynced: 'Synced',
+        toastPulledLatest: 'Pulled the latest data from GitHub gist',
+        statusOfflineCache: 'Offline cache',
+        statusSavedLocally: 'Saved locally',
+        statusLoadingSharedItem: 'Loading shared item',
+        statusSyncedSharedItem: 'Synced shared item',
+        statusSharedItemUnavailable: 'Shared item unavailable',
+        viewTrashCount: 'Trash {count}',
+        viewProblemsCount: 'Problems {count}',
+        noMatch: 'No Match',
+        noResults: 'No results match the current search.',
+        noProblems: 'No problems yet.',
+        archivedNoteTitle: 'Archived note - {title}',
+        note: 'Note',
+        deletedAt: 'Deleted {date}',
+        sharedBadge: 'Shared',
+        pinnedBadge: 'Pinned',
+        notesCount: '{count} notes',
+        restoreNoteHint: 'Restore this note to return it to its original problem, or delete it permanently.',
+        archivedNote: 'Archived note',
+        trashBadge: 'Trash',
+        originalProblem: 'Original problem',
+        readyToRestore: 'Ready to restore',
+        restoreNoteDescription: 'This note is currently stored in trash. Restoring it will attach it back to the original problem when possible.',
+        trashedProblem: 'Trashed problem',
+        detailTrashSubtitle: 'This is a trash view. You can restore the item or delete it permanently.',
+        detailProblemSubtitle: 'Markdown, MathJax, theorem/proof blocks, and local-first caching stay in one workspace.',
+        updatedAt: 'Updated {date}',
+        sharedGist: 'Shared gist',
+        mainGist: 'Main gist',
+        localCache: 'Local cache',
+        restoreDelete: 'Restore / Delete',
+        noNotesEyebrow: 'No Notes Yet',
+        noNotesTitle: 'No research notes yet.',
+        noNotesDescription: 'Capture ideas, failed attempts, local lemmas, and proof fragments here so they stay searchable.',
+        collapse: 'Collapse',
+        expand: 'Expand',
+        editNote: 'Edit',
+        deleteNote: 'Delete',
+        newProblem: 'New problem',
+        defaultUntitledProblem: 'Untitled problem',
+        problemEditor: 'Problem editor',
+        newNoteMode: 'New note',
+        editNoteMode: 'Edit note',
+        researchNote: 'Research note',
+        toastSaved: 'Saved',
+        confirmMoveNoteToTrash: 'Move this note to trash?',
+        toastNoteMovedToTrash: 'Note moved to trash',
+        promptTrashAction: 'Enter 1 to restore, or 2 to delete permanently.',
+        confirmMoveProblemToTrash: 'Move this problem to trash?',
+        toastProblemMovedToTrash: 'Problem moved to trash',
+        recoveredNoteTitle: 'Recovered note - {title}',
+        recoveredNoteDescription: 'Auto-generated so a restored note is not lost when its original problem no longer exists.',
+        toastRestoredFromTrash: 'Restored from trash',
+        confirmPermanentDelete: 'Delete permanently? This cannot be undone.',
+        toastPermanentlyDeleted: 'Permanently deleted',
+        toastShareLinkCopied: 'Share link copied',
+        promptShareLink: 'Share link',
+        toastNeedTokenForShare: 'Configure a GitHub token before creating a share link.',
+        toastCreatedSharedGist: 'Created a shared gist. Click Share again to copy the link.',
+        statusCreatingMainGist: 'Creating main gist',
+        toastCreatedMainGist: 'Created main database gist: {id}',
+        confirmImportOverwrite: 'Importing will overwrite the current local cache and remote main database. Continue?',
+        toastImportCompleted: 'Import completed',
+        toastImportFailed: 'Import failed: {message}',
+        toastNoLegacyConfig: 'No legacy config was found in this browser.',
+        confirmImportLegacyOverwrite: 'Importing legacy data will overwrite the current local cache with the old main gist. Continue?'
+    },
+    zh: {
+        documentTitle: 'Research QA',
+        brandEyebrow: '数学问题研究账本',
+        sync: '同步',
+        export: '导出',
+        import: '导入',
+        settings: '设置',
+        legacy: '旧版',
+        importLegacy: '导入旧版数据',
+        importLegacyUnavailable: '未发现旧版配置',
+        storageLocalFirst: '本地优先',
+        storageGistSync: 'Gist 同步',
+        storageSharedReadOnly: '共享只读',
+        sidebarTitle: '问题库',
+        new: '新建',
+        statusNotConnected: '未连接',
+        viewProblems: '问题',
+        viewTrash: '回收站',
+        search: '搜索',
+        searchPlaceholder: '搜索标题、正文与笔记',
+        emptyEyebrow: '新版已就绪',
+        emptyTitle: '旧数据会继续保留',
+        emptyDescription: '新版兼容旧版 gist 数据结构，也保留旧版入口，并把日常编辑切到本地优先模式。',
+        newProblemButton: '新建问题',
+        configureSync: '配置同步',
+        heroProblem: '问题',
+        heroNotLoaded: '未加载',
+        heroRemoteDefault: '本地优先',
+        detailEmptyTitle: '尚未选择问题',
+        detailEmptySubtitle: '从左侧选择一个问题，查看正文和研究笔记。',
+        pin: '置顶',
+        share: '共享',
+        edit: '编辑',
+        delete: '删除',
+        statementKicker: '问题正文',
+        statement: '问题正文',
+        notesKicker: '笔记时间线',
+        researchNotes: '研究笔记',
+        addNote: '新增笔记',
+        editProblemMode: '编辑问题',
+        contentEditor: '内容编辑器',
+        closeEditor: '关闭编辑器',
+        titleLabel: '标题',
+        titlePlaceholder: '输入问题标题',
+        preambleLabel: 'LaTeX 宏 / 预定义',
+        source: '源码',
+        preview: '预览',
+        cancel: '取消',
+        save: '保存',
+        syncBridge: '同步桥接',
+        syncSettings: '同步设置',
+        closeSettings: '关闭设置',
+        githubToken: 'GitHub Token',
+        githubTokenPlaceholder: '用于读写私有 gist',
+        mainGistId: '主数据库 Gist ID',
+        mainGistPlaceholder: '留空则保持本地优先；提供 token 后可自动创建主 gist',
+        configNote: '新版会自动接管旧版 v7_config 配置，并继续读取 main_db.json / shared_item.json。',
+        saveSettings: '保存设置',
+        statusLoadedCache: '已加载缓存',
+        statusLoadingShare: '正在读取共享内容',
+        statusSharedView: '共享视图',
+        statusLoadFailed: '读取失败',
+        toastNoRemoteGist: '尚未配置远程 gist，修改会先保存在本地缓存。',
+        statusLocalMode: '本地模式',
+        statusSyncing: '同步中',
+        statusImportedLegacy: '已导入旧版数据',
+        toastImportedLegacy: '已导入旧版数据：{problems} 个问题，{trash} 个回收站条目',
+        statusSynced: '已同步',
+        toastPulledLatest: '已从 GitHub gist 拉取最新数据',
+        statusOfflineCache: '离线缓存',
+        statusSavedLocally: '已保存到本地',
+        statusLoadingSharedItem: '正在读取共享问题',
+        statusSyncedSharedItem: '共享问题已同步',
+        statusSharedItemUnavailable: '共享问题暂不可用',
+        viewTrashCount: '回收站 {count}',
+        viewProblemsCount: '问题 {count}',
+        noMatch: '无匹配结果',
+        noResults: '当前搜索条件下没有命中结果。',
+        noProblems: '这里还没有问题。',
+        archivedNoteTitle: '归档笔记 - {title}',
+        note: '笔记',
+        deletedAt: '删除于 {date}',
+        sharedBadge: '共享',
+        pinnedBadge: '置顶',
+        notesCount: '{count} 条笔记',
+        restoreNoteHint: '你可以恢复这条笔记，让它回到原问题下，或者将其彻底删除。',
+        archivedNote: '归档笔记',
+        trashBadge: '回收站',
+        originalProblem: '原问题',
+        readyToRestore: '可恢复',
+        restoreNoteDescription: '这条笔记当前存放在回收站中。恢复后会尽量重新挂回原问题。',
+        trashedProblem: '已删除问题',
+        detailTrashSubtitle: '当前是回收站视图。你可以恢复该条目，也可以彻底删除。',
+        detailProblemSubtitle: 'Markdown、MathJax、theorem/proof 环境和本地优先缓存都在同一个工作区内。',
+        updatedAt: '更新于 {date}',
+        sharedGist: '共享 gist',
+        mainGist: '主 gist',
+        localCache: '本地缓存',
+        restoreDelete: '恢复 / 删除',
+        noNotesEyebrow: '暂无笔记',
+        noNotesTitle: '这里还没有研究笔记。',
+        noNotesDescription: '把思路、失败尝试、局部引理和证明片段记在这里，后续检索会更稳定。',
+        collapse: '收起',
+        expand: '展开',
+        editNote: '编辑',
+        deleteNote: '删除',
+        newProblem: '新问题',
+        defaultUntitledProblem: '未命名问题',
+        problemEditor: '问题编辑器',
+        newNoteMode: '新增笔记',
+        editNoteMode: '编辑笔记',
+        researchNote: '研究笔记',
+        toastSaved: '已保存',
+        confirmMoveNoteToTrash: '确定将这条笔记移入回收站吗？',
+        toastNoteMovedToTrash: '笔记已移入回收站',
+        promptTrashAction: '输入 1 恢复，输入 2 彻底删除。',
+        confirmMoveProblemToTrash: '确定将这个问题移入回收站吗？',
+        toastProblemMovedToTrash: '问题已移入回收站',
+        recoveredNoteTitle: '恢复的笔记 - {title}',
+        recoveredNoteDescription: '自动生成，用于承接原问题已不存在时恢复出来的笔记。',
+        toastRestoredFromTrash: '已从回收站恢复',
+        confirmPermanentDelete: '彻底删除后不可恢复，确定继续吗？',
+        toastPermanentlyDeleted: '已彻底删除',
+        toastShareLinkCopied: '共享链接已复制',
+        promptShareLink: '共享链接',
+        toastNeedTokenForShare: '创建共享链接前，需要先配置 GitHub Token。',
+        toastCreatedSharedGist: '已创建共享 gist，再点一次共享即可复制链接。',
+        statusCreatingMainGist: '正在创建主 gist',
+        toastCreatedMainGist: '已创建主数据库 gist：{id}',
+        confirmImportOverwrite: '导入会覆盖当前本地缓存和远程主库，确定继续吗？',
+        toastImportCompleted: '导入完成',
+        toastImportFailed: '导入失败：{message}',
+        toastNoLegacyConfig: '当前浏览器里没有发现旧版配置。',
+        confirmImportLegacyOverwrite: '导入旧版数据会用旧主 gist 覆盖当前本地缓存，确定继续吗？'
+    }
+};
+
+let activeLanguage = 'en';
+
+function readStoredLanguage() {
+    try {
+        return localStorage.getItem(UI_LANGUAGE_KEY) === 'zh' ? 'zh' : 'en';
+    } catch (error) {
+        return 'en';
+    }
+}
+
+function persistLanguage(language) {
+    activeLanguage = language === 'zh' ? 'zh' : 'en';
+    try {
+        localStorage.setItem(UI_LANGUAGE_KEY, activeLanguage);
+    } catch (error) {
+        // Ignore persistence failures in private browsing contexts.
+    }
+    return activeLanguage;
+}
+
+function interpolate(text, params = {}) {
+    return String(text).replace(/\{(\w+)\}/g, (_, key) => String(params[key] ?? ''));
+}
 
 function createId(prefix = 'id') {
     if (window.crypto?.randomUUID) {
@@ -81,7 +379,7 @@ function normalizeDatabase(raw = {}) {
 
 function formatDate(dateString) {
     try {
-        return new Date(dateString).toLocaleString('zh-CN', {
+        return new Date(dateString).toLocaleString(activeLanguage === 'zh' ? 'zh-CN' : 'en-US', {
             year: 'numeric',
             month: '2-digit',
             day: '2-digit',
@@ -95,6 +393,7 @@ function formatDate(dateString) {
 
 class ResearchQaApp {
     constructor() {
+        this.language = persistLanguage(readStoredLanguage());
         this.configSource = getConfigSource();
         this.config = loadConfig();
         this.db = normalizeDatabase({});
@@ -112,15 +411,29 @@ class ResearchQaApp {
             noteId: null
         };
         this.previewTimer = null;
+        this.statusState = {
+            key: 'statusNotConnected',
+            params: {}
+        };
+
+        const readerCards = document.querySelectorAll('.reader-card');
 
         this.elements = {
             workspace: document.querySelector('.workspace'),
+            topbarActions: document.querySelector('.topbar-actions'),
+            legacyLink: document.querySelector('.topbar-actions a[href="./legacy/index-legacy.html"]'),
+            brandEyebrow: document.querySelector('.topbar-brand .eyebrow'),
             list: document.getElementById('problem-list'),
             searchInput: document.getElementById('search-input'),
+            searchLabel: document.querySelector('.search-shell span'),
             syncStatus: document.getElementById('sync-status'),
             viewStatus: document.getElementById('view-status'),
             storageLabel: document.getElementById('storage-label'),
+            sidebarTitle: document.querySelector('.accent-panel h2'),
             emptyState: document.getElementById('empty-state'),
+            emptyEyebrow: document.querySelector('#empty-state .eyebrow'),
+            emptyTitle: document.querySelector('#empty-state h2'),
+            emptyDescription: document.querySelector('#empty-state p'),
             detailView: document.getElementById('detail-view'),
             detailTitle: document.getElementById('detail-title'),
             detailSubtitle: document.getElementById('detail-subtitle'),
@@ -129,25 +442,59 @@ class ResearchQaApp {
             heroRemote: document.getElementById('hero-remote'),
             problemRender: document.getElementById('problem-render'),
             noteList: document.getElementById('note-list'),
+            problemSectionKicker: readerCards[0]?.querySelector('.section-kicker') ?? null,
+            problemSectionTitle: readerCards[0]?.querySelector('h3') ?? null,
+            notesSectionKicker: readerCards[1]?.querySelector('.section-kicker') ?? null,
+            notesSectionTitle: readerCards[1]?.querySelector('h3') ?? null,
             composer: document.getElementById('composer'),
             composerModeLabel: document.getElementById('composer-mode-label'),
             composerTitleText: document.getElementById('composer-title-text'),
             composerTitleField: document.getElementById('composer-title-field'),
+            composerTitleLabel: document.querySelector('#composer-title-field span'),
             composerTitleInput: document.getElementById('composer-title-input'),
             composerPreambleField: document.getElementById('composer-preamble-field'),
+            composerPreambleLabel: document.querySelector('#composer-preamble-field span'),
             composerPreambleInput: document.getElementById('composer-preamble-input'),
             composerPreview: document.getElementById('composer-preview'),
+            composerCloseButton: document.getElementById('close-composer-btn'),
+            sourceCaption: document.querySelector('.editor-panel .panel-caption'),
+            previewCaption: document.querySelector('.preview-panel .panel-caption'),
             editorHost: document.getElementById('editor-host'),
             configModal: document.getElementById('config-modal'),
+            configModalEyebrow: document.querySelector('#config-modal .eyebrow'),
+            configModalTitle: document.querySelector('#config-modal h2'),
+            configTokenLabel: document.querySelector('#config-token-input')?.closest('.field')?.querySelector('span') ?? null,
             configTokenInput: document.getElementById('config-token-input'),
+            configGistLabel: document.querySelector('#config-gist-input')?.closest('.field')?.querySelector('span') ?? null,
             configGistInput: document.getElementById('config-gist-input'),
+            configNote: document.querySelector('#config-modal .modal-note'),
+            configActions: document.querySelector('#config-modal .modal-actions'),
+            configCloseButton: document.getElementById('close-config-btn'),
             toastStack: document.getElementById('toast-stack'),
-            importFileInput: document.getElementById('import-file-input')
+            importFileInput: document.getElementById('import-file-input'),
+            syncButton: document.getElementById('sync-btn'),
+            exportButton: document.getElementById('export-btn'),
+            importButton: document.getElementById('import-btn'),
+            configButton: document.getElementById('config-btn'),
+            createItemButton: document.getElementById('create-item-btn'),
+            emptyCreateButton: document.getElementById('empty-create-btn'),
+            emptyConfigButton: document.getElementById('empty-config-btn'),
+            activeViewButton: document.querySelector('[data-view-mode="active"]'),
+            trashViewButton: document.querySelector('[data-view-mode="trash"]'),
+            pinItemButton: document.getElementById('pin-item-btn'),
+            shareItemButton: document.getElementById('share-item-btn'),
+            editProblemButton: document.getElementById('edit-problem-btn'),
+            deleteItemButton: document.getElementById('delete-item-btn'),
+            newNoteButton: document.getElementById('new-note-btn'),
+            cancelComposerButton: document.getElementById('cancel-composer-btn'),
+            saveComposerButton: document.getElementById('save-composer-btn'),
+            cancelConfigButton: document.getElementById('cancel-config-btn'),
+            saveConfigButton: document.getElementById('save-config-btn')
         };
 
         this.editor = createMarkdownEditor({
             host: this.elements.editorHost,
-            placeholderText: 'Write Markdown / LaTeX here',
+            placeholderText: 'Markdown / LaTeX',
             onChange: (value) => this.scheduleComposerPreview(value)
         });
     }
@@ -160,25 +507,142 @@ class ResearchQaApp {
         return `rq_v2_shared_${gistId}`;
     }
 
+    text(key, params = {}) {
+        const bundle = I18N[this.language] ?? I18N.en;
+        const fallback = I18N.en[key] ?? key;
+        return interpolate(bundle[key] ?? fallback, params);
+    }
+
+    ensureUtilityButtons() {
+        if (!document.getElementById('language-btn')) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.id = 'language-btn';
+            button.className = 'top-btn';
+            button.addEventListener('click', () => this.toggleLanguage());
+            this.elements.topbarActions.insertBefore(button, this.elements.configButton);
+        }
+
+        if (!document.getElementById('import-legacy-btn')) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.id = 'import-legacy-btn';
+            button.className = 'secondary-btn';
+            button.addEventListener('click', () => this.importLegacyData());
+            this.elements.configActions.insertBefore(button, this.elements.cancelConfigButton);
+        }
+
+        this.elements.languageButton = document.getElementById('language-btn');
+        this.elements.importLegacyButton = document.getElementById('import-legacy-btn');
+    }
+
+    applyLanguage({ rerender = true } = {}) {
+        document.documentElement.lang = this.language === 'zh' ? 'zh-CN' : 'en';
+        document.title = this.text('documentTitle');
+
+        this.elements.brandEyebrow.textContent = this.text('brandEyebrow');
+        this.elements.syncButton.textContent = this.text('sync');
+        this.elements.exportButton.textContent = this.text('export');
+        this.elements.importButton.textContent = this.text('import');
+        this.elements.configButton.textContent = this.text('settings');
+        this.elements.legacyLink.textContent = this.text('legacy');
+        this.elements.sidebarTitle.textContent = this.text('sidebarTitle');
+        this.elements.createItemButton.textContent = this.text('new');
+        this.elements.activeViewButton.textContent = this.text('viewProblems');
+        this.elements.trashViewButton.textContent = this.text('viewTrash');
+        this.elements.searchLabel.textContent = this.text('search');
+        this.elements.searchInput.placeholder = this.text('searchPlaceholder');
+        this.elements.emptyEyebrow.textContent = this.text('emptyEyebrow');
+        this.elements.emptyTitle.textContent = this.text('emptyTitle');
+        this.elements.emptyDescription.textContent = this.text('emptyDescription');
+        this.elements.emptyCreateButton.textContent = this.text('newProblemButton');
+        this.elements.emptyConfigButton.textContent = this.text('configureSync');
+        this.elements.problemSectionKicker.textContent = this.text('statementKicker');
+        this.elements.problemSectionTitle.textContent = this.text('statement');
+        this.elements.notesSectionKicker.textContent = this.text('notesKicker');
+        this.elements.notesSectionTitle.textContent = this.text('researchNotes');
+        this.elements.newNoteButton.textContent = this.text('addNote');
+        this.elements.pinItemButton.textContent = this.text('pin');
+        this.elements.shareItemButton.textContent = this.text('share');
+        this.elements.editProblemButton.textContent = this.text('edit');
+        this.elements.composerTitleLabel.textContent = this.text('titleLabel');
+        this.elements.composerTitleInput.placeholder = this.text('titlePlaceholder');
+        this.elements.composerPreambleLabel.textContent = this.text('preambleLabel');
+        this.elements.sourceCaption.textContent = this.text('source');
+        this.elements.previewCaption.textContent = this.text('preview');
+        this.elements.cancelComposerButton.textContent = this.text('cancel');
+        this.elements.saveComposerButton.textContent = this.text('save');
+        this.elements.composerCloseButton.setAttribute('aria-label', this.text('closeEditor'));
+        this.elements.configModalEyebrow.textContent = this.text('syncBridge');
+        this.elements.configModalTitle.textContent = this.text('syncSettings');
+        this.elements.configTokenLabel.textContent = this.text('githubToken');
+        this.elements.configTokenInput.placeholder = this.text('githubTokenPlaceholder');
+        this.elements.configGistLabel.textContent = this.text('mainGistId');
+        this.elements.configGistInput.placeholder = this.text('mainGistPlaceholder');
+        this.elements.configNote.innerHTML = this.text('configNote');
+        this.elements.cancelConfigButton.textContent = this.text('cancel');
+        this.elements.saveConfigButton.textContent = this.text('saveSettings');
+        this.elements.configCloseButton.setAttribute('aria-label', this.text('closeSettings'));
+
+        if (this.elements.languageButton) {
+            this.elements.languageButton.textContent = this.language === 'zh' ? 'EN' : '中文';
+        }
+
+        this.updateLegacyImportButton();
+        this.refreshComposerChrome();
+        this.refreshStatus();
+        this.reflectConfig();
+
+        if (rerender) {
+            this.renderAll();
+        }
+    }
+
+    toggleLanguage() {
+        this.language = persistLanguage(this.language === 'zh' ? 'en' : 'zh');
+        this.applyLanguage();
+    }
+
+    refreshComposerChrome() {
+        if (this.composerState.kind === 'problem') {
+            this.elements.composerModeLabel.textContent = this.text('editProblemMode');
+            this.elements.composerTitleText.textContent = this.text('problemEditor');
+            return;
+        }
+
+        this.elements.composerModeLabel.textContent = this.text(this.composerState.noteId ? 'editNoteMode' : 'newNoteMode');
+        this.elements.composerTitleText.textContent = this.text('researchNote');
+    }
+
+    updateLegacyImportButton() {
+        if (!this.elements.importLegacyButton) {
+            return;
+        }
+
+        const available = hasLegacyConfig();
+        this.elements.importLegacyButton.disabled = !available;
+        this.elements.importLegacyButton.textContent = available ? this.text('importLegacy') : this.text('importLegacyUnavailable');
+    }
+
     bindEvents() {
-        document.getElementById('sync-btn').addEventListener('click', () => this.syncPull());
-        document.getElementById('export-btn').addEventListener('click', () => this.exportBackup());
-        document.getElementById('import-btn').addEventListener('click', () => this.elements.importFileInput.click());
-        document.getElementById('config-btn').addEventListener('click', () => this.openConfigModal());
-        document.getElementById('create-item-btn').addEventListener('click', () => this.createNewItem());
-        document.getElementById('empty-create-btn').addEventListener('click', () => this.createNewItem());
-        document.getElementById('empty-config-btn').addEventListener('click', () => this.openConfigModal());
-        document.getElementById('edit-problem-btn').addEventListener('click', () => this.openProblemEditor());
-        document.getElementById('new-note-btn').addEventListener('click', () => this.openNoteEditor());
-        document.getElementById('delete-item-btn').addEventListener('click', () => this.handleDeleteAction());
-        document.getElementById('pin-item-btn').addEventListener('click', () => this.togglePin());
-        document.getElementById('share-item-btn').addEventListener('click', () => this.handleShare());
-        document.getElementById('close-composer-btn').addEventListener('click', () => this.closeComposer());
-        document.getElementById('cancel-composer-btn').addEventListener('click', () => this.closeComposer());
-        document.getElementById('save-composer-btn').addEventListener('click', () => this.saveComposer());
-        document.getElementById('close-config-btn').addEventListener('click', () => this.closeConfigModal());
-        document.getElementById('cancel-config-btn').addEventListener('click', () => this.closeConfigModal());
-        document.getElementById('save-config-btn').addEventListener('click', () => this.saveConfigFromModal());
+        this.elements.syncButton.addEventListener('click', () => this.syncPull());
+        this.elements.exportButton.addEventListener('click', () => this.exportBackup());
+        this.elements.importButton.addEventListener('click', () => this.elements.importFileInput.click());
+        this.elements.configButton.addEventListener('click', () => this.openConfigModal());
+        this.elements.createItemButton.addEventListener('click', () => this.createNewItem());
+        this.elements.emptyCreateButton.addEventListener('click', () => this.createNewItem());
+        this.elements.emptyConfigButton.addEventListener('click', () => this.openConfigModal());
+        this.elements.editProblemButton.addEventListener('click', () => this.openProblemEditor());
+        this.elements.newNoteButton.addEventListener('click', () => this.openNoteEditor());
+        this.elements.deleteItemButton.addEventListener('click', () => this.handleDeleteAction());
+        this.elements.pinItemButton.addEventListener('click', () => this.togglePin());
+        this.elements.shareItemButton.addEventListener('click', () => this.handleShare());
+        this.elements.composerCloseButton.addEventListener('click', () => this.closeComposer());
+        this.elements.cancelComposerButton.addEventListener('click', () => this.closeComposer());
+        this.elements.saveComposerButton.addEventListener('click', () => this.saveComposer());
+        this.elements.configCloseButton.addEventListener('click', () => this.closeConfigModal());
+        this.elements.cancelConfigButton.addEventListener('click', () => this.closeConfigModal());
+        this.elements.saveConfigButton.addEventListener('click', () => this.saveConfigFromModal());
 
         this.elements.searchInput.addEventListener('input', () => this.renderList());
         this.elements.composerPreambleInput.addEventListener('input', () => this.scheduleComposerPreview(this.editor.getValue()));
@@ -221,12 +685,13 @@ class ResearchQaApp {
     }
 
     async init() {
+        this.ensureUtilityButtons();
         this.bindEvents();
-        this.reflectConfig();
+        this.applyLanguage({ rerender: false });
 
         if (this.visitorGistId) {
-            document.getElementById('create-item-btn').disabled = true;
-            this.elements.storageLabel.textContent = 'Shared read-only';
+            this.elements.createItemButton.disabled = true;
+            this.reflectConfig();
             await this.loadVisitorItem();
             return;
         }
@@ -236,7 +701,7 @@ class ResearchQaApp {
             this.db = normalizeDatabase(cached);
             this.currentId = this.db.items[0]?.id ?? null;
             await this.renderCurrentSelection();
-            this.setStatus('Loaded cache');
+            this.setStatusKey('statusLoadedCache');
         } else {
             this.renderAll();
         }
@@ -244,18 +709,31 @@ class ResearchQaApp {
         if (this.config.mainGistId) {
             await this.syncPull({ quiet: Boolean(cached), announceLegacyImport: this.configSource === 'legacy' && !cached });
         } else {
-            this.setStatus('Local mode');
+            this.setStatusKey('statusLocalMode');
         }
     }
 
     reflectConfig() {
         this.elements.configTokenInput.value = this.config.token;
         this.elements.configGistInput.value = this.config.mainGistId;
-        this.elements.storageLabel.textContent = this.config.mainGistId ? 'Gist sync' : 'Local-first';
+
+        if (this.visitorGistId) {
+            this.elements.storageLabel.textContent = this.text('storageSharedReadOnly');
+            return;
+        }
+
+        this.elements.storageLabel.textContent = this.config.mainGistId
+            ? this.text('storageGistSync')
+            : this.text('storageLocalFirst');
     }
 
-    setStatus(text) {
-        this.elements.syncStatus.textContent = text;
+    setStatusKey(key, params = {}) {
+        this.statusState = { key, params };
+        this.refreshStatus();
+    }
+
+    refreshStatus() {
+        this.elements.syncStatus.textContent = this.text(this.statusState.key, this.statusState.params);
     }
 
     updateViewModeButtons() {
@@ -281,7 +759,7 @@ class ResearchQaApp {
 
     async loadVisitorItem() {
         try {
-            this.setStatus('Loading share');
+            this.setStatusKey('statusLoadingShare');
             const cached = await getValue(this.sharedCacheKey(this.visitorGistId));
             if (cached) {
                 this.currentItem = normalizeItem(cached);
@@ -296,10 +774,10 @@ class ResearchQaApp {
             this.currentSource = 'shared';
             await setValue(this.sharedCacheKey(this.visitorGistId), remote);
             this.renderAll();
-            this.setStatus('Shared view');
+            this.setStatusKey('statusSharedView');
         } catch (error) {
             this.toast(error.message, 'error');
-            this.setStatus('Load failed');
+            this.setStatusKey('statusLoadFailed');
             this.renderAll();
         }
     }
@@ -311,13 +789,13 @@ class ResearchQaApp {
         }
 
         if (!this.config.mainGistId) {
-            this.toast('No remote gist configured. Changes will stay in local cache.');
-            this.setStatus('Local mode');
+            this.toast(this.text('toastNoRemoteGist'));
+            this.setStatusKey('statusLocalMode');
             return;
         }
 
         try {
-            this.setStatus('Syncing');
+            this.setStatusKey('statusSyncing');
             const remoteDatabase = normalizeDatabase(await fetchMainDatabase(this.config));
             this.db = remoteDatabase;
             await setValue(this.databaseCacheKey, this.db);
@@ -333,17 +811,20 @@ class ResearchQaApp {
 
             await this.renderCurrentSelection();
             if (options.announceLegacyImport) {
-                this.setStatus('Imported legacy data');
-                this.toast(`Imported legacy data: ${this.db.items.length} problems, ${this.db.trash.length} trash items`);
+                this.setStatusKey('statusImportedLegacy');
+                this.toast(this.text('toastImportedLegacy', {
+                    problems: this.db.items.length,
+                    trash: this.db.trash.length
+                }));
             } else {
-                this.setStatus('Synced');
+                this.setStatusKey('statusSynced');
             }
 
             if (!options.quiet && !options.announceLegacyImport) {
-                this.toast('Pulled the latest data from GitHub gist');
+                this.toast(this.text('toastPulledLatest'));
             }
         } catch (error) {
-            this.setStatus('Offline cache');
+            this.setStatusKey('statusOfflineCache');
             if (!options.quiet) {
                 this.toast(error.message, 'error');
             }
@@ -354,9 +835,9 @@ class ResearchQaApp {
         await setValue(this.databaseCacheKey, this.db);
         if (this.config.mainGistId) {
             await saveMainDatabase(this.config, this.db);
-            this.setStatus('Synced');
+            this.setStatusKey('statusSynced');
         } else {
-            this.setStatus('Saved locally');
+            this.setStatusKey('statusSavedLocally');
         }
     }
 
@@ -403,7 +884,7 @@ class ResearchQaApp {
 
             try {
                 if (!options.silent) {
-                    this.setStatus('Loading shared item');
+                    this.setStatusKey('statusLoadingSharedItem');
                 }
 
                 const remoteItem = normalizeItem(await fetchSharedItem(summary.shareId, this.config.token));
@@ -416,14 +897,14 @@ class ResearchQaApp {
                 await setValue(this.sharedCacheKey(summary.shareId), remoteItem);
                 this.renderAll();
                 if (!options.silent) {
-                    this.setStatus('Synced shared item');
+                    this.setStatusKey('statusSyncedSharedItem');
                 }
             } catch (error) {
                 if (!cached) {
                     this.toast(error.message, 'error');
                 }
                 if (!options.silent) {
-                    this.setStatus('Shared item unavailable');
+                    this.setStatusKey('statusSharedItemUnavailable');
                 }
             }
 
@@ -443,7 +924,9 @@ class ResearchQaApp {
     renderList() {
         const collection = this.getCurrentCollection();
         const term = this.elements.searchInput.value.trim().toLowerCase();
-        this.elements.viewStatus.textContent = this.viewMode === 'trash' ? `Trash ${collection.length}` : `Problems ${collection.length}`;
+        this.elements.viewStatus.textContent = this.viewMode === 'trash'
+            ? this.text('viewTrashCount', { count: collection.length })
+            : this.text('viewProblemsCount', { count: collection.length });
 
         const items = collection.filter((entry) => {
             if (!term) {
@@ -461,8 +944,8 @@ class ResearchQaApp {
         if (!items.length) {
             this.elements.list.innerHTML = `
                 <div class="sidebar-panel">
-                    <div class="eyebrow">No Match</div>
-                    <p class="modal-note">${term ? 'No results match the current search.' : 'No problems yet.'}</p>
+                    <div class="eyebrow">${this.text('noMatch')}</div>
+                    <p class="modal-note">${term ? this.text('noResults') : this.text('noProblems')}</p>
                 </div>
             `;
             return;
@@ -481,12 +964,12 @@ class ResearchQaApp {
             return `
                 <article class="problem-row trash ${activeClass}" data-item-id="${entry.id}">
                     <div class="problem-row-top">
-                        <h3>Archived note - ${entry.parentTitle}</h3>
-                        <span class="meta-pill">Note</span>
+                        <h3>${this.text('archivedNoteTitle', { title: entry.parentTitle })}</h3>
+                        <span class="meta-pill">${this.text('note')}</span>
                     </div>
                     <p>${toPlainExcerpt(entry.data.text, 120)}</p>
                     <div class="item-meta">
-                        <span class="meta-pill">Deleted ${formatDate(entry.deletedAt)}</span>
+                        <span class="meta-pill">${this.text('deletedAt', { date: formatDate(entry.deletedAt) })}</span>
                     </div>
                 </article>
             `;
@@ -494,16 +977,18 @@ class ResearchQaApp {
 
         const activeClass = String(entry.id) === String(this.currentId) ? 'active' : '';
         const trashClass = this.viewMode === 'trash' ? 'trash' : '';
-        const syncBadge = entry.shareId ? '<span class="meta-pill">Shared</span>' : '';
-        const pinBadge = entry.isPinned ? '<span class="meta-pill">Pinned</span>' : '';
+        const syncBadge = entry.shareId ? `<span class="meta-pill">${this.text('sharedBadge')}</span>` : '';
+        const pinBadge = entry.isPinned ? `<span class="meta-pill">${this.text('pinnedBadge')}</span>` : '';
         const noteCount = Array.isArray(entry.answers) ? entry.answers.length : 0;
-        const deletionBadge = entry.deletedAt ? `<span class="meta-pill">Deleted ${formatDate(entry.deletedAt)}</span>` : `<span class="meta-pill">${formatDate(entry.date)}</span>`;
+        const deletionBadge = entry.deletedAt
+            ? `<span class="meta-pill">${this.text('deletedAt', { date: formatDate(entry.deletedAt) })}</span>`
+            : `<span class="meta-pill">${formatDate(entry.date)}</span>`;
 
         return `
             <article class="problem-row ${activeClass} ${trashClass}" data-item-id="${entry.id}">
                 <div class="problem-row-top">
-                    <h3>${entry.title}</h3>
-                    <span class="meta-pill">${noteCount} notes</span>
+                    <h3>${entry.title || this.text('defaultUntitledProblem')}</h3>
+                    <span class="meta-pill">${this.text('notesCount', { count: noteCount })}</span>
                 </div>
                 <p>${toPlainExcerpt(entry.desc, 120)}</p>
                 <div class="item-meta">
@@ -527,11 +1012,11 @@ class ResearchQaApp {
 
         if (this.viewMode === 'trash' && this.currentSummary?.type === 'note') {
             const archivedNote = this.currentSummary;
-            this.elements.detailTitle.textContent = `Archived note - ${archivedNote.parentTitle}`;
-            this.elements.detailSubtitle.textContent = 'Restore this note to return it to its original problem, or delete it permanently.';
-            this.elements.heroKind.textContent = 'Archived note';
-            this.elements.heroUpdated.textContent = `Deleted ${formatDate(archivedNote.deletedAt)}`;
-            this.elements.heroRemote.textContent = 'Trash';
+            this.elements.detailTitle.textContent = this.text('archivedNoteTitle', { title: archivedNote.parentTitle });
+            this.elements.detailSubtitle.textContent = this.text('restoreNoteHint');
+            this.elements.heroKind.textContent = this.text('archivedNote');
+            this.elements.heroUpdated.textContent = this.text('deletedAt', { date: formatDate(archivedNote.deletedAt) });
+            this.elements.heroRemote.textContent = this.text('trashBadge');
 
             const noteHtml = renderDocument(archivedNote.data.text, { preamble: archivedNote.parentPreamble });
             setRenderedHtml(this.elements.problemRender, noteHtml);
@@ -541,43 +1026,47 @@ class ResearchQaApp {
                 <article class="note-card">
                     <div class="note-card-head">
                         <div>
-                            <div class="eyebrow">Original problem</div>
+                            <div class="eyebrow">${this.text('originalProblem')}</div>
                             <strong>${archivedNote.parentTitle}</strong>
                         </div>
-                        <span class="meta-pill">Ready to restore</span>
+                        <span class="meta-pill">${this.text('readyToRestore')}</span>
                     </div>
-                    <div class="note-excerpt">This note is currently stored in trash. Restoring it will attach it back to the original problem when possible.</div>
+                    <div class="note-excerpt">${this.text('restoreNoteDescription')}</div>
                 </article>
             `;
 
-            document.getElementById('new-note-btn').disabled = true;
-            document.getElementById('edit-problem-btn').disabled = true;
-            document.getElementById('pin-item-btn').disabled = true;
-            document.getElementById('share-item-btn').disabled = true;
-            document.getElementById('delete-item-btn').textContent = 'Restore / Delete';
+            this.elements.newNoteButton.disabled = true;
+            this.elements.editProblemButton.disabled = true;
+            this.elements.pinItemButton.disabled = true;
+            this.elements.shareItemButton.disabled = true;
+            this.elements.deleteItemButton.textContent = this.text('restoreDelete');
             return;
         }
 
-        const title = this.currentItem.title || 'Untitled problem';
+        const title = this.currentItem.title || this.text('defaultUntitledProblem');
         const subtitle = this.viewMode === 'trash'
-            ? 'This is a trash view. You can restore the item or delete it permanently.'
-            : 'Markdown, MathJax, theorem/proof blocks, and local-first caching stay in one workspace.';
+            ? this.text('detailTrashSubtitle')
+            : this.text('detailProblemSubtitle');
         this.elements.detailTitle.textContent = title;
         this.elements.detailSubtitle.textContent = subtitle;
-        this.elements.heroKind.textContent = this.viewMode === 'trash' ? 'Trashed problem' : 'Problem';
-        this.elements.heroUpdated.textContent = `Updated ${formatDate(this.currentItem.date)}`;
-        this.elements.heroRemote.textContent = this.currentSource === 'shared' ? 'Shared gist' : (this.currentSource === 'trash' ? 'Trash' : (this.config.mainGistId ? 'Main gist' : 'Local cache'));
+        this.elements.heroKind.textContent = this.viewMode === 'trash' ? this.text('trashedProblem') : this.text('heroProblem');
+        this.elements.heroUpdated.textContent = this.text('updatedAt', { date: formatDate(this.currentItem.date) });
+        this.elements.heroRemote.textContent = this.currentSource === 'shared'
+            ? this.text('sharedGist')
+            : (this.currentSource === 'trash'
+                ? this.text('trashBadge')
+                : (this.config.mainGistId ? this.text('mainGist') : this.text('localCache')));
 
         const problemHtml = renderDocument(this.currentItem.desc, { preamble: this.currentItem.preamble });
         setRenderedHtml(this.elements.problemRender, problemHtml);
         typesetElement(this.elements.problemRender);
 
         this.renderNotes();
-        document.getElementById('new-note-btn').disabled = this.viewMode === 'trash' || Boolean(this.visitorGistId);
-        document.getElementById('edit-problem-btn').disabled = this.viewMode === 'trash' || Boolean(this.visitorGistId);
-        document.getElementById('pin-item-btn').disabled = this.viewMode === 'trash' || Boolean(this.visitorGistId);
-        document.getElementById('share-item-btn').disabled = this.viewMode === 'trash' || Boolean(this.visitorGistId);
-        document.getElementById('delete-item-btn').textContent = this.viewMode === 'trash' ? 'Restore / Delete' : 'Delete';
+        this.elements.newNoteButton.disabled = this.viewMode === 'trash' || Boolean(this.visitorGistId);
+        this.elements.editProblemButton.disabled = this.viewMode === 'trash' || Boolean(this.visitorGistId);
+        this.elements.pinItemButton.disabled = this.viewMode === 'trash' || Boolean(this.visitorGistId);
+        this.elements.shareItemButton.disabled = this.viewMode === 'trash' || Boolean(this.visitorGistId);
+        this.elements.deleteItemButton.textContent = this.viewMode === 'trash' ? this.text('restoreDelete') : this.text('delete');
     }
 
     renderNotes() {
@@ -588,12 +1077,12 @@ class ResearchQaApp {
                 <article class="note-card">
                     <div class="note-card-head">
                         <div>
-                            <div class="eyebrow">No Notes Yet</div>
-                            <strong>No research notes yet.</strong>
+                            <div class="eyebrow">${this.text('noNotesEyebrow')}</div>
+                            <strong>${this.text('noNotesTitle')}</strong>
                         </div>
-                        ${this.viewMode === 'trash' ? '' : '<button class="pill-btn" id="inline-new-note-btn">Add note</button>'}
+                        ${this.viewMode === 'trash' ? '' : `<button class="pill-btn" id="inline-new-note-btn">${this.text('addNote')}</button>`}
                     </div>
-                    <div class="note-excerpt">Capture ideas, failed attempts, local lemmas, and proof fragments here so they stay searchable.</div>
+                    <div class="note-excerpt">${this.text('noNotesDescription')}</div>
                 </article>
             `;
 
@@ -607,10 +1096,10 @@ class ResearchQaApp {
         this.elements.noteList.innerHTML = notes.map((note) => {
             const expanded = this.expandedNotes.has(note.id);
             const body = expanded ? `<div class="rich-text" data-note-render="${note.id}"></div>` : `<div class="note-excerpt">${toPlainExcerpt(note.text, 220)}</div>`;
-            const toggleLabel = expanded ? 'Collapse' : 'Expand';
+            const toggleLabel = expanded ? this.text('collapse') : this.text('expand');
             const toolbar = this.viewMode === 'trash' || this.visitorGistId ? '' : `
-                    <button class="pill-btn soft" data-note-action="edit" data-note-id="${note.id}">Edit</button>
-                    <button class="pill-btn warn" data-note-action="delete" data-note-id="${note.id}">Delete</button>
+                    <button class="pill-btn soft" data-note-action="edit" data-note-id="${note.id}">${this.text('editNote')}</button>
+                    <button class="pill-btn warn" data-note-action="delete" data-note-id="${note.id}">${this.text('deleteNote')}</button>
                 `;
 
             return `
@@ -665,7 +1154,7 @@ class ResearchQaApp {
             return;
         }
 
-        const nextItem = normalizeItem({ id: createId('item'), title: 'New problem', desc: '', answers: [], date: new Date().toISOString(), isPinned: false });
+        const nextItem = normalizeItem({ id: createId('item'), title: this.text('newProblem'), desc: '', answers: [], date: new Date().toISOString(), isPinned: false });
         this.db.items.unshift(nextItem);
         this.currentId = nextItem.id;
         this.currentItem = clone(nextItem);
@@ -683,8 +1172,7 @@ class ResearchQaApp {
         this.composerState = { open: true, kind: 'problem', noteId: null };
         this.elements.workspace.classList.add('composer-open');
         this.elements.composer.classList.remove('hidden');
-        this.elements.composerModeLabel.textContent = 'Edit problem';
-        this.elements.composerTitleText.textContent = 'Problem editor';
+        this.refreshComposerChrome();
         this.elements.composerTitleField.classList.remove('hidden');
         this.elements.composerPreambleField.classList.remove('hidden');
         this.elements.composerTitleInput.value = this.currentItem.title;
@@ -703,8 +1191,7 @@ class ResearchQaApp {
         this.composerState = { open: true, kind: 'note', noteId };
         this.elements.workspace.classList.add('composer-open');
         this.elements.composer.classList.remove('hidden');
-        this.elements.composerModeLabel.textContent = note ? 'Edit note' : 'New note';
-        this.elements.composerTitleText.textContent = 'Research note';
+        this.refreshComposerChrome();
         this.elements.composerTitleField.classList.add('hidden');
         this.elements.composerPreambleField.classList.add('hidden');
         this.elements.composerTitleInput.value = '';
@@ -748,7 +1235,7 @@ class ResearchQaApp {
 
         const body = this.editor.getValue();
         if (this.composerState.kind === 'problem') {
-            this.currentItem.title = this.elements.composerTitleInput.value.trim() || 'Untitled problem';
+            this.currentItem.title = this.elements.composerTitleInput.value.trim() || this.text('defaultUntitledProblem');
             this.currentItem.desc = body;
             this.currentItem.preamble = this.elements.composerPreambleInput.value.trim();
             this.currentItem.date = new Date().toISOString();
@@ -767,7 +1254,7 @@ class ResearchQaApp {
             await this.persistCurrentItem();
             this.closeComposer();
             this.renderAll();
-            this.toast('Saved');
+            this.toast(this.text('toastSaved'));
         } catch (error) {
             this.toast(error.message, 'error');
         }
@@ -806,7 +1293,7 @@ class ResearchQaApp {
     }
 
     async deleteNote(noteId) {
-        if (!window.confirm('Move this note to trash?')) {
+        if (!window.confirm(this.text('confirmMoveNoteToTrash'))) {
             return;
         }
 
@@ -830,7 +1317,7 @@ class ResearchQaApp {
         try {
             await this.persistCurrentItem();
             this.renderAll();
-            this.toast('Note moved to trash');
+            this.toast(this.text('toastNoteMovedToTrash'));
         } catch (error) {
             this.toast(error.message, 'error');
         }
@@ -838,7 +1325,7 @@ class ResearchQaApp {
 
     async handleDeleteAction() {
         if (this.viewMode === 'trash') {
-            const mode = window.prompt('Enter 1 to restore, or 2 to delete permanently.', '1');
+            const mode = window.prompt(this.text('promptTrashAction'), '1');
             if (mode === '1') {
                 await this.restoreTrashItem();
             } else if (mode === '2') {
@@ -851,7 +1338,7 @@ class ResearchQaApp {
     }
 
     async deleteCurrentItem() {
-        if (!this.currentItem || !window.confirm('Move this problem to trash?')) {
+        if (!this.currentItem || !window.confirm(this.text('confirmMoveProblemToTrash'))) {
             return;
         }
 
@@ -869,7 +1356,7 @@ class ResearchQaApp {
         try {
             await this.saveDatabaseSnapshot();
             await this.renderCurrentSelection();
-            this.toast('Problem moved to trash');
+            this.toast(this.text('toastProblemMovedToTrash'));
         } catch (error) {
             this.toast(error.message, 'error');
         }
@@ -897,8 +1384,8 @@ class ResearchQaApp {
                 nextActiveId = parent.id;
             } else {
                 const recoveryItem = normalizeItem({
-                    title: `Recovered note - ${restored.parentTitle}`,
-                    desc: 'Auto-generated so a restored note is not lost when its original problem no longer exists.',
+                    title: this.text('recoveredNoteTitle', { title: restored.parentTitle }),
+                    desc: this.text('recoveredNoteDescription'),
                     preamble: restored.parentPreamble,
                     answers: [normalizeNote(restored.data)],
                     date: new Date().toISOString()
@@ -919,14 +1406,14 @@ class ResearchQaApp {
             this.updateViewModeButtons();
             this.currentId = nextActiveId ?? this.db.items[0]?.id ?? null;
             await this.renderCurrentSelection();
-            this.toast('Restored from trash');
+            this.toast(this.text('toastRestoredFromTrash'));
         } catch (error) {
             this.toast(error.message, 'error');
         }
     }
 
     async destroyTrashItem() {
-        if (this.viewMode !== 'trash' || !this.currentSummary || !window.confirm('Delete permanently? This cannot be undone.')) {
+        if (this.viewMode !== 'trash' || !this.currentSummary || !window.confirm(this.text('confirmPermanentDelete'))) {
             return;
         }
 
@@ -943,7 +1430,7 @@ class ResearchQaApp {
         try {
             await this.saveDatabaseSnapshot();
             await this.renderCurrentSelection();
-            this.toast('Permanently deleted');
+            this.toast(this.text('toastPermanentlyDeleted'));
         } catch (error) {
             this.toast(error.message, 'error');
         }
@@ -992,16 +1479,16 @@ class ResearchQaApp {
                 shareUrl.searchParams.set('gist', entry.shareId);
                 if (navigator.clipboard?.writeText) {
                     await navigator.clipboard.writeText(shareUrl.toString());
-                    this.toast('Share link copied');
+                    this.toast(this.text('toastShareLinkCopied'));
                 } else {
-                    window.prompt('Share link', shareUrl.toString());
+                    window.prompt(this.text('promptShareLink'), shareUrl.toString());
                 }
                 return;
             }
 
             if (!this.config.token) {
                 this.openConfigModal();
-                this.toast('Configure a GitHub token before creating a share link.', 'error');
+                this.toast(this.text('toastNeedTokenForShare'), 'error');
                 return;
             }
 
@@ -1009,7 +1496,7 @@ class ResearchQaApp {
             entry.shareId = shareId;
             this.currentItem.shareId = shareId;
             await this.saveDatabaseSnapshot();
-            this.toast('Created a shared gist. Click Share again to copy the link.');
+            this.toast(this.text('toastCreatedSharedGist'));
             this.renderAll();
         } catch (error) {
             this.toast(error.message, 'error');
@@ -1018,6 +1505,7 @@ class ResearchQaApp {
 
     openConfigModal() {
         this.reflectConfig();
+        this.updateLegacyImportButton();
         this.elements.configModal.classList.remove('hidden');
     }
 
@@ -1034,16 +1522,58 @@ class ResearchQaApp {
             }
 
             if (!mainGistId && token) {
-                this.setStatus('Creating main gist');
+                this.setStatusKey('statusCreatingMainGist');
                 mainGistId = await createMainDatabase(token);
-                this.toast(`Created main database gist: ${mainGistId}`);
+                this.toast(this.text('toastCreatedMainGist', { id: mainGistId }));
             }
 
             this.config = saveConfig({ token, mainGistId });
+            this.configSource = getConfigSource();
             this.reflectConfig();
             this.closeConfigModal();
             await this.syncPull();
         } catch (error) {
+            this.toast(error.message, 'error');
+        }
+    }
+
+    async importLegacyData() {
+        const legacyConfig = loadLegacyConfig();
+        if (!legacyConfig.mainGistId) {
+            this.toast(this.text('toastNoLegacyConfig'), 'error');
+            return;
+        }
+
+        if (!window.confirm(this.text('confirmImportLegacyOverwrite'))) {
+            return;
+        }
+
+        try {
+            this.config = loadConfig();
+            if (!this.config.mainGistId || !this.config.token) {
+                this.config = saveConfig({
+                    token: this.config.token || legacyConfig.token,
+                    mainGistId: this.config.mainGistId || legacyConfig.mainGistId
+                });
+                this.configSource = getConfigSource();
+                this.reflectConfig();
+            }
+
+            this.setStatusKey('statusSyncing');
+            this.db = normalizeDatabase(await fetchMainDatabase(legacyConfig));
+            await setValue(this.databaseCacheKey, this.db);
+            this.viewMode = 'active';
+            this.updateViewModeButtons();
+            this.currentId = this.db.items[0]?.id ?? null;
+            await this.renderCurrentSelection();
+            this.closeConfigModal();
+            this.setStatusKey('statusImportedLegacy');
+            this.toast(this.text('toastImportedLegacy', {
+                problems: this.db.items.length,
+                trash: this.db.trash.length
+            }));
+        } catch (error) {
+            this.setStatusKey('statusLoadFailed');
             this.toast(error.message, 'error');
         }
     }
@@ -1073,7 +1603,7 @@ class ResearchQaApp {
             const text = await file.text();
             const parsed = JSON.parse(text);
             const nextDatabase = normalizeDatabase(parsed.db || parsed);
-            if (!window.confirm('Importing will overwrite the current local cache and remote main database. Continue?')) {
+            if (!window.confirm(this.text('confirmImportOverwrite'))) {
                 event.target.value = '';
                 return;
             }
@@ -1082,9 +1612,9 @@ class ResearchQaApp {
             this.currentId = this.db.items[0]?.id ?? null;
             await this.saveDatabaseSnapshot();
             await this.renderCurrentSelection();
-            this.toast('Import completed');
+            this.toast(this.text('toastImportCompleted'));
         } catch (error) {
-            this.toast(`Import failed: ${error.message}`, 'error');
+            this.toast(this.text('toastImportFailed', { message: error.message }), 'error');
         } finally {
             event.target.value = '';
         }
