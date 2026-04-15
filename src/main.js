@@ -137,6 +137,8 @@ const I18N = {
         promptShareLink: 'Share link',
         toastNeedTokenForShare: 'Configure a GitHub token before creating a share link.',
         toastCreatedSharedGist: 'Created a shared gist. Click Share again to copy the link.',
+        toastPinned: 'Pinned to the top section',
+        toastUnpinned: 'Removed from the pinned section',
         statusCreatingMainGist: 'Creating main gist',
         toastCreatedMainGist: 'Created main database gist: {id}',
         confirmImportOverwrite: 'Importing will overwrite the current local cache and remote main database. Continue?',
@@ -274,6 +276,8 @@ const I18N = {
         promptShareLink: '共享链接',
         toastNeedTokenForShare: '创建共享链接前，需要先配置 GitHub Token。',
         toastCreatedSharedGist: '已创建共享 gist，再点一次共享即可复制链接。',
+        toastPinned: '已置顶到顶部区域',
+        toastUnpinned: '已取消置顶',
         statusCreatingMainGist: '正在创建主 gist',
         toastCreatedMainGist: '已创建主数据库 gist：{id}',
         confirmImportOverwrite: '导入会覆盖当前本地缓存和远程主库，确定继续吗？',
@@ -342,6 +346,7 @@ function normalizeNote(note = {}) {
 }
 
 function normalizeItem(item = {}) {
+    const parsedSortRank = Number(item.sortRank);
     return {
         id: item.id ?? createId('item'),
         title: typeof item.title === 'string' && item.title.trim() ? item.title : 'Untitled problem',
@@ -355,6 +360,7 @@ function normalizeItem(item = {}) {
             : (item.isPinned
                 ? (typeof item.date === 'string' ? item.date : new Date().toISOString())
                 : ''),
+        sortRank: Number.isFinite(parsedSortRank) ? parsedSortRank : null,
         shareId: typeof item.shareId === 'string' && item.shareId.trim() ? item.shareId.trim() : ''
     };
 }
@@ -369,6 +375,15 @@ function compareItems(a, b) {
         return a.isPinned ? -1 : 1;
     }
 
+    const aHasRank = Number.isFinite(a.sortRank);
+    const bHasRank = Number.isFinite(b.sortRank);
+    if (aHasRank && bHasRank && a.sortRank !== b.sortRank) {
+        return a.sortRank - b.sortRank;
+    }
+    if (aHasRank !== bHasRank) {
+        return aHasRank ? -1 : 1;
+    }
+
     if (a.isPinned && b.isPinned) {
         return toTimestamp(b.pinnedAt || b.date) - toTimestamp(a.pinnedAt || a.date);
     }
@@ -376,8 +391,22 @@ function compareItems(a, b) {
     return toTimestamp(b.date) - toTimestamp(a.date);
 }
 
+function resequenceItemRanks(items) {
+    let pinnedIndex = 0;
+    let regularIndex = 0;
+
+    items.forEach((item) => {
+        if (item.isPinned) {
+            item.sortRank = pinnedIndex++;
+            return;
+        }
+        item.sortRank = regularIndex++;
+    });
+}
+
 function sortItemsInPlace(items) {
     items.sort(compareItems);
+    resequenceItemRanks(items);
     return items;
 }
 
@@ -446,6 +475,11 @@ class ResearchQaApp {
         this.currentSource = 'local';
         this.selectionToken = 0;
         this.expandedNotes = new Set();
+        this.pinFeedback = {
+            itemId: null,
+            state: ''
+        };
+        this.pinFeedbackTimer = null;
         this.visitorGistId = initialRoute.visitorGistId;
         this.composerState = {
             open: false,
@@ -1151,6 +1185,24 @@ class ResearchQaApp {
         this.finishBoot();
     }
 
+    queuePinFeedback(itemId, state) {
+        if (this.pinFeedbackTimer) {
+            window.clearTimeout(this.pinFeedbackTimer);
+        }
+
+        this.pinFeedback = {
+            itemId: String(itemId),
+            state
+        };
+        this.pinFeedbackTimer = window.setTimeout(() => {
+            this.pinFeedback = {
+                itemId: null,
+                state: ''
+            };
+            this.renderAll();
+        }, 720);
+    }
+
     finishBoot() {
         if (!document.documentElement.dataset.boot) {
             return;
@@ -1230,10 +1282,11 @@ class ResearchQaApp {
         const syncBadge = entry.shareId ? `<span class="meta-pill">${this.text('sharedBadge')}</span>` : '';
         const pinBadge = entry.isPinned ? `<span class="meta-pill">${this.text('pinnedBadge')}</span>` : '';
         const noteCount = Array.isArray(entry.answers) ? entry.answers.length : 0;
+        const pinFeedbackState = String(this.pinFeedback.itemId) === String(entry.id) ? this.pinFeedback.state : '';
         const pinAction = this.viewMode === 'active' && !this.visitorGistId
             ? `
                 <button
-                    class="row-icon-btn ${entry.isPinned ? 'is-active' : ''}"
+                    class="row-icon-btn ${entry.isPinned ? 'is-active' : ''} ${pinFeedbackState ? `is-${pinFeedbackState}` : ''}"
                     type="button"
                     data-list-action="pin"
                     data-item-id="${entry.id}"
@@ -1252,7 +1305,7 @@ class ResearchQaApp {
             : `<span class="meta-pill">${formatDate(entry.date)}</span>`;
 
         return `
-            <article class="problem-row ${activeClass} ${trashClass}" data-item-id="${entry.id}">
+            <article class="problem-row ${activeClass} ${trashClass} ${pinFeedbackState ? `pin-feedback pin-${pinFeedbackState}` : ''}" data-item-id="${entry.id}">
                 <div class="problem-row-top">
                     <h3>${renderInlineMath(entry.title || this.text('defaultUntitledProblem'), { preamble: entry.preamble })}</h3>
                     <div class="problem-row-actions">
@@ -1333,6 +1386,7 @@ class ResearchQaApp {
         const subtitle = this.viewMode === 'trash'
             ? this.text('detailTrashSubtitle')
             : this.text('detailProblemSubtitle');
+        const detailPinFeedback = String(this.pinFeedback.itemId) === String(this.currentItem.id) ? this.pinFeedback.state : '';
         setRenderedHtml(this.elements.detailTitle, {
             html: renderInlineMath(title, { preamble: this.currentItem.preamble })
         });
@@ -1352,6 +1406,10 @@ class ResearchQaApp {
 
         this.renderNotes();
         this.elements.pinItemButton.textContent = this.currentItem.isPinned ? this.text('unpin') : this.text('pin');
+        this.elements.pinItemButton.classList.toggle('pin-active', this.currentItem.isPinned);
+        this.elements.pinItemButton.classList.toggle('pin-feedback', Boolean(detailPinFeedback));
+        this.elements.pinItemButton.classList.toggle('pin-added', detailPinFeedback === 'pinned');
+        this.elements.pinItemButton.classList.toggle('pin-removed', detailPinFeedback === 'unpinned');
         this.elements.newNoteButton.disabled = this.viewMode === 'trash' || Boolean(this.visitorGistId);
         this.elements.editProblemButton.disabled = this.viewMode === 'trash' || Boolean(this.visitorGistId);
         this.elements.pinItemButton.disabled = this.viewMode === 'trash' || Boolean(this.visitorGistId);
@@ -1793,17 +1851,21 @@ class ResearchQaApp {
         const target = this.db.items[index];
         target.isPinned = !target.isPinned;
         target.pinnedAt = target.isPinned ? new Date().toISOString() : '';
+        target.sortRank = -1;
         sortItemsInPlace(this.db.items);
 
         if (this.currentItem && String(this.currentItem.id) === String(itemId)) {
             this.currentItem.isPinned = target.isPinned;
             this.currentItem.pinnedAt = target.pinnedAt;
+            this.currentItem.sortRank = target.sortRank;
         }
 
         try {
             await this.saveDatabaseSnapshot();
             this.currentSummary = this.db.items.find((entry) => String(entry.id) === String(itemId)) ?? this.currentSummary;
+            this.queuePinFeedback(itemId, target.isPinned ? 'pinned' : 'unpinned');
             this.renderAll();
+            this.toast(this.text(target.isPinned ? 'toastPinned' : 'toastUnpinned'));
         } catch (error) {
             this.toast(error.message, 'error');
         }

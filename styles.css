@@ -454,6 +454,7 @@ html[data-route="detail"] .main-panel {
     box-shadow: 0 18px 34px rgba(68, 47, 18, 0.08);
     cursor: pointer;
     animation: rise-in 0.24s ease;
+    transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
 
 .problem-row:hover {
@@ -496,12 +497,54 @@ html[data-route="detail"] .main-panel {
     border: 1px solid var(--line);
     font-size: 11px;
     line-height: 1;
+    transition: transform 0.18s ease, background 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.row-icon-btn:hover {
+    color: var(--primary-strong);
+    border-color: rgba(15, 118, 110, 0.28);
 }
 
 .row-icon-btn.is-active {
-    background: rgba(15, 118, 110, 0.12);
-    color: var(--primary-strong);
-    border-color: rgba(15, 118, 110, 0.24);
+    background: linear-gradient(135deg, rgba(15, 118, 110, 0.94), rgba(19, 145, 134, 0.9));
+    color: #f6fffd;
+    border-color: rgba(15, 118, 110, 0.42);
+    box-shadow: 0 12px 24px rgba(15, 118, 110, 0.22);
+}
+
+.row-icon-btn.is-pinned,
+.row-icon-btn.is-unpinned {
+    animation: pin-pop 0.46s ease;
+}
+
+.problem-row.pin-feedback {
+    animation: pin-row-pulse 0.62s ease;
+}
+
+.problem-row.pin-pinned {
+    border-color: rgba(15, 118, 110, 0.34);
+    box-shadow: 0 22px 40px rgba(15, 118, 110, 0.16);
+}
+
+.problem-row.pin-unpinned {
+    border-color: rgba(201, 111, 55, 0.28);
+    box-shadow: 0 18px 34px rgba(201, 111, 55, 0.14);
+}
+
+.pill-btn.pin-active {
+    background: linear-gradient(135deg, rgba(15, 118, 110, 0.94), rgba(19, 145, 134, 0.9));
+    color: #f7fffd;
+    border-color: rgba(15, 118, 110, 0.4);
+    box-shadow: 0 14px 24px rgba(15, 118, 110, 0.22);
+}
+
+.pill-btn.pin-feedback {
+    animation: pin-pop 0.46s ease;
+}
+
+.pill-btn.pin-removed {
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--text);
 }
 
 .problem-row h3 {
@@ -1025,6 +1068,30 @@ html[data-route="detail"] .main-panel {
     }
     to {
         opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes pin-pop {
+    0% {
+        transform: scale(0.96);
+    }
+    45% {
+        transform: scale(1.08);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+@keyframes pin-row-pulse {
+    0% {
+        transform: translateY(0);
+    }
+    30% {
+        transform: translateY(-2px);
+    }
+    100% {
         transform: translateY(0);
     }
 }
