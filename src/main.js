@@ -480,6 +480,13 @@ class ResearchQaApp {
             state: ''
         };
         this.pinFeedbackTimer = null;
+        this.dragState = {
+            itemId: null,
+            pinGroup: '',
+            overId: null,
+            position: 'before'
+        };
+        this.suppressRowClickUntil = 0;
         this.visitorGistId = initialRoute.visitorGistId;
         this.composerState = {
             open: false,
@@ -740,6 +747,10 @@ class ResearchQaApp {
         });
 
         this.elements.list.addEventListener('click', (event) => {
+            if (Date.now() < this.suppressRowClickUntil) {
+                return;
+            }
+
             const listAction = event.target.closest('[data-list-action]');
             if (listAction) {
                 event.preventDefault();
@@ -768,6 +779,11 @@ class ResearchQaApp {
             event.preventDefault();
             this.deleteItemById(row.dataset.itemId, { prompt: true });
         });
+
+        this.elements.list.addEventListener('dragstart', (event) => this.handleListDragStart(event));
+        this.elements.list.addEventListener('dragover', (event) => this.handleListDragOver(event));
+        this.elements.list.addEventListener('drop', (event) => this.handleListDrop(event));
+        this.elements.list.addEventListener('dragend', () => this.clearListDragState());
 
         this.elements.noteList.addEventListener('click', (event) => {
             const action = event.target.closest('[data-note-action]');
@@ -1185,6 +1201,15 @@ class ResearchQaApp {
         this.finishBoot();
     }
 
+    refreshVisiblePanels() {
+        if (!this.visitorGistId && this.pageMode === 'home') {
+            this.renderList();
+            return;
+        }
+
+        this.renderDetail();
+    }
+
     queuePinFeedback(itemId, state) {
         if (this.pinFeedbackTimer) {
             window.clearTimeout(this.pinFeedbackTimer);
@@ -1199,8 +1224,135 @@ class ResearchQaApp {
                 itemId: null,
                 state: ''
             };
-            this.renderAll();
+            this.refreshVisiblePanels();
         }, 720);
+    }
+
+    canReorderList(term = '') {
+        return !this.visitorGistId && this.pageMode === 'home' && this.viewMode === 'active' && !String(term).trim();
+    }
+
+    isRowDraggable(row) {
+        return Boolean(row?.dataset?.draggable === 'true');
+    }
+
+    clearListDropMarkers() {
+        this.elements.list.querySelectorAll('.drop-before, .drop-after, .dragging').forEach((row) => {
+            row.classList.remove('drop-before', 'drop-after', 'dragging');
+        });
+    }
+
+    clearListDragState() {
+        this.clearListDropMarkers();
+        this.dragState = {
+            itemId: null,
+            pinGroup: '',
+            overId: null,
+            position: 'before'
+        };
+    }
+
+    handleListDragStart(event) {
+        const row = event.target.closest('.problem-row[data-item-id]');
+        if (!this.isRowDraggable(row) || event.target.closest('[data-list-action]')) {
+            event.preventDefault();
+            return;
+        }
+
+        this.dragState = {
+            itemId: row.dataset.itemId,
+            pinGroup: row.dataset.pinGroup || '',
+            overId: null,
+            position: 'before'
+        };
+        row.classList.add('dragging');
+        if (event.dataTransfer) {
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', row.dataset.itemId);
+        }
+    }
+
+    handleListDragOver(event) {
+        if (!this.dragState.itemId) {
+            return;
+        }
+
+        const row = event.target.closest('.problem-row[data-item-id]');
+        if (!this.isRowDraggable(row) || row.dataset.itemId === this.dragState.itemId || row.dataset.pinGroup !== this.dragState.pinGroup) {
+            return;
+        }
+
+        event.preventDefault();
+        const bounds = row.getBoundingClientRect();
+        const position = event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after';
+        this.elements.list.querySelectorAll('.drop-before, .drop-after').forEach((entry) => {
+            if (entry !== row) {
+                entry.classList.remove('drop-before', 'drop-after');
+            }
+        });
+        row.classList.toggle('drop-before', position === 'before');
+        row.classList.toggle('drop-after', position === 'after');
+        this.dragState.overId = row.dataset.itemId;
+        this.dragState.position = position;
+    }
+
+    handleListDrop(event) {
+        if (!this.dragState.itemId) {
+            return;
+        }
+
+        const row = event.target.closest('.problem-row[data-item-id]');
+        if (!this.isRowDraggable(row) || row.dataset.itemId === this.dragState.itemId || row.dataset.pinGroup !== this.dragState.pinGroup) {
+            this.clearListDragState();
+            return;
+        }
+
+        event.preventDefault();
+        this.suppressRowClickUntil = Date.now() + 220;
+        this.reorderItemsByDrop(this.dragState.itemId, row.dataset.itemId, this.dragState.position)
+            .finally(() => this.clearListDragState());
+    }
+
+    async reorderItemsByDrop(draggedId, targetId, position) {
+        const dragged = this.db.items.find((entry) => String(entry.id) === String(draggedId));
+        const target = this.db.items.find((entry) => String(entry.id) === String(targetId));
+        if (!dragged || !target || Boolean(dragged.isPinned) !== Boolean(target.isPinned)) {
+            return;
+        }
+
+        const pinnedItems = this.db.items.filter((entry) => entry.isPinned);
+        const regularItems = this.db.items.filter((entry) => !entry.isPinned);
+        const groupItems = dragged.isPinned ? pinnedItems : regularItems;
+        const draggedIndex = groupItems.findIndex((entry) => String(entry.id) === String(draggedId));
+        const targetIndex = groupItems.findIndex((entry) => String(entry.id) === String(targetId));
+        if (draggedIndex === -1 || targetIndex === -1 || draggedIndex === targetIndex) {
+            return;
+        }
+
+        const [moved] = groupItems.splice(draggedIndex, 1);
+        let insertIndex = targetIndex + (position === 'after' ? 1 : 0);
+        if (draggedIndex < targetIndex) {
+            insertIndex -= 1;
+        }
+        insertIndex = Math.max(0, Math.min(insertIndex, groupItems.length));
+        groupItems.splice(insertIndex, 0, moved);
+
+        this.db.items = dragged.isPinned
+            ? [...groupItems, ...regularItems]
+            : [...pinnedItems, ...groupItems];
+        resequenceItemRanks(this.db.items);
+
+        if (this.currentItem && String(this.currentItem.id) === String(draggedId)) {
+            this.currentItem.sortRank = moved.sortRank;
+        }
+
+        try {
+            await this.saveDatabaseSnapshot();
+            this.currentSummary = this.db.items.find((entry) => String(entry.id) === String(draggedId)) ?? this.currentSummary;
+            this.renderList();
+        } catch (error) {
+            this.toast(error.message, 'error');
+        }
     }
 
     finishBoot() {
@@ -1216,6 +1368,7 @@ class ResearchQaApp {
     renderList() {
         const collection = this.getCurrentCollection();
         const term = this.elements.searchInput.value.trim().toLowerCase();
+        const reorderEnabled = this.canReorderList(term);
         this.elements.viewStatus.textContent = this.viewMode === 'trash'
             ? this.text('viewTrashCount', { count: collection.length })
             : this.text('viewProblemsCount', { count: collection.length });
@@ -1248,14 +1401,14 @@ class ResearchQaApp {
         setRenderedHtml(this.elements.list, {
             html: `
             <div class="list-card">
-                ${items.map((entry) => this.renderListRow(entry)).join('')}
+                ${items.map((entry) => this.renderListRow(entry, { reorderEnabled })).join('')}
             </div>
         `
         });
         typesetElement(this.elements.list);
     }
 
-    renderListRow(entry) {
+    renderListRow(entry, options = {}) {
         if (entry.type === 'note') {
             const activeClass = String(entry.id) === String(this.currentId) ? 'active' : '';
             const excerpt = renderExcerpt(entry.data.text, {
@@ -1283,6 +1436,9 @@ class ResearchQaApp {
         const pinBadge = entry.isPinned ? `<span class="meta-pill">${this.text('pinnedBadge')}</span>` : '';
         const noteCount = Array.isArray(entry.answers) ? entry.answers.length : 0;
         const pinFeedbackState = String(this.pinFeedback.itemId) === String(entry.id) ? this.pinFeedback.state : '';
+        const draggableAttrs = options.reorderEnabled
+            ? ` draggable="true" data-draggable="true" data-pin-group="${entry.isPinned ? 'pinned' : 'regular'}"`
+            : '';
         const pinAction = this.viewMode === 'active' && !this.visitorGistId
             ? `
                 <button
@@ -1305,7 +1461,7 @@ class ResearchQaApp {
             : `<span class="meta-pill">${formatDate(entry.date)}</span>`;
 
         return `
-            <article class="problem-row ${activeClass} ${trashClass} ${pinFeedbackState ? `pin-feedback pin-${pinFeedbackState}` : ''}" data-item-id="${entry.id}">
+            <article class="problem-row ${activeClass} ${trashClass} ${pinFeedbackState ? `pin-feedback pin-${pinFeedbackState}` : ''}" data-item-id="${entry.id}"${draggableAttrs}>
                 <div class="problem-row-top">
                     <h3>${renderInlineMath(entry.title || this.text('defaultUntitledProblem'), { preamble: entry.preamble })}</h3>
                     <div class="problem-row-actions">
@@ -1864,7 +2020,7 @@ class ResearchQaApp {
             await this.saveDatabaseSnapshot();
             this.currentSummary = this.db.items.find((entry) => String(entry.id) === String(itemId)) ?? this.currentSummary;
             this.queuePinFeedback(itemId, target.isPinned ? 'pinned' : 'unpinned');
-            this.renderAll();
+            this.refreshVisiblePanels();
             this.toast(this.text(target.isPinned ? 'toastPinned' : 'toastUnpinned'));
         } catch (error) {
             this.toast(error.message, 'error');
