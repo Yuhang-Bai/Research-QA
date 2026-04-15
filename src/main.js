@@ -484,7 +484,9 @@ class ResearchQaApp {
             itemId: null,
             pinGroup: '',
             overId: null,
-            position: 'before'
+            position: 'before',
+            previewChanged: false,
+            committed: false
         };
         this.suppressRowClickUntil = 0;
         this.visitorGistId = initialRoute.visitorGistId;
@@ -783,7 +785,7 @@ class ResearchQaApp {
         this.elements.list.addEventListener('dragstart', (event) => this.handleListDragStart(event));
         this.elements.list.addEventListener('dragover', (event) => this.handleListDragOver(event));
         this.elements.list.addEventListener('drop', (event) => this.handleListDrop(event));
-        this.elements.list.addEventListener('dragend', () => this.clearListDragState());
+        this.elements.list.addEventListener('dragend', () => this.handleListDragEnd());
 
         this.elements.noteList.addEventListener('click', (event) => {
             const action = event.target.closest('[data-note-action]');
@@ -1248,7 +1250,9 @@ class ResearchQaApp {
             itemId: null,
             pinGroup: '',
             overId: null,
-            position: 'before'
+            position: 'before',
+            previewChanged: false,
+            committed: false
         };
     }
 
@@ -1263,7 +1267,9 @@ class ResearchQaApp {
             itemId: row.dataset.itemId,
             pinGroup: row.dataset.pinGroup || '',
             overId: null,
-            position: 'before'
+            position: 'before',
+            previewChanged: false,
+            committed: false
         };
         row.classList.add('dragging');
         if (event.dataTransfer) {
@@ -1278,22 +1284,26 @@ class ResearchQaApp {
         }
 
         const row = event.target.closest('.problem-row[data-item-id]');
-        if (!this.isRowDraggable(row) || row.dataset.itemId === this.dragState.itemId || row.dataset.pinGroup !== this.dragState.pinGroup) {
+        if (!row) {
+            event.preventDefault();
+            return;
+        }
+
+        if (!this.isRowDraggable(row) || row.dataset.pinGroup !== this.dragState.pinGroup) {
+            return;
+        }
+
+        if (row.dataset.itemId === this.dragState.itemId) {
+            event.preventDefault();
             return;
         }
 
         event.preventDefault();
-        const bounds = row.getBoundingClientRect();
-        const position = event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after';
-        this.elements.list.querySelectorAll('.drop-before, .drop-after').forEach((entry) => {
-            if (entry !== row) {
-                entry.classList.remove('drop-before', 'drop-after');
-            }
-        });
-        row.classList.toggle('drop-before', position === 'before');
-        row.classList.toggle('drop-after', position === 'after');
-        this.dragState.overId = row.dataset.itemId;
-        this.dragState.position = position;
+        if (event.dataTransfer) {
+            event.dataTransfer.dropEffect = 'move';
+        }
+        const position = this.getDragPreviewPosition(row, event);
+        this.previewListReorder(row, position);
     }
 
     handleListDrop(event) {
@@ -1301,49 +1311,161 @@ class ResearchQaApp {
             return;
         }
 
-        const row = event.target.closest('.problem-row[data-item-id]');
-        if (!this.isRowDraggable(row) || row.dataset.itemId === this.dragState.itemId || row.dataset.pinGroup !== this.dragState.pinGroup) {
-            this.clearListDragState();
-            return;
-        }
-
         event.preventDefault();
+        if (event.dataTransfer) {
+            event.dataTransfer.dropEffect = 'move';
+        }
+        this.dragState.committed = true;
         this.suppressRowClickUntil = Date.now() + 220;
-        this.reorderItemsByDrop(this.dragState.itemId, row.dataset.itemId, this.dragState.position)
+        this.commitListPreviewOrder()
             .finally(() => this.clearListDragState());
     }
 
-    async reorderItemsByDrop(draggedId, targetId, position) {
-        const dragged = this.db.items.find((entry) => String(entry.id) === String(draggedId));
-        const target = this.db.items.find((entry) => String(entry.id) === String(targetId));
-        if (!dragged || !target || Boolean(dragged.isPinned) !== Boolean(target.isPinned)) {
+    handleListDragEnd() {
+        if (!this.dragState.itemId) {
+            return;
+        }
+
+        if (!this.dragState.committed && this.dragState.previewChanged) {
+            this.renderList();
+        }
+        this.clearListDragState();
+    }
+
+    getDragPreviewPosition(row, event) {
+        const bounds = row.getBoundingClientRect();
+        const offsetX = event.clientX - (bounds.left + bounds.width / 2);
+        const offsetY = event.clientY - (bounds.top + bounds.height / 2);
+        const horizontalBias = Math.abs(offsetX) > Math.abs(offsetY) * 1.1;
+        if (horizontalBias) {
+            return offsetX < 0 ? 'before' : 'after';
+        }
+        return offsetY < 0 ? 'before' : 'after';
+    }
+
+    previewListReorder(targetRow, position) {
+        const draggedRow = this.elements.list.querySelector(`.problem-row[data-item-id="${this.dragState.itemId}"]`);
+        if (!draggedRow || !targetRow || draggedRow === targetRow) {
+            return;
+        }
+
+        const container = targetRow.parentElement;
+        if (!container) {
+            return;
+        }
+
+        if (
+            this.dragState.overId === targetRow.dataset.itemId
+            && this.dragState.position === position
+        ) {
+            return;
+        }
+
+        if (position === 'before' && draggedRow.nextElementSibling === targetRow) {
+            this.dragState.overId = targetRow.dataset.itemId;
+            this.dragState.position = position;
+            return;
+        }
+
+        if (position === 'after' && targetRow.nextElementSibling === draggedRow) {
+            this.dragState.overId = targetRow.dataset.itemId;
+            this.dragState.position = position;
+            return;
+        }
+
+        this.animateListReflow(() => {
+            container.insertBefore(
+                draggedRow,
+                position === 'before' ? targetRow : targetRow.nextElementSibling
+            );
+        }, { excludeId: this.dragState.itemId });
+
+        this.dragState.overId = targetRow.dataset.itemId;
+        this.dragState.position = position;
+        this.dragState.previewChanged = true;
+    }
+
+    animateListReflow(mutator, options = {}) {
+        const rows = Array.from(this.elements.list.querySelectorAll('.problem-row[data-item-id]'));
+        const firstRects = new Map(rows.map((row) => [row.dataset.itemId, row.getBoundingClientRect()]));
+        mutator();
+
+        const excludeId = options.excludeId ? String(options.excludeId) : '';
+        Array.from(this.elements.list.querySelectorAll('.problem-row[data-item-id]')).forEach((row) => {
+            if (String(row.dataset.itemId) === excludeId) {
+                return;
+            }
+
+            const first = firstRects.get(row.dataset.itemId);
+            if (!first) {
+                return;
+            }
+
+            const last = row.getBoundingClientRect();
+            const deltaX = first.left - last.left;
+            const deltaY = first.top - last.top;
+            if (Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5) {
+                return;
+            }
+
+            row.style.transition = 'none';
+            row.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+            row.style.willChange = 'transform';
+            void row.offsetWidth;
+
+            row.style.transition = 'transform 220ms cubic-bezier(0.22, 1, 0.36, 1)';
+            row.style.transform = '';
+            const cleanup = () => {
+                row.style.transition = '';
+                row.style.willChange = '';
+            };
+            row.addEventListener('transitionend', cleanup, { once: true });
+        });
+    }
+
+    getPreviewGroupRowIds(pinGroup) {
+        return Array.from(this.elements.list.querySelectorAll(`.problem-row[data-pin-group="${pinGroup}"][data-item-id]`))
+            .map((row) => row.dataset.itemId);
+    }
+
+    async commitListPreviewOrder() {
+        const pinGroup = this.dragState.pinGroup;
+        const draggedId = this.dragState.itemId;
+        const orderedIds = this.getPreviewGroupRowIds(pinGroup);
+        if (!orderedIds.length) {
+            this.renderList();
             return;
         }
 
         const pinnedItems = this.db.items.filter((entry) => entry.isPinned);
         const regularItems = this.db.items.filter((entry) => !entry.isPinned);
-        const groupItems = dragged.isPinned ? pinnedItems : regularItems;
-        const draggedIndex = groupItems.findIndex((entry) => String(entry.id) === String(draggedId));
-        const targetIndex = groupItems.findIndex((entry) => String(entry.id) === String(targetId));
-        if (draggedIndex === -1 || targetIndex === -1 || draggedIndex === targetIndex) {
+        const currentGroup = pinGroup === 'pinned' ? pinnedItems : regularItems;
+        if (orderedIds.length !== currentGroup.length) {
+            this.renderList();
             return;
         }
 
-        const [moved] = groupItems.splice(draggedIndex, 1);
-        let insertIndex = targetIndex + (position === 'after' ? 1 : 0);
-        if (draggedIndex < targetIndex) {
-            insertIndex -= 1;
+        const itemMap = new Map(currentGroup.map((entry) => [String(entry.id), entry]));
+        const orderedGroup = orderedIds.map((id) => itemMap.get(String(id))).filter(Boolean);
+        if (orderedGroup.length !== currentGroup.length) {
+            this.renderList();
+            return;
         }
-        insertIndex = Math.max(0, Math.min(insertIndex, groupItems.length));
-        groupItems.splice(insertIndex, 0, moved);
 
-        this.db.items = dragged.isPinned
-            ? [...groupItems, ...regularItems]
-            : [...pinnedItems, ...groupItems];
+        const unchanged = orderedGroup.every((entry, index) => String(entry.id) === String(currentGroup[index].id));
+        if (unchanged) {
+            this.renderList();
+            return;
+        }
+
+        this.db.items = pinGroup === 'pinned'
+            ? [...orderedGroup, ...regularItems]
+            : [...pinnedItems, ...orderedGroup];
         resequenceItemRanks(this.db.items);
 
         if (this.currentItem && String(this.currentItem.id) === String(draggedId)) {
-            this.currentItem.sortRank = moved.sortRank;
+            const updated = this.db.items.find((entry) => String(entry.id) === String(draggedId));
+            this.currentItem.sortRank = updated?.sortRank ?? this.currentItem.sortRank;
         }
 
         try {
@@ -1352,6 +1474,7 @@ class ResearchQaApp {
             this.renderList();
         } catch (error) {
             this.toast(error.message, 'error');
+            this.renderList();
         }
     }
 

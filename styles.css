@@ -473,22 +473,15 @@ html[data-route="detail"] .main-panel {
 
 .problem-row[data-draggable="true"] {
     cursor: grab;
+    user-select: none;
 }
 
 .problem-row.dragging {
-    opacity: 0.56;
+    cursor: grabbing;
+    opacity: 0.42;
     transform: scale(0.985);
-    box-shadow: 0 10px 22px rgba(68, 47, 18, 0.08);
-}
-
-.problem-row.drop-before {
-    border-top-color: rgba(15, 118, 110, 0.68);
-    box-shadow: inset 0 3px 0 rgba(15, 118, 110, 0.78);
-}
-
-.problem-row.drop-after {
-    border-bottom-color: rgba(15, 118, 110, 0.68);
-    box-shadow: inset 0 -3px 0 rgba(15, 118, 110, 0.78);
+    border-color: rgba(15, 118, 110, 0.34);
+    box-shadow: 0 14px 30px rgba(15, 118, 110, 0.16);
 }
 
 .problem-row-top {
