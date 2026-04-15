@@ -40,6 +40,7 @@ const I18N = {
         detailEmptyTitle: 'No problem selected',
         detailEmptySubtitle: 'Pick a problem on the left to read the statement and research notes.',
         pin: 'Pin',
+        unpin: 'Unpin',
         share: 'Share',
         edit: 'Edit',
         delete: 'Delete',
@@ -176,6 +177,7 @@ const I18N = {
         detailEmptyTitle: '尚未选择问题',
         detailEmptySubtitle: '从左侧选择一个问题，查看正文和研究笔记。',
         pin: '置顶',
+        unpin: '取消置顶',
         share: '共享',
         edit: '编辑',
         delete: '删除',
@@ -348,8 +350,35 @@ function normalizeItem(item = {}) {
         answers: Array.isArray(item.answers) ? item.answers.map(normalizeNote) : [],
         date: typeof item.date === 'string' ? item.date : new Date().toISOString(),
         isPinned: Boolean(item.isPinned),
+        pinnedAt: typeof item.pinnedAt === 'string'
+            ? item.pinnedAt
+            : (item.isPinned
+                ? (typeof item.date === 'string' ? item.date : new Date().toISOString())
+                : ''),
         shareId: typeof item.shareId === 'string' && item.shareId.trim() ? item.shareId.trim() : ''
     };
+}
+
+function toTimestamp(value) {
+    const parsed = Date.parse(value || '');
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function compareItems(a, b) {
+    if (Boolean(a.isPinned) !== Boolean(b.isPinned)) {
+        return a.isPinned ? -1 : 1;
+    }
+
+    if (a.isPinned && b.isPinned) {
+        return toTimestamp(b.pinnedAt || b.date) - toTimestamp(a.pinnedAt || a.date);
+    }
+
+    return toTimestamp(b.date) - toTimestamp(a.date);
+}
+
+function sortItemsInPlace(items) {
+    items.sort(compareItems);
+    return items;
 }
 
 function normalizeTrashEntry(entry = {}) {
@@ -377,13 +406,13 @@ function normalizeTrashEntry(entry = {}) {
 function normalizeDatabase(raw = {}) {
     if (Array.isArray(raw)) {
         return {
-            items: raw.map(normalizeItem),
+            items: sortItemsInPlace(raw.map(normalizeItem)),
             trash: []
         };
     }
 
     return {
-        items: Array.isArray(raw.items) ? raw.items.map(normalizeItem) : [],
+        items: Array.isArray(raw.items) ? sortItemsInPlace(raw.items.map(normalizeItem)) : [],
         trash: Array.isArray(raw.trash) ? raw.trash.map(normalizeTrashEntry) : []
     };
 }
@@ -677,6 +706,17 @@ class ResearchQaApp {
         });
 
         this.elements.list.addEventListener('click', (event) => {
+            const listAction = event.target.closest('[data-list-action]');
+            if (listAction) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                if (listAction.dataset.listAction === 'pin') {
+                    this.togglePinById(listAction.dataset.itemId);
+                }
+                return;
+            }
+
             const row = event.target.closest('[data-item-id]');
             if (!row) {
                 return;
@@ -827,6 +867,7 @@ class ResearchQaApp {
 
     applyRouteMode() {
         const homeRoute = !this.visitorGistId && this.pageMode === 'home';
+        document.documentElement.dataset.route = homeRoute ? 'home' : 'detail';
         this.elements.appShell.classList.toggle('route-home', homeRoute);
         this.elements.appShell.classList.toggle('route-detail', !homeRoute);
         this.elements.workspace.classList.toggle('route-home', homeRoute);
@@ -1107,6 +1148,17 @@ class ResearchQaApp {
         this.applyRouteMode();
         this.renderList();
         this.renderDetail();
+        this.finishBoot();
+    }
+
+    finishBoot() {
+        if (!document.documentElement.dataset.boot) {
+            return;
+        }
+
+        window.requestAnimationFrame(() => {
+            delete document.documentElement.dataset.boot;
+        });
     }
 
     renderList() {
@@ -1178,6 +1230,18 @@ class ResearchQaApp {
         const syncBadge = entry.shareId ? `<span class="meta-pill">${this.text('sharedBadge')}</span>` : '';
         const pinBadge = entry.isPinned ? `<span class="meta-pill">${this.text('pinnedBadge')}</span>` : '';
         const noteCount = Array.isArray(entry.answers) ? entry.answers.length : 0;
+        const pinAction = this.viewMode === 'active' && !this.visitorGistId
+            ? `
+                <button
+                    class="row-icon-btn ${entry.isPinned ? 'is-active' : ''}"
+                    type="button"
+                    data-list-action="pin"
+                    data-item-id="${entry.id}"
+                    aria-label="${entry.isPinned ? this.text('unpin') : this.text('pin')}"
+                    title="${entry.isPinned ? this.text('unpin') : this.text('pin')}"
+                >${entry.isPinned ? this.text('unpin') : this.text('pin')}</button>
+            `
+            : '';
         const excerpt = renderExcerpt(entry.desc, {
             preamble: entry.preamble,
             length: 200,
@@ -1191,7 +1255,10 @@ class ResearchQaApp {
             <article class="problem-row ${activeClass} ${trashClass}" data-item-id="${entry.id}">
                 <div class="problem-row-top">
                     <h3>${renderInlineMath(entry.title || this.text('defaultUntitledProblem'), { preamble: entry.preamble })}</h3>
-                    <span class="meta-pill">${this.text('notesCount', { count: noteCount })}</span>
+                    <div class="problem-row-actions">
+                        ${pinAction}
+                        <span class="meta-pill">${this.text('notesCount', { count: noteCount })}</span>
+                    </div>
                 </div>
                 <div class="problem-row-excerpt rich-text">${excerpt.html}</div>
                 <div class="item-meta">
@@ -1284,6 +1351,7 @@ class ResearchQaApp {
         typesetElement(this.elements.problemRender);
 
         this.renderNotes();
+        this.elements.pinItemButton.textContent = this.currentItem.isPinned ? this.text('unpin') : this.text('pin');
         this.elements.newNoteButton.disabled = this.viewMode === 'trash' || Boolean(this.visitorGistId);
         this.elements.editProblemButton.disabled = this.viewMode === 'trash' || Boolean(this.visitorGistId);
         this.elements.pinItemButton.disabled = this.viewMode === 'trash' || Boolean(this.visitorGistId);
@@ -1401,6 +1469,7 @@ class ResearchQaApp {
 
         const nextItem = normalizeItem({ id: createId('item'), title: this.text('newProblem'), desc: '', answers: [], date: new Date().toISOString(), isPinned: false });
         this.db.items.unshift(nextItem);
+        sortItemsInPlace(this.db.items);
         this.currentId = nextItem.id;
         this.currentItem = clone(nextItem);
         this.currentSummary = nextItem;
@@ -1519,6 +1588,7 @@ class ResearchQaApp {
                 ...clone(normalized)
             };
         }
+        sortItemsInPlace(this.db.items);
 
         const persistedItem = this.db.items.find((entry) => String(entry.id) === String(normalized.id));
         if (persistedItem?.shareId) {
@@ -1664,6 +1734,7 @@ class ResearchQaApp {
             this.db.items.unshift(restoredItem);
             nextActiveId = restoredItem.id;
         }
+        sortItemsInPlace(this.db.items);
 
         try {
             await this.saveDatabaseSnapshot();
@@ -1710,22 +1781,28 @@ class ResearchQaApp {
             return;
         }
 
-        const index = this.db.items.findIndex((entry) => String(entry.id) === String(this.currentItem.id));
+        await this.togglePinById(this.currentItem.id);
+    }
+
+    async togglePinById(itemId) {
+        const index = this.db.items.findIndex((entry) => String(entry.id) === String(itemId));
         if (index === -1) {
             return;
         }
 
-        this.db.items[index].isPinned = !this.db.items[index].isPinned;
-        const [moved] = this.db.items.splice(index, 1);
-        if (moved.isPinned) {
-            this.db.items.unshift(moved);
-        } else {
-            this.db.items.push(moved);
+        const target = this.db.items[index];
+        target.isPinned = !target.isPinned;
+        target.pinnedAt = target.isPinned ? new Date().toISOString() : '';
+        sortItemsInPlace(this.db.items);
+
+        if (this.currentItem && String(this.currentItem.id) === String(itemId)) {
+            this.currentItem.isPinned = target.isPinned;
+            this.currentItem.pinnedAt = target.pinnedAt;
         }
-        this.currentItem.isPinned = moved.isPinned;
 
         try {
             await this.saveDatabaseSnapshot();
+            this.currentSummary = this.db.items.find((entry) => String(entry.id) === String(itemId)) ?? this.currentSummary;
             this.renderAll();
         } catch (error) {
             this.toast(error.message, 'error');

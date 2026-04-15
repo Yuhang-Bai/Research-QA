@@ -64,6 +64,11 @@ pre {
 .app-shell {
     min-height: 100vh;
     padding: 8px;
+    transition: opacity 0.18s ease;
+}
+
+html[data-route="detail"][data-boot="pending"] .app-shell {
+    opacity: 0;
 }
 
 .topbar {
@@ -176,7 +181,16 @@ pre {
     grid-template-columns: minmax(0, 1fr);
 }
 
+html[data-route="home"] .workspace {
+    grid-template-columns: minmax(0, 1fr);
+}
+
 .workspace.route-home .sidebar {
+    width: min(1180px, 100%);
+    margin: 0 auto;
+}
+
+html[data-route="home"] .sidebar {
     width: min(1180px, 100%);
     margin: 0 auto;
 }
@@ -185,7 +199,15 @@ pre {
     display: none;
 }
 
+html[data-route="home"] .main-panel {
+    display: none;
+}
+
 .workspace.route-home .sidebar-scroll {
+    padding-right: 0;
+}
+
+html[data-route="home"] .sidebar-scroll {
     padding-right: 0;
 }
 
@@ -193,7 +215,15 @@ pre {
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
 }
 
+html[data-route="home"] .list-card {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+}
+
 .workspace.route-home .problem-row {
+    height: 100%;
+}
+
+html[data-route="home"] .problem-row {
     height: 100%;
 }
 
@@ -201,7 +231,15 @@ pre {
     grid-template-columns: minmax(0, 1fr);
 }
 
+html[data-route="detail"] .workspace {
+    grid-template-columns: minmax(0, 1fr);
+}
+
 .workspace.route-detail.composer-open {
+    grid-template-columns: minmax(0, 1fr) minmax(560px, 54vw);
+}
+
+html[data-route="detail"] .workspace.composer-open {
     grid-template-columns: minmax(0, 1fr) minmax(560px, 54vw);
 }
 
@@ -209,7 +247,17 @@ pre {
     display: none;
 }
 
+html[data-route="detail"] .sidebar {
+    display: none;
+}
+
 .workspace.route-detail .main-panel {
+    width: min(1120px, 100%);
+    margin: 0 auto;
+    padding-right: 0;
+}
+
+html[data-route="detail"] .main-panel {
     width: min(1120px, 100%);
     margin: 0 auto;
     padding-right: 0;
@@ -428,6 +476,32 @@ pre {
     justify-content: space-between;
     gap: 10px;
     align-items: flex-start;
+}
+
+.problem-row-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.row-icon-btn {
+    min-width: 32px;
+    height: 32px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.84);
+    color: var(--muted);
+    border: 1px solid var(--line);
+    font-size: 11px;
+    line-height: 1;
+}
+
+.row-icon-btn.is-active {
+    background: rgba(15, 118, 110, 0.12);
+    color: var(--primary-strong);
+    border-color: rgba(15, 118, 110, 0.24);
 }
 
 .problem-row h3 {

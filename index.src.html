@@ -8,6 +8,13 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=STIX+Two+Text:wght@400;500;600&display=swap" rel="stylesheet">
     <script>
+        (() => {
+            const params = new URLSearchParams(window.location.search);
+            document.documentElement.dataset.route = (params.get('item') || params.get('gist')) ? 'detail' : 'home';
+            document.documentElement.dataset.boot = 'pending';
+        })();
+    </script>
+    <script>
         window.MathJax = {
             loader: { load: ['[tex]/physics', '[tex]/mhchem', '[tex]/color', '[tex]/cancel', '[tex]/boldsymbol'] },
             tex: {
