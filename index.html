@@ -28,10 +28,35 @@
         };
     </script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
-  <script type="module" crossorigin src="./assets/index-CX6JmJtc.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-CmfjvpNS.css">
+  <script type="module" crossorigin src="./assets/index-DLfw3rit.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-fUpuh8_C.css">
 </head>
 <body>
+    <div class="modal hidden auth-screen" id="auth-screen">
+        <div class="modal-card auth-card">
+            <div class="modal-header">
+                <div>
+                    <div class="eyebrow">Private Workspace</div>
+                    <h2>Unlock Research QA</h2>
+                </div>
+            </div>
+            <div class="modal-body">
+                <p class="modal-note" id="auth-description">Sign in with your own app account to load the encrypted sync configuration.</p>
+                <label class="field">
+                    <span>Username</span>
+                    <input type="text" id="auth-username-input" autocomplete="username" placeholder="Enter your app username">
+                </label>
+                <label class="field">
+                    <span>Password</span>
+                    <input type="password" id="auth-password-input" autocomplete="current-password" placeholder="Enter your app password">
+                </label>
+                <p class="modal-note hidden" id="auth-error"></p>
+            </div>
+            <div class="modal-actions">
+                <button class="primary-btn" id="auth-unlock-btn">Unlock</button>
+            </div>
+        </div>
+    </div>
     <div class="app-shell">
         <header class="topbar">
             <div class="topbar-brand">
@@ -186,9 +211,23 @@
                     <span>Main database Gist ID</span>
                     <input type="text" id="config-gist-input" placeholder="Leave blank to stay local-first; with a token, a main gist can be created automatically">
                 </label>
+                <label class="field">
+                    <span>App username</span>
+                    <input type="text" id="config-auth-username-input" autocomplete="username" placeholder="Set your own sign-in name">
+                </label>
+                <label class="field">
+                    <span>App password</span>
+                    <input type="password" id="config-auth-password-input" autocomplete="new-password" placeholder="Leave blank to keep the current password">
+                </label>
+                <label class="field">
+                    <span>Confirm app password</span>
+                    <input type="password" id="config-auth-password-confirm-input" autocomplete="new-password" placeholder="Repeat the password when changing it">
+                </label>
+                <p class="modal-note" id="config-auth-note">Once enabled, your GitHub sync token and gist ID are encrypted locally behind this username/password.</p>
                 <p class="modal-note">The new app imports legacy <code>v7_config</code> settings automatically and keeps reading <code>main_db.json</code> / <code>shared_item.json</code>.</p>
             </div>
             <div class="modal-actions">
+                <button class="secondary-btn hidden" id="disable-lock-btn">Disable app login</button>
                 <button class="secondary-btn" id="cancel-config-btn">Cancel</button>
                 <button class="primary-btn" id="save-config-btn">Save settings</button>
             </div>

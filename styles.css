@@ -992,6 +992,32 @@ html[data-route="detail"] .main-panel {
     z-index: 30;
 }
 
+body.auth-locked {
+    overflow: hidden;
+}
+
+body.auth-locked .app-shell {
+    filter: blur(10px);
+    pointer-events: none;
+    user-select: none;
+}
+
+.auth-screen {
+    z-index: 60;
+}
+
+.auth-card {
+    width: min(460px, calc(100vw - 24px));
+}
+
+#auth-error {
+    color: var(--warn);
+    background: var(--warn-soft);
+    border-radius: 12px;
+    padding: 10px 12px;
+    border: 1px solid rgba(184, 64, 52, 0.18);
+}
+
 .modal-card {
     width: min(560px, calc(100vw - 24px));
     padding: 18px;

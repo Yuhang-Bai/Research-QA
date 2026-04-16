@@ -1,4 +1,15 @@
-import { getConfigSource, hasLegacyConfig, loadConfig, loadLegacyConfig, saveConfig } from './data/config.js';
+﻿import {
+    clearLockedConfig,
+    clearStoredConfig,
+    getConfigSource,
+    getLockedConfigProfile,
+    hasLegacyConfig,
+    loadConfig,
+    loadLegacyConfig,
+    lockConfig,
+    saveConfig,
+    unlockConfig
+} from './data/config.js';
 import { getValue, setValue } from './data/idb.js';
 import { createMainDatabase, createSharedItem, fetchMainDatabase, fetchSharedItem, saveMainDatabase, saveSharedItem } from './data/gist.js';
 import { createMarkdownEditor } from './lib/editor.js';
@@ -148,144 +159,7 @@ const I18N = {
         confirmImportLegacyOverwrite: 'Importing legacy data will overwrite the current local cache with the old main gist. Continue?',
         toastPdfPopupBlocked: 'The browser blocked the PDF window. Allow pop-ups for this site and try again.'
     },
-    zh: {
-        documentTitle: 'Research QA',
-        brandEyebrow: '数学问题研究账本',
-        sync: '同步',
-        export: '导出',
-        import: '导入',
-        settings: '设置',
-        legacy: '旧版',
-        importLegacy: '导入旧版数据',
-        importLegacyUnavailable: '未发现旧版配置',
-        storageLocalFirst: '本地优先',
-        storageGistSync: 'Gist 同步',
-        storageSharedReadOnly: '共享只读',
-        sidebarTitle: '问题库',
-        new: '新建',
-        statusNotConnected: '未连接',
-        viewProblems: '问题',
-        viewTrash: '回收站',
-        search: '搜索',
-        searchPlaceholder: '搜索标题、正文与笔记',
-        emptyEyebrow: '新版已就绪',
-        emptyTitle: '旧数据会继续保留',
-        emptyDescription: '新版兼容旧版 gist 数据结构，也保留旧版入口，并把日常编辑切到本地优先模式。',
-        newProblemButton: '新建问题',
-        configureSync: '配置同步',
-        heroProblem: '问题',
-        heroNotLoaded: '未加载',
-        heroRemoteDefault: '本地优先',
-        detailEmptyTitle: '尚未选择问题',
-        detailEmptySubtitle: '从左侧选择一个问题，查看正文和研究笔记。',
-        pin: '置顶',
-        unpin: '取消置顶',
-        share: '共享',
-        edit: '编辑',
-        delete: '删除',
-        statementKicker: '问题正文',
-        statement: '问题正文',
-        notesKicker: '笔记时间线',
-        researchNotes: '研究笔记',
-        addNote: '新增笔记',
-        editProblemMode: '编辑问题',
-        contentEditor: '内容编辑器',
-        closeEditor: '关闭编辑器',
-        titleLabel: '标题',
-        titlePlaceholder: '输入问题标题',
-        preambleLabel: 'LaTeX 宏 / 预定义',
-        source: '源码',
-        preview: '预览',
-        cancel: '取消',
-        save: '保存',
-        syncBridge: '同步桥接',
-        syncSettings: '同步设置',
-        closeSettings: '关闭设置',
-        githubToken: 'GitHub Token',
-        githubTokenPlaceholder: '用于读写私有 gist',
-        mainGistId: '主数据库 Gist ID',
-        mainGistPlaceholder: '留空则保持本地优先；提供 token 后可自动创建主 gist',
-        configNote: '新版会自动接管旧版 v7_config 配置，并继续读取 main_db.json / shared_item.json。',
-        saveSettings: '保存设置',
-        statusLoadedCache: '已加载缓存',
-        statusLoadingShare: '正在读取共享内容',
-        statusSharedView: '共享视图',
-        statusLoadFailed: '读取失败',
-        toastNoRemoteGist: '尚未配置远程 gist，修改会先保存在本地缓存。',
-        statusLocalMode: '本地模式',
-        statusSyncing: '同步中',
-        statusImportedLegacy: '已导入旧版数据',
-        toastImportedLegacy: '已导入旧版数据：{problems} 个问题，{trash} 个回收站条目',
-        statusSynced: '已同步',
-        toastPulledLatest: '已从 GitHub gist 拉取最新数据',
-        statusOfflineCache: '离线缓存',
-        statusSavedLocally: '已保存到本地',
-        statusLoadingSharedItem: '正在读取共享问题',
-        statusSyncedSharedItem: '共享问题已同步',
-        statusSharedItemUnavailable: '共享问题暂不可用',
-        viewTrashCount: '回收站 {count}',
-        viewProblemsCount: '问题 {count}',
-        noMatch: '无匹配结果',
-        noResults: '当前搜索条件下没有命中结果。',
-        noProblems: '这里还没有问题。',
-        archivedNoteTitle: '归档笔记 - {title}',
-        note: '笔记',
-        deletedAt: '删除于 {date}',
-        sharedBadge: '共享',
-        pinnedBadge: '置顶',
-        notesCount: '{count} 条笔记',
-        restoreNoteHint: '你可以恢复这条笔记，让它回到原问题下，或者将其彻底删除。',
-        archivedNote: '归档笔记',
-        trashBadge: '回收站',
-        originalProblem: '原问题',
-        readyToRestore: '可恢复',
-        restoreNoteDescription: '这条笔记当前存放在回收站中。恢复后会尽量重新挂回原问题。',
-        trashedProblem: '已删除问题',
-        detailTrashSubtitle: '当前是回收站视图。你可以恢复该条目，也可以彻底删除。',
-        detailProblemSubtitle: 'Markdown、MathJax、theorem/proof 环境和本地优先缓存都在同一个工作区内。',
-        updatedAt: '更新于 {date}',
-        sharedGist: '共享 gist',
-        mainGist: '主 gist',
-        localCache: '本地缓存',
-        restoreDelete: '恢复 / 删除',
-        noNotesEyebrow: '暂无笔记',
-        noNotesTitle: '这里还没有研究笔记。',
-        noNotesDescription: '把思路、失败尝试、局部引理和证明片段记在这里，后续检索会更稳定。',
-        collapse: '收起',
-        expand: '展开',
-        editNote: '编辑',
-        deleteNote: '删除',
-        newProblem: '新问题',
-        defaultUntitledProblem: '未命名问题',
-        problemEditor: '问题编辑器',
-        newNoteMode: '新增笔记',
-        editNoteMode: '编辑笔记',
-        researchNote: '研究笔记',
-        toastSaved: '已保存',
-        confirmMoveNoteToTrash: '确定将这条笔记移入回收站吗？',
-        toastNoteMovedToTrash: '笔记已移入回收站',
-        promptTrashAction: '输入 1 恢复，输入 2 彻底删除。',
-        confirmMoveProblemToTrash: '确定将这个问题移入回收站吗？',
-        toastProblemMovedToTrash: '问题已移入回收站',
-        recoveredNoteTitle: '恢复的笔记 - {title}',
-        recoveredNoteDescription: '自动生成，用于承接原问题已不存在时恢复出来的笔记。',
-        toastRestoredFromTrash: '已从回收站恢复',
-        confirmPermanentDelete: '彻底删除后不可恢复，确定继续吗？',
-        toastPermanentlyDeleted: '已彻底删除',
-        toastShareLinkCopied: '共享链接已复制',
-        promptShareLink: '共享链接',
-        toastNeedTokenForShare: '创建共享链接前，需要先配置 GitHub Token。',
-        toastCreatedSharedGist: '已创建共享 gist，再点一次共享即可复制链接。',
-        toastPinned: '已置顶到顶部区域',
-        toastUnpinned: '已取消置顶',
-        statusCreatingMainGist: '正在创建主 gist',
-        toastCreatedMainGist: '已创建主数据库 gist：{id}',
-        confirmImportOverwrite: '导入会覆盖当前本地缓存和远程主库，确定继续吗？',
-        toastImportCompleted: '导入完成',
-        toastImportFailed: '导入失败：{message}',
-        toastNoLegacyConfig: '当前浏览器里没有发现旧版配置。',
-        confirmImportLegacyOverwrite: '导入旧版数据会用旧主 gist 覆盖当前本地缓存，确定继续吗？'
-    }
+    zh: {}
 };
 
 let activeLanguage = 'en';
@@ -465,7 +339,10 @@ class ResearchQaApp {
         const initialRoute = this.readRouteFromLocation();
         this.language = persistLanguage(readStoredLanguage());
         this.configSource = getConfigSource();
-        this.config = loadConfig();
+        this.authProfile = getLockedConfigProfile();
+        this.authSession = null;
+        this.requiresUnlock = !initialRoute.visitorGistId && Boolean(this.authProfile);
+        this.config = this.requiresUnlock ? { token: '', mainGistId: '' } : loadConfig();
         this.db = normalizeDatabase({});
         this.viewMode = initialRoute.viewMode;
         this.pageMode = initialRoute.pageMode;
@@ -553,9 +430,27 @@ class ResearchQaApp {
             configTokenInput: document.getElementById('config-token-input'),
             configGistLabel: document.querySelector('#config-gist-input')?.closest('.field')?.querySelector('span') ?? null,
             configGistInput: document.getElementById('config-gist-input'),
+            configAuthUsernameLabel: document.querySelector('#config-auth-username-input')?.closest('.field')?.querySelector('span') ?? null,
+            configAuthUsernameInput: document.getElementById('config-auth-username-input'),
+            configAuthPasswordLabel: document.querySelector('#config-auth-password-input')?.closest('.field')?.querySelector('span') ?? null,
+            configAuthPasswordInput: document.getElementById('config-auth-password-input'),
+            configAuthPasswordConfirmLabel: document.querySelector('#config-auth-password-confirm-input')?.closest('.field')?.querySelector('span') ?? null,
+            configAuthPasswordConfirmInput: document.getElementById('config-auth-password-confirm-input'),
+            configAuthNote: document.getElementById('config-auth-note'),
             configNote: document.querySelector('#config-modal .modal-note'),
             configActions: document.querySelector('#config-modal .modal-actions'),
             configCloseButton: document.getElementById('close-config-btn'),
+            disableLockButton: document.getElementById('disable-lock-btn'),
+            authScreen: document.getElementById('auth-screen'),
+            authEyebrow: document.querySelector('#auth-screen .eyebrow'),
+            authTitle: document.querySelector('#auth-screen h2'),
+            authDescription: document.getElementById('auth-description'),
+            authUsernameLabel: document.querySelector('#auth-username-input')?.closest('.field')?.querySelector('span') ?? null,
+            authUsernameInput: document.getElementById('auth-username-input'),
+            authPasswordLabel: document.querySelector('#auth-password-input')?.closest('.field')?.querySelector('span') ?? null,
+            authPasswordInput: document.getElementById('auth-password-input'),
+            authError: document.getElementById('auth-error'),
+            authUnlockButton: document.getElementById('auth-unlock-btn'),
             toastStack: document.getElementById('toast-stack'),
             importFileInput: document.getElementById('import-file-input'),
             syncButton: document.getElementById('sync-btn'),
@@ -602,6 +497,10 @@ class ResearchQaApp {
         return interpolate(bundle[key] ?? fallback, params);
     }
 
+    literal(en, zh) {
+        return this.language === 'zh' ? zh : en;
+    }
+
     ensureUtilityButtons() {
         if (!document.getElementById('language-btn')) {
             const button = document.createElement('button');
@@ -630,7 +529,7 @@ class ResearchQaApp {
         document.title = this.text('documentTitle');
 
         this.elements.brandEyebrow.textContent = this.text('brandEyebrow');
-        this.elements.backHomeButton.textContent = this.language === 'zh' ? '返回问题列表' : 'Back to problems';
+        this.elements.backHomeButton.textContent = 'Back to problems';
         this.elements.syncButton.textContent = this.text('sync');
         this.elements.exportButton.textContent = this.text('export');
         this.elements.importButton.textContent = this.text('import');
@@ -653,10 +552,10 @@ class ResearchQaApp {
         this.elements.newNoteButton.textContent = this.text('addNote');
         this.elements.pinItemButton.textContent = this.text('pin');
         this.elements.shareItemButton.textContent = this.text('share');
-        this.elements.pdfItemButton.textContent = this.language === 'zh' ? '导出 PDF' : this.text('exportPdf');
+        this.elements.pdfItemButton.textContent = this.text('exportPdf');
         this.elements.editProblemButton.textContent = this.text('edit');
-        this.elements.restoreItemButton.textContent = this.language === 'zh' ? '恢复' : 'Restore';
-        this.elements.destroyItemButton.textContent = this.language === 'zh' ? '彻底删除' : 'Delete permanently';
+        this.elements.restoreItemButton.textContent = 'Restore';
+        this.elements.destroyItemButton.textContent = 'Delete permanently';
         this.elements.composerTitleLabel.textContent = this.text('titleLabel');
         this.elements.composerTitleInput.placeholder = this.text('titlePlaceholder');
         this.elements.composerPreambleLabel.textContent = this.text('preambleLabel');
@@ -671,16 +570,33 @@ class ResearchQaApp {
         this.elements.configTokenInput.placeholder = this.text('githubTokenPlaceholder');
         this.elements.configGistLabel.textContent = this.text('mainGistId');
         this.elements.configGistInput.placeholder = this.text('mainGistPlaceholder');
+        this.elements.configAuthUsernameLabel.textContent = this.literal('App username', 'App username');
+        this.elements.configAuthUsernameInput.placeholder = this.literal('Set your own sign-in name', 'Set your own sign-in name');
+        this.elements.configAuthPasswordLabel.textContent = this.literal('App password', 'App password');
+        this.elements.configAuthPasswordInput.placeholder = this.literal('Leave blank to keep the current password', 'Leave blank to keep the current password');
+        this.elements.configAuthPasswordConfirmLabel.textContent = this.literal('Confirm app password', 'Confirm app password');
+        this.elements.configAuthPasswordConfirmInput.placeholder = this.literal('Repeat the password when changing it', 'Repeat the password when changing it');
+        this.elements.configAuthNote.textContent = this.literal('Once enabled, your GitHub sync token and gist ID are encrypted locally behind this username/password.', 'Once enabled, your GitHub sync token and gist ID are encrypted locally behind this username/password.');
         this.elements.configNote.innerHTML = this.text('configNote');
         this.elements.cancelConfigButton.textContent = this.text('cancel');
         this.elements.saveConfigButton.textContent = this.text('saveSettings');
         this.elements.configCloseButton.setAttribute('aria-label', this.text('closeSettings'));
+        this.elements.disableLockButton.textContent = this.literal('Disable app login', 'Disable app login');
+        this.elements.authEyebrow.textContent = this.literal('Private Workspace', 'Private Workspace');
+        this.elements.authTitle.textContent = this.literal('Unlock Research QA', 'Unlock Research QA');
+        this.elements.authDescription.textContent = this.literal('Sign in with your own app account to load the encrypted sync configuration.', 'Sign in with your own app account to load the encrypted sync configuration.');
+        this.elements.authUsernameLabel.textContent = this.literal('Username', 'Username');
+        this.elements.authUsernameInput.placeholder = this.literal('Enter your app username', 'Enter your app username');
+        this.elements.authPasswordLabel.textContent = this.literal('Password', 'Password');
+        this.elements.authPasswordInput.placeholder = this.literal('Enter your app password', 'Enter your app password');
+        this.elements.authUnlockButton.textContent = this.literal('Unlock', 'Unlock');
 
         if (this.elements.languageButton) {
-            this.elements.languageButton.textContent = this.language === 'zh' ? 'EN' : '中文';
+            this.elements.languageButton.textContent = this.language === 'zh' ? 'EN' : 'ZH';
         }
 
         this.updateLegacyImportButton();
+        this.updateDisableLockButton();
         this.refreshComposerChrome();
         this.refreshStatus();
         this.reflectConfig();
@@ -739,10 +655,17 @@ class ResearchQaApp {
         this.elements.configCloseButton.addEventListener('click', () => this.closeConfigModal());
         this.elements.cancelConfigButton.addEventListener('click', () => this.closeConfigModal());
         this.elements.saveConfigButton.addEventListener('click', () => this.saveConfigFromModal());
+        this.elements.disableLockButton.addEventListener('click', () => this.disableAppLogin());
+        this.elements.authUnlockButton.addEventListener('click', () => this.unlockApp());
 
         this.elements.searchInput.addEventListener('input', () => this.renderList());
         this.elements.composerPreambleInput.addEventListener('input', () => this.scheduleComposerPreview(this.editor.getValue()));
         this.elements.importFileInput.addEventListener('change', (event) => this.importBackup(event));
+        this.elements.authPasswordInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                this.unlockApp();
+            }
+        });
 
         document.querySelectorAll('[data-view-mode]').forEach((button) => {
             button.addEventListener('click', () => this.setViewMode(button.dataset.viewMode));
@@ -816,6 +739,14 @@ class ResearchQaApp {
         this.ensureUtilityButtons();
         this.bindEvents();
         this.applyLanguage({ rerender: false });
+        if (this.requiresUnlock) {
+            this.showAuthScreen();
+            return;
+        }
+        await this.startUnlockedApp();
+    }
+
+    async startUnlockedApp() {
         this.applyRouteMode();
 
         if (this.visitorGistId) {
@@ -846,9 +777,52 @@ class ResearchQaApp {
         }
     }
 
+    showAuthScreen() {
+        document.body.classList.add('auth-locked');
+        this.elements.authScreen.classList.remove('hidden');
+        this.elements.authUsernameInput.value = this.authProfile?.username ?? '';
+        this.elements.authPasswordInput.value = '';
+        this.elements.authError.classList.add('hidden');
+        this.elements.authError.textContent = '';
+        window.requestAnimationFrame(() => this.elements.authPasswordInput.focus());
+    }
+
+    hideAuthScreen() {
+        document.body.classList.remove('auth-locked');
+        this.elements.authScreen.classList.add('hidden');
+        this.elements.authError.classList.add('hidden');
+        this.elements.authError.textContent = '';
+    }
+
+    async unlockApp() {
+        try {
+            const username = this.elements.authUsernameInput.value.trim();
+            const password = this.elements.authPasswordInput.value;
+            this.config = await unlockConfig({ username, password });
+            this.authSession = { username, password };
+            this.authProfile = { username };
+            this.requiresUnlock = false;
+            this.configSource = getConfigSource();
+            this.hideAuthScreen();
+            this.reflectConfig();
+            await this.startUnlockedApp();
+        } catch (error) {
+            this.elements.authError.textContent = this.literal('Incorrect username or password.', 'Incorrect username or password.');
+            this.elements.authError.classList.remove('hidden');
+        }
+    }
+
+    updateDisableLockButton() {
+        this.elements.disableLockButton.classList.toggle('hidden', !this.authProfile && !this.authSession);
+    }
+
     reflectConfig() {
         this.elements.configTokenInput.value = this.config.token;
         this.elements.configGistInput.value = this.config.mainGistId;
+        this.elements.configAuthUsernameInput.value = this.authSession?.username ?? this.authProfile?.username ?? '';
+        this.elements.configAuthPasswordInput.value = '';
+        this.elements.configAuthPasswordConfirmInput.value = '';
+        this.updateDisableLockButton();
 
         if (this.visitorGistId) {
             this.elements.storageLabel.textContent = this.text('storageSharedReadOnly');
@@ -1537,7 +1511,7 @@ class ResearchQaApp {
             const excerpt = renderExcerpt(entry.data.text, {
                 preamble: entry.parentPreamble,
                 length: 180,
-                emptyText: this.language === 'zh' ? '暂无内容。' : 'No content yet.'
+                emptyText: 'No content yet.'
             });
             return `
                 <article class="problem-row trash ${activeClass}" data-item-id="${entry.id}">
@@ -1577,7 +1551,7 @@ class ResearchQaApp {
         const excerpt = renderExcerpt(entry.desc, {
             preamble: entry.preamble,
             length: 200,
-            emptyText: this.language === 'zh' ? '暂无内容。' : 'No content yet.'
+            emptyText: 'No content yet.'
         });
         const deletionBadge = entry.deletedAt
             ? `<span class="meta-pill">${this.text('deletedAt', { date: formatDate(entry.deletedAt) })}</span>`
@@ -1763,7 +1737,7 @@ class ResearchQaApp {
                 : renderExcerpt(note.text, {
                     preamble: this.currentItem.preamble,
                     length: 220,
-                    emptyText: this.language === 'zh' ? '暂无内容。' : 'No content yet.'
+                    emptyText: 'No content yet.'
                 });
             setRenderedHtml(container, rendered);
             typesetElement(container);
@@ -2377,7 +2351,7 @@ class ResearchQaApp {
                 } catch (error) {
                     cleanup();
                     const message = this.language === 'zh'
-                        ? '浏览器未能打开 PDF 打印窗口，请重试。'
+                        ? 'Unable to open the PDF print dialog. Please try again.'
                         : 'Unable to open the PDF print dialog. Please try again.';
                     this.toast(message, 'error');
                 }
@@ -2391,7 +2365,7 @@ class ResearchQaApp {
         const popup = window.open('', '_blank', 'noopener,noreferrer');
         if (!popup) {
             const message = this.language === 'zh'
-                ? '浏览器拦截了 PDF 窗口。请允许本站弹窗后再试。'
+                ? this.text('toastPdfPopupBlocked')
                 : this.text('toastPdfPopupBlocked');
             this.toast(message, 'error');
             return;
@@ -2412,10 +2386,31 @@ class ResearchQaApp {
         this.elements.configModal.classList.add('hidden');
     }
 
+    async disableAppLogin() {
+        const shouldDisable = window.confirm(this.literal(
+            'Disable the custom app login and keep the sync config stored in plain local settings for this browser?',
+            'Disable the custom app login and keep the sync config stored in plain local settings for this browser?'
+        ));
+        if (!shouldDisable) {
+            return;
+        }
+
+        clearLockedConfig();
+        this.authProfile = null;
+        this.authSession = null;
+        this.config = saveConfig(this.config);
+        this.configSource = getConfigSource();
+        this.reflectConfig();
+        this.toast(this.literal('App login disabled for this browser.', 'App login disabled for this browser.'));
+    }
+
     async saveConfigFromModal() {
         try {
             const token = this.elements.configTokenInput.value.trim();
             let mainGistId = this.elements.configGistInput.value.trim();
+            const authUsername = this.elements.configAuthUsernameInput.value.trim();
+            const authPassword = this.elements.configAuthPasswordInput.value;
+            const authPasswordConfirm = this.elements.configAuthPasswordConfirmInput.value;
             if (mainGistId.includes('/')) {
                 mainGistId = mainGistId.split('/').pop().replace('.git', '');
             }
@@ -2426,7 +2421,37 @@ class ResearchQaApp {
                 this.toast(this.text('toastCreatedMainGist', { id: mainGistId }));
             }
 
-            this.config = saveConfig({ token, mainGistId });
+            const nextConfig = { token, mainGistId };
+            const wantsCredentialUpdate = Boolean(authUsername || authPassword || authPasswordConfirm);
+            let nextAuthSession = this.authSession;
+
+            if (wantsCredentialUpdate) {
+                if (!authUsername) {
+                    throw new Error(this.literal('App username is required to enable the custom login.', 'App username is required to enable the custom login.'));
+                }
+                if (!authPassword) {
+                    throw new Error(this.literal('Enter a password when setting or changing the custom login.', 'Enter a password when setting or changing the custom login.'));
+                }
+                if (authPassword !== authPasswordConfirm) {
+                    throw new Error(this.literal('The password confirmation does not match.', 'The password confirmation does not match.'));
+                }
+                nextAuthSession = {
+                    username: authUsername,
+                    password: authPassword
+                };
+            }
+
+            if (nextAuthSession) {
+                this.config = await lockConfig(nextConfig, nextAuthSession);
+                this.authSession = nextAuthSession;
+                this.authProfile = { username: nextAuthSession.username };
+                clearStoredConfig();
+            } else {
+                clearLockedConfig();
+                this.authProfile = null;
+                this.authSession = null;
+                this.config = saveConfig(nextConfig);
+            }
             this.configSource = getConfigSource();
             this.reflectConfig();
             this.closeConfigModal();
@@ -2448,12 +2473,15 @@ class ResearchQaApp {
         }
 
         try {
-            this.config = loadConfig();
+            this.config = this.authSession ? this.config : loadConfig();
             if (!this.config.mainGistId || !this.config.token) {
-                this.config = saveConfig({
+                const nextConfig = {
                     token: this.config.token || legacyConfig.token,
                     mainGistId: this.config.mainGistId || legacyConfig.mainGistId
-                });
+                };
+                this.config = this.authSession
+                    ? await lockConfig(nextConfig, this.authSession)
+                    : saveConfig(nextConfig);
                 this.configSource = getConfigSource();
                 this.reflectConfig();
             }
@@ -2530,3 +2558,5 @@ class ResearchQaApp {
 
 const app = new ResearchQaApp();
 app.init();
+
+
