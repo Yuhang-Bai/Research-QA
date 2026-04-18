@@ -77,6 +77,9 @@ const I18N = {
         githubTokenPlaceholder: 'Required for private gist read/write',
         mainGistId: 'Main database Gist ID',
         mainGistPlaceholder: 'Leave blank to stay local-first; with a token, a main gist can be created automatically',
+        compilerUrl: 'Compiler service URL',
+        compilerUrlPlaceholder: 'Optional. Example: http://127.0.0.1:18765/api/latex',
+        compilerNote: 'Set this to a local LaTeX compiler service if you want true TeX PDF export instead of browser print export.',
         configNote: 'The new app imports legacy v7_config settings automatically and keeps reading main_db.json / shared_item.json.',
         saveSettings: 'Save settings',
         statusLoadedCache: 'Loaded cache',
@@ -90,6 +93,7 @@ const I18N = {
         toastImportedLegacy: 'Imported legacy data: {problems} problems, {trash} trash items',
         statusSynced: 'Synced',
         toastPulledLatest: 'Pulled the latest data from GitHub gist',
+        statusCompilingPdf: 'Compiling PDF',
         statusOfflineCache: 'Offline cache',
         statusSavedLocally: 'Saved locally',
         statusLoadingSharedItem: 'Loading shared item',
@@ -157,7 +161,10 @@ const I18N = {
         toastImportFailed: 'Import failed: {message}',
         toastNoLegacyConfig: 'No legacy config was found in this browser.',
         confirmImportLegacyOverwrite: 'Importing legacy data will overwrite the current local cache with the old main gist. Continue?',
-        toastPdfPopupBlocked: 'The browser blocked the PDF window. Allow pop-ups for this site and try again.'
+        toastPdfPopupBlocked: 'The browser blocked the PDF window. Allow pop-ups for this site and try again.',
+        toastLatexPdfReady: 'Compiled PDF is ready',
+        toastLatexCompilerFallback: 'LaTeX compiler unavailable. Falling back to browser PDF export.',
+        toastLatexCompileFailed: 'LaTeX compile failed: {message}. Falling back to browser PDF export.'
     },
     zh: {}
 };
@@ -430,6 +437,9 @@ class ResearchQaApp {
             configTokenInput: document.getElementById('config-token-input'),
             configGistLabel: document.querySelector('#config-gist-input')?.closest('.field')?.querySelector('span') ?? null,
             configGistInput: document.getElementById('config-gist-input'),
+            configCompilerUrlLabel: document.querySelector('#config-compiler-url-input')?.closest('.field')?.querySelector('span') ?? null,
+            configCompilerUrlInput: document.getElementById('config-compiler-url-input'),
+            configCompilerNote: document.getElementById('config-compiler-note'),
             configAuthUsernameLabel: document.querySelector('#config-auth-username-input')?.closest('.field')?.querySelector('span') ?? null,
             configAuthUsernameInput: document.getElementById('config-auth-username-input'),
             configAuthPasswordLabel: document.querySelector('#config-auth-password-input')?.closest('.field')?.querySelector('span') ?? null,
@@ -437,7 +447,7 @@ class ResearchQaApp {
             configAuthPasswordConfirmLabel: document.querySelector('#config-auth-password-confirm-input')?.closest('.field')?.querySelector('span') ?? null,
             configAuthPasswordConfirmInput: document.getElementById('config-auth-password-confirm-input'),
             configAuthNote: document.getElementById('config-auth-note'),
-            configNote: document.querySelector('#config-modal .modal-note'),
+            configNote: document.getElementById('config-sync-note'),
             configActions: document.querySelector('#config-modal .modal-actions'),
             configCloseButton: document.getElementById('close-config-btn'),
             disableLockButton: document.getElementById('disable-lock-btn'),
@@ -570,6 +580,9 @@ class ResearchQaApp {
         this.elements.configTokenInput.placeholder = this.text('githubTokenPlaceholder');
         this.elements.configGistLabel.textContent = this.text('mainGistId');
         this.elements.configGistInput.placeholder = this.text('mainGistPlaceholder');
+        this.elements.configCompilerUrlLabel.textContent = this.text('compilerUrl');
+        this.elements.configCompilerUrlInput.placeholder = this.text('compilerUrlPlaceholder');
+        this.elements.configCompilerNote.textContent = this.text('compilerNote');
         this.elements.configAuthUsernameLabel.textContent = this.literal('App username', 'App username');
         this.elements.configAuthUsernameInput.placeholder = this.literal('Set your own sign-in name', 'Set your own sign-in name');
         this.elements.configAuthPasswordLabel.textContent = this.literal('App password', 'App password');
@@ -819,6 +832,7 @@ class ResearchQaApp {
     reflectConfig() {
         this.elements.configTokenInput.value = this.config.token;
         this.elements.configGistInput.value = this.config.mainGistId;
+        this.elements.configCompilerUrlInput.value = this.config.compilerUrl ?? '';
         this.elements.configAuthUsernameInput.value = this.authSession?.username ?? this.authProfile?.username ?? '';
         this.elements.configAuthPasswordInput.value = '';
         this.elements.configAuthPasswordConfirmInput.value = '';
@@ -2323,11 +2337,75 @@ class ResearchQaApp {
 </html>`;
     }
 
-    exportCurrentItemPdf() {
-        if (!this.currentItem || (this.viewMode === 'trash' && this.currentSummary?.type === 'note')) {
-            return;
+    getCompilerServiceBaseUrl() {
+        const explicit = (this.config.compilerUrl || '').trim().replace(/\/+$/, '');
+        if (explicit) {
+            return explicit;
         }
 
+        if (['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+            return '/api/latex';
+        }
+
+        return '';
+    }
+
+    sanitizePdfFilename(title) {
+        const cleaned = String(title || this.text('defaultUntitledProblem'))
+            .replace(/[<>:"/\\|?*\u0000-\u001F]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        return `${cleaned || 'research-problem'}.pdf`;
+    }
+
+    downloadPdfBlob(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = filename;
+        anchor.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    async tryCompilerPdfExport() {
+        const compilerBaseUrl = this.getCompilerServiceBaseUrl();
+        if (!compilerBaseUrl || !this.currentItem) {
+            return { handled: false };
+        }
+
+        const previousStatus = this.statusState;
+        this.setStatusKey('statusCompilingPdf');
+
+        try {
+            const response = await fetch(`${compilerBaseUrl}/compile-pdf`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    item: this.currentItem,
+                    language: this.language
+                })
+            });
+
+            if (!response.ok) {
+                const message = (await response.text()).trim() || `${response.status} ${response.statusText}`;
+                return { handled: false, error: new Error(message), compileFailed: true };
+            }
+
+            const blob = await response.blob();
+            this.downloadPdfBlob(blob, this.sanitizePdfFilename(this.currentItem.title));
+            this.toast(this.text('toastLatexPdfReady'));
+            return { handled: true };
+        } catch (error) {
+            return { handled: false, error };
+        } finally {
+            this.setStatusKey(previousStatus.key, previousStatus.params);
+        }
+    }
+
+    exportCurrentItemPdfWithPrint() {
         const frame = document.createElement('iframe');
         frame.setAttribute('aria-hidden', 'true');
         frame.style.position = 'fixed';
@@ -2350,30 +2428,36 @@ class ResearchQaApp {
                     frame.contentWindow.print();
                 } catch (error) {
                     cleanup();
-                    const message = this.language === 'zh'
-                        ? 'Unable to open the PDF print dialog. Please try again.'
-                        : 'Unable to open the PDF print dialog. Please try again.';
-                    this.toast(message, 'error');
+                    this.toast(this.text('toastPdfPopupBlocked'), 'error');
                 }
             }, 700);
         }, { once: true });
         document.body.appendChild(frame);
         frame.srcdoc = this.buildPrintableProblemDocument(this.currentItem);
         window.setTimeout(cleanup, 60000);
-        return;
+    }
 
-        const popup = window.open('', '_blank', 'noopener,noreferrer');
-        if (!popup) {
-            const message = this.language === 'zh'
-                ? this.text('toastPdfPopupBlocked')
-                : this.text('toastPdfPopupBlocked');
-            this.toast(message, 'error');
+    async exportCurrentItemPdf() {
+        if (!this.currentItem || (this.viewMode === 'trash' && this.currentSummary?.type === 'note')) {
             return;
         }
 
-        popup.document.open();
-        popup.document.write(this.buildPrintableProblemDocument(this.currentItem));
-        popup.document.close();
+        const compileResult = await this.tryCompilerPdfExport();
+        if (compileResult.handled) {
+            return;
+        }
+
+        if (compileResult.error) {
+            this.toast(
+                this.text(
+                    compileResult.compileFailed ? 'toastLatexCompileFailed' : 'toastLatexCompilerFallback',
+                    { message: compileResult.error.message }
+                ),
+                compileResult.compileFailed ? 'error' : 'info'
+            );
+        }
+
+        this.exportCurrentItemPdfWithPrint();
     }
 
     openConfigModal() {
@@ -2408,6 +2492,7 @@ class ResearchQaApp {
         try {
             const token = this.elements.configTokenInput.value.trim();
             let mainGistId = this.elements.configGistInput.value.trim();
+            const compilerUrl = this.elements.configCompilerUrlInput.value.trim().replace(/\/+$/, '');
             const authUsername = this.elements.configAuthUsernameInput.value.trim();
             const authPassword = this.elements.configAuthPasswordInput.value;
             const authPasswordConfirm = this.elements.configAuthPasswordConfirmInput.value;
@@ -2421,7 +2506,7 @@ class ResearchQaApp {
                 this.toast(this.text('toastCreatedMainGist', { id: mainGistId }));
             }
 
-            const nextConfig = { token, mainGistId };
+            const nextConfig = { token, mainGistId, compilerUrl };
             const wantsCredentialUpdate = Boolean(authUsername || authPassword || authPasswordConfirm);
             let nextAuthSession = this.authSession;
 

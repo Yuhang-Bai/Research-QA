@@ -16,7 +16,8 @@ function readJson(key) {
 function normalizeConfig(config = {}) {
     return {
         token: typeof config.token === 'string' ? config.token.trim() : '',
-        mainGistId: typeof config.mainGistId === 'string' ? config.mainGistId.trim() : ''
+        mainGistId: typeof config.mainGistId === 'string' ? config.mainGistId.trim() : '',
+        compilerUrl: typeof config.compilerUrl === 'string' ? config.compilerUrl.trim() : ''
     };
 }
 
@@ -84,7 +85,8 @@ function hasMeaningfulConfig(config = {}) {
 function mergeConfig(current = {}, legacy = {}) {
     return normalizeConfig({
         token: current.token || legacy.token || '',
-        mainGistId: current.mainGistId || legacy.mainGistId || ''
+        mainGistId: current.mainGistId || legacy.mainGistId || '',
+        compilerUrl: current.compilerUrl || legacy.compilerUrl || ''
     });
 }
 
@@ -95,7 +97,8 @@ export function loadConfig() {
 
     if (hasMeaningfulConfig(legacy) && (
         merged.token !== current.token ||
-        merged.mainGistId !== current.mainGistId
+        merged.mainGistId !== current.mainGistId ||
+        merged.compilerUrl !== current.compilerUrl
     )) {
         localStorage.setItem(CONFIG_KEY, JSON.stringify(merged));
     }

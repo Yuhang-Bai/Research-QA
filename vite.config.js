@@ -7,7 +7,13 @@ const rootDir = dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
     base: './',
     server: {
-        open: '/index.src.html'
+        open: '/index.src.html',
+        proxy: {
+            '/api/latex': {
+                target: 'http://127.0.0.1:18765',
+                changeOrigin: true
+            }
+        }
     },
     build: {
         rollupOptions: {

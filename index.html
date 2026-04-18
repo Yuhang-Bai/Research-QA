@@ -28,7 +28,7 @@
         };
     </script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
-  <script type="module" crossorigin src="./assets/index-DLfw3rit.js"></script>
+  <script type="module" crossorigin src="./assets/index-CJ0CSLJz.js"></script>
   <link rel="stylesheet" crossorigin href="./assets/index-fUpuh8_C.css">
 </head>
 <body>
@@ -212,6 +212,11 @@
                     <input type="text" id="config-gist-input" placeholder="Leave blank to stay local-first; with a token, a main gist can be created automatically">
                 </label>
                 <label class="field">
+                    <span>Compiler service URL</span>
+                    <input type="text" id="config-compiler-url-input" placeholder="Optional. Example: http://127.0.0.1:18765/api/latex">
+                </label>
+                <p class="modal-note" id="config-compiler-note">Set this to a local LaTeX compiler service if you want true TeX PDF export instead of browser print export.</p>
+                <label class="field">
                     <span>App username</span>
                     <input type="text" id="config-auth-username-input" autocomplete="username" placeholder="Set your own sign-in name">
                 </label>
@@ -224,7 +229,7 @@
                     <input type="password" id="config-auth-password-confirm-input" autocomplete="new-password" placeholder="Repeat the password when changing it">
                 </label>
                 <p class="modal-note" id="config-auth-note">Once enabled, your GitHub sync token and gist ID are encrypted locally behind this username/password.</p>
-                <p class="modal-note">The new app imports legacy <code>v7_config</code> settings automatically and keeps reading <code>main_db.json</code> / <code>shared_item.json</code>.</p>
+                <p class="modal-note" id="config-sync-note">The new app imports legacy <code>v7_config</code> settings automatically and keeps reading <code>main_db.json</code> / <code>shared_item.json</code>.</p>
             </div>
             <div class="modal-actions">
                 <button class="secondary-btn hidden" id="disable-lock-btn">Disable app login</button>
