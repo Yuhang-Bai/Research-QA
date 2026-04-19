@@ -12,6 +12,7 @@
 } from './data/config.js';
 import { getValue, setValue } from './data/idb.js';
 import { createMainDatabase, createSharedItem, fetchMainDatabase, fetchSharedItem, saveMainDatabase, saveSharedItem } from './data/gist.js';
+import { deserializeWorkspaceSnapshot, serializeWorkspaceSnapshot } from './data/workspace.js';
 import { createMarkdownEditor } from './lib/editor.js';
 import { renderDocument, renderExcerpt, renderInlineMath, setRenderedHtml, typesetElement } from './lib/renderer.js';
 
@@ -2493,16 +2494,14 @@ class ResearchQaApp {
     }
 
     exportBackup() {
-        const payload = {
-            exportedAt: new Date().toISOString(),
-            version: 2,
-            db: this.db
-        };
+        const payload = serializeWorkspaceSnapshot(this.db, {
+            exportedAt: new Date().toISOString()
+        });
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
         anchor.href = url;
-        anchor.download = `research-qa-backup-${new Date().toISOString().slice(0, 10)}.json`;
+        anchor.download = `research-qa-workspace-${new Date().toISOString().slice(0, 10)}.json`;
         anchor.click();
         URL.revokeObjectURL(url);
     }
@@ -2516,7 +2515,7 @@ class ResearchQaApp {
         try {
             const text = await file.text();
             const parsed = JSON.parse(text);
-            const nextDatabase = normalizeDatabase(parsed.db || parsed);
+            const nextDatabase = normalizeDatabase(deserializeWorkspaceSnapshot(parsed));
             if (!window.confirm(this.text('confirmImportOverwrite'))) {
                 event.target.value = '';
                 return;
