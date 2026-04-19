@@ -737,6 +737,18 @@ html[data-route="detail"] .main-panel {
     margin: 0 0 1em;
 }
 
+.rich-text del,
+.rich-text s,
+.rich-text strike,
+.note-excerpt del,
+.note-excerpt s,
+.note-excerpt strike,
+.problem-row-excerpt del,
+.problem-row-excerpt s,
+.problem-row-excerpt strike {
+    text-decoration: none;
+}
+
 .rich-text ul,
 .rich-text ol {
     padding-left: 1.4em;

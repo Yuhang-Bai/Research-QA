@@ -2,7 +2,7 @@ import MarkdownIt from 'markdown-it';
 import taskLists from 'markdown-it-task-lists';
 
 const markdown = new MarkdownIt({
-    html: true,
+    html: false,
     linkify: true,
     breaks: true
 }).use(taskLists, { enabled: true, label: true, labelAfter: true });
