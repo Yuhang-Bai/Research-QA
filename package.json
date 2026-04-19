@@ -6,8 +6,7 @@
   "scripts": {
     "dev": "vite --open /index.src.html",
     "build": "vite build && node scripts/prepare-pages-dist.mjs",
-    "preview": "vite preview --open /",
-    "latex:service": "node server/latex-service.mjs"
+    "preview": "vite preview --open /"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.0.0",
