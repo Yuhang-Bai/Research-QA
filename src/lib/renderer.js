@@ -7,6 +7,8 @@ const markdown = new MarkdownIt({
     breaks: true
 }).use(taskLists, { enabled: true, label: true, labelAfter: true });
 
+markdown.disable(['strikethrough']);
+
 const ENVIRONMENT_MAP = {
     theorem: { canonical: 'theorem', title: 'Theorem', counter: 'theorem' },
     thm: { canonical: 'theorem', title: 'Theorem', counter: 'theorem' },
