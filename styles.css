@@ -895,6 +895,7 @@ html[data-route="detail"] .main-panel {
     cursor: grab;
     font-size: 13px;
     line-height: 1;
+    touch-action: none;
     transition: transform 0.18s ease, color 0.18s ease, border-color 0.18s ease, background 0.18s ease;
 }
 
@@ -908,6 +909,11 @@ html[data-route="detail"] .main-panel {
 .note-drag-handle:active {
     cursor: grabbing;
     transform: scale(0.96);
+}
+
+body.note-dragging-active,
+body.note-dragging-active * {
+    cursor: grabbing !important;
 }
 
 .note-toolbar {

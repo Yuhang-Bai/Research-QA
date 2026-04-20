@@ -371,7 +371,11 @@ class ResearchQaApp {
             overId: null,
             position: 'before',
             previewChanged: false,
-            committed: false
+            committed: false,
+            active: false,
+            pointerId: null,
+            startX: 0,
+            startY: 0
         };
         this.suppressRowClickUntil = 0;
         this.visitorGistId = initialRoute.visitorGistId;
@@ -739,10 +743,10 @@ class ResearchQaApp {
                     break;
             }
         });
-        this.elements.noteList.addEventListener('dragstart', (event) => this.handleNoteDragStart(event));
-        this.elements.noteList.addEventListener('dragover', (event) => this.handleNoteDragOver(event));
-        this.elements.noteList.addEventListener('drop', (event) => this.handleNoteDrop(event));
-        this.elements.noteList.addEventListener('dragend', () => this.handleNoteDragEnd());
+        this.elements.noteList.addEventListener('pointerdown', (event) => this.handleNotePointerDown(event));
+        document.addEventListener('pointermove', (event) => this.handleNotePointerMove(event));
+        document.addEventListener('pointerup', (event) => this.handleNotePointerUp(event));
+        document.addEventListener('pointercancel', (event) => this.handleNotePointerCancel(event));
 
         window.addEventListener('popstate', () => this.handlePopState());
     }
@@ -1480,45 +1484,67 @@ class ResearchQaApp {
 
     clearNoteDragState() {
         this.clearNoteDropMarkers();
+        document.body.classList.remove('note-dragging-active');
         this.noteDragState = {
             noteId: null,
             overId: null,
             position: 'before',
             previewChanged: false,
-            committed: false
+            committed: false,
+            active: false,
+            pointerId: null,
+            startX: 0,
+            startY: 0
         };
     }
 
-    handleNoteDragStart(event) {
+    handleNotePointerDown(event) {
         const handle = event.target.closest('[data-note-drag-handle]');
         const card = event.target.closest('.note-card[data-note-id]');
         if (!handle || !this.isNoteDraggable(card)) {
-            event.preventDefault();
             return;
         }
 
+        event.preventDefault();
+        event.stopPropagation();
         this.noteDragState = {
             noteId: card.dataset.noteId,
             overId: null,
             position: 'before',
             previewChanged: false,
-            committed: false
+            committed: false,
+            active: true,
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY
         };
+        document.body.classList.add('note-dragging-active');
         card.classList.add('dragging');
-        if (event.dataTransfer) {
-            event.dataTransfer.effectAllowed = 'move';
-            event.dataTransfer.setData('text/plain', card.dataset.noteId);
+
+        try {
+            handle.setPointerCapture(event.pointerId);
+        } catch (error) {
+            // Pointer capture is a nice-to-have; document-level handlers still keep dragging working.
         }
     }
 
-    handleNoteDragOver(event) {
-        if (!this.noteDragState.noteId) {
+    handleNotePointerMove(event) {
+        if (!this.noteDragState.active || event.pointerId !== this.noteDragState.pointerId) {
             return;
         }
 
-        const card = event.target.closest('.note-card[data-note-id]');
+        const movedEnough = Math.hypot(
+            event.clientX - this.noteDragState.startX,
+            event.clientY - this.noteDragState.startY
+        ) > 3;
+        if (!movedEnough && !this.noteDragState.previewChanged) {
+            return;
+        }
+
+        event.preventDefault();
+        const target = document.elementFromPoint(event.clientX, event.clientY);
+        const card = target?.closest?.('.note-card[data-note-id]');
         if (!card) {
-            event.preventDefault();
             return;
         }
 
@@ -1527,38 +1553,30 @@ class ResearchQaApp {
         }
 
         if (card.dataset.noteId === this.noteDragState.noteId) {
-            event.preventDefault();
             return;
         }
 
-        event.preventDefault();
-        if (event.dataTransfer) {
-            event.dataTransfer.dropEffect = 'move';
-        }
         const position = this.getDragPreviewPosition(card, event);
         this.previewNoteReorder(card, position);
     }
 
-    handleNoteDrop(event) {
-        if (!this.noteDragState.noteId) {
+    handleNotePointerUp(event) {
+        if (!this.noteDragState.active || event.pointerId !== this.noteDragState.pointerId) {
             return;
         }
 
         event.preventDefault();
-        if (event.dataTransfer) {
-            event.dataTransfer.dropEffect = 'move';
-        }
         this.noteDragState.committed = true;
         this.commitNotePreviewOrder()
             .finally(() => this.clearNoteDragState());
     }
 
-    handleNoteDragEnd() {
-        if (!this.noteDragState.noteId) {
+    handleNotePointerCancel(event) {
+        if (!this.noteDragState.active || event.pointerId !== this.noteDragState.pointerId) {
             return;
         }
 
-        if (!this.noteDragState.committed && this.noteDragState.previewChanged) {
+        if (this.noteDragState.previewChanged) {
             this.renderNotes();
         }
         this.clearNoteDragState();
@@ -1937,9 +1955,7 @@ class ResearchQaApp {
         this.elements.noteList.innerHTML = notes.map((note) => {
             const expanded = this.expandedNotes.has(note.id);
             const canReorder = this.canReorderNotes();
-            const dragAttrs = canReorder
-                ? ` draggable="true" data-note-draggable="true"`
-                : '';
+            const dragAttrs = canReorder ? ` data-note-draggable="true"` : '';
             const dragHandle = canReorder
                 ? `<button class="note-drag-handle" type="button" data-note-drag-handle title="Drag to reorder" aria-label="Drag to reorder">↕</button>`
                 : '';
