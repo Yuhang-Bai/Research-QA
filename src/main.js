@@ -1735,11 +1735,7 @@ class ResearchQaApp {
 
             const rendered = expanded
                 ? renderDocument(note.text, { preamble: this.currentItem.preamble })
-                : renderExcerpt(note.text, {
-                    preamble: this.currentItem.preamble,
-                    length: 220,
-                    emptyText: 'No content yet.'
-                });
+                : renderDocument(note.text || 'No content yet.', { preamble: this.currentItem.preamble });
             setRenderedHtml(container, rendered);
             typesetElement(container);
         });

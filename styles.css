@@ -876,6 +876,23 @@ html[data-route="detail"] .main-panel {
     overflow: hidden;
 }
 
+.note-excerpt.rich-text {
+    position: relative;
+    max-height: 240px;
+    color: var(--text);
+}
+
+.note-excerpt.rich-text::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 42px;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(250, 246, 238, 0), rgba(250, 246, 238, 0.96));
+}
+
 .note-excerpt > :first-child {
     margin-top: 0;
 }
@@ -889,7 +906,24 @@ html[data-route="detail"] .main-panel {
 .note-excerpt ol,
 .note-excerpt blockquote,
 .note-excerpt .env-block {
-    margin: 0;
+    margin-top: 0;
+    margin-bottom: 0.55em;
+}
+
+.note-excerpt h1,
+.note-excerpt h2,
+.note-excerpt h3,
+.note-excerpt h4,
+.note-excerpt h5,
+.note-excerpt h6 {
+    font-size: 15px;
+    line-height: 1.35;
+    margin: 0 0 0.5em;
+}
+
+.note-excerpt .env-block {
+    padding: 10px 12px;
+    border-radius: 12px;
 }
 
 .note-excerpt mjx-container {
