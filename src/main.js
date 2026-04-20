@@ -14,7 +14,7 @@ import { getValue, setValue } from './data/idb.js';
 import { createMainDatabase, createSharedItem, fetchMainDatabase, fetchSharedItem, saveMainDatabase, saveSharedItem } from './data/gist.js';
 import { deserializeWorkspaceSnapshot, serializeWorkspaceSnapshot } from './data/workspace.js';
 import { createMarkdownEditor } from './lib/editor.js';
-import { renderDocument, renderExcerpt, renderInlineMath, setRenderedHtml, typesetElement } from './lib/renderer.js';
+import { renderDocument, renderExcerpt, renderInlineMath, renderPreviewDocument, setRenderedHtml, typesetElement } from './lib/renderer.js';
 
 const LOCAL_DATABASE_KEY = 'rq_v2_local_database';
 const UI_LANGUAGE_KEY = 'rq_v2_language';
@@ -335,6 +335,23 @@ function formatDate(dateString) {
     }
 }
 
+function pruneMap(map, maxSize) {
+    while (map.size > maxSize) {
+        const firstKey = map.keys().next().value;
+        map.delete(firstKey);
+    }
+}
+
+function hashString(value) {
+    let hash = 2166136261;
+    const text = String(value || '');
+    for (let index = 0; index < text.length; index += 1) {
+        hash ^= text.charCodeAt(index);
+        hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(36);
+}
+
 class ResearchQaApp {
     constructor() {
         const initialRoute = this.readRouteFromLocation();
@@ -377,6 +394,17 @@ class ResearchQaApp {
             startX: 0,
             startY: 0
         };
+        this.pendingListDragPreview = null;
+        this.listDragFrame = 0;
+        this.pendingNoteDragPreview = null;
+        this.noteDragFrame = 0;
+        this.renderCache = {
+            noteBodies: new Map()
+        };
+        this.lastListHtml = '';
+        this.lastDetailTitleKey = '';
+        this.lastProblemRenderKey = '';
+        this.searchTimer = null;
         this.suppressRowClickUntil = 0;
         this.visitorGistId = initialRoute.visitorGistId;
         this.composerState = {
@@ -670,7 +698,7 @@ class ResearchQaApp {
         this.elements.disableLockButton.addEventListener('click', () => this.disableAppLogin());
         this.elements.authUnlockButton.addEventListener('click', () => this.unlockApp());
 
-        this.elements.searchInput.addEventListener('input', () => this.renderList());
+        this.elements.searchInput.addEventListener('input', () => this.scheduleListRender());
         this.elements.composerPreambleInput.addEventListener('input', () => this.scheduleComposerPreview(this.editor.getValue()));
         this.elements.importFileInput.addEventListener('change', (event) => this.importBackup(event));
         this.elements.authPasswordInput.addEventListener('keydown', (event) => {
@@ -1202,6 +1230,17 @@ class ResearchQaApp {
         this.renderDetail();
     }
 
+    scheduleListRender() {
+        if (this.searchTimer) {
+            window.clearTimeout(this.searchTimer);
+        }
+
+        this.searchTimer = window.setTimeout(() => {
+            this.searchTimer = null;
+            this.renderList();
+        }, 80);
+    }
+
     queuePinFeedback(itemId, state) {
         if (this.pinFeedbackTimer) {
             window.clearTimeout(this.pinFeedbackTimer);
@@ -1235,6 +1274,11 @@ class ResearchQaApp {
     }
 
     clearListDragState() {
+        if (this.listDragFrame) {
+            window.cancelAnimationFrame(this.listDragFrame);
+        }
+        this.listDragFrame = 0;
+        this.pendingListDragPreview = null;
         this.clearListDropMarkers();
         this.elements.list.querySelectorAll('.dragging').forEach((row) => {
             row.classList.remove('dragging');
@@ -1296,7 +1340,7 @@ class ResearchQaApp {
             event.dataTransfer.dropEffect = 'move';
         }
         const position = this.getDragPreviewPosition(row, event);
-        this.previewListReorder(row, position);
+        this.scheduleListDragPreview(row, position);
     }
 
     handleListDrop(event) {
@@ -1308,6 +1352,7 @@ class ResearchQaApp {
         if (event.dataTransfer) {
             event.dataTransfer.dropEffect = 'move';
         }
+        this.flushListDragPreview();
         this.dragState.committed = true;
         this.suppressRowClickUntil = Date.now() + 220;
         this.commitListPreviewOrder()
@@ -1320,6 +1365,7 @@ class ResearchQaApp {
         }
 
         if (!this.dragState.committed && this.dragState.previewChanged) {
+            this.lastListHtml = '';
             this.renderList();
         }
         this.clearListDragState();
@@ -1334,6 +1380,33 @@ class ResearchQaApp {
             return offsetX < 0 ? 'before' : 'after';
         }
         return offsetY < 0 ? 'before' : 'after';
+    }
+
+    scheduleListDragPreview(row, position) {
+        this.pendingListDragPreview = { row, position };
+        if (this.listDragFrame) {
+            return;
+        }
+
+        this.listDragFrame = window.requestAnimationFrame(() => {
+            this.listDragFrame = 0;
+            this.flushListDragPreview();
+        });
+    }
+
+    flushListDragPreview() {
+        const pending = this.pendingListDragPreview;
+        this.pendingListDragPreview = null;
+        if (this.listDragFrame) {
+            window.cancelAnimationFrame(this.listDragFrame);
+            this.listDragFrame = 0;
+        }
+
+        if (!pending || !this.dragState.itemId || !pending.row?.isConnected) {
+            return;
+        }
+
+        this.previewListReorder(pending.row, pending.position);
     }
 
     previewListReorder(targetRow, position) {
@@ -1382,6 +1455,11 @@ class ResearchQaApp {
 
     animateListReflow(mutator, options = {}) {
         const rows = Array.from(this.elements.list.querySelectorAll('.problem-row[data-item-id]'));
+        if (rows.length > 40) {
+            mutator();
+            return;
+        }
+
         const firstRects = new Map(rows.map((row) => [row.dataset.itemId, row.getBoundingClientRect()]));
         mutator();
 
@@ -1428,6 +1506,7 @@ class ResearchQaApp {
         const draggedId = this.dragState.itemId;
         const orderedIds = this.getPreviewGroupRowIds(pinGroup);
         if (!orderedIds.length) {
+            this.lastListHtml = '';
             this.renderList();
             return;
         }
@@ -1436,6 +1515,7 @@ class ResearchQaApp {
         const regularItems = this.db.items.filter((entry) => !entry.isPinned);
         const currentGroup = pinGroup === 'pinned' ? pinnedItems : regularItems;
         if (orderedIds.length !== currentGroup.length) {
+            this.lastListHtml = '';
             this.renderList();
             return;
         }
@@ -1443,12 +1523,14 @@ class ResearchQaApp {
         const itemMap = new Map(currentGroup.map((entry) => [String(entry.id), entry]));
         const orderedGroup = orderedIds.map((id) => itemMap.get(String(id))).filter(Boolean);
         if (orderedGroup.length !== currentGroup.length) {
+            this.lastListHtml = '';
             this.renderList();
             return;
         }
 
         const unchanged = orderedGroup.every((entry, index) => String(entry.id) === String(currentGroup[index].id));
         if (unchanged) {
+            this.lastListHtml = '';
             this.renderList();
             return;
         }
@@ -1466,9 +1548,11 @@ class ResearchQaApp {
         try {
             await this.saveDatabaseSnapshot();
             this.currentSummary = this.db.items.find((entry) => String(entry.id) === String(draggedId)) ?? this.currentSummary;
+            this.lastListHtml = '';
             this.renderList();
         } catch (error) {
             this.toast(error.message, 'error');
+            this.lastListHtml = '';
             this.renderList();
         }
     }
@@ -1488,6 +1572,11 @@ class ResearchQaApp {
     }
 
     clearNoteDragState() {
+        if (this.noteDragFrame) {
+            window.cancelAnimationFrame(this.noteDragFrame);
+        }
+        this.noteDragFrame = 0;
+        this.pendingNoteDragPreview = null;
         this.clearNoteDropMarkers();
         this.elements.noteList.querySelectorAll('.dragging').forEach((card) => {
             card.classList.remove('dragging');
@@ -1565,7 +1654,7 @@ class ResearchQaApp {
         }
 
         const position = this.getDragPreviewPosition(card, event);
-        this.previewNoteReorder(card, position);
+        this.scheduleNoteDragPreview(card, position);
     }
 
     handleNotePointerUp(event) {
@@ -1574,6 +1663,7 @@ class ResearchQaApp {
         }
 
         event.preventDefault();
+        this.flushNoteDragPreview();
         this.noteDragState.committed = true;
         this.commitNotePreviewOrder()
             .finally(() => this.clearNoteDragState());
@@ -1588,6 +1678,33 @@ class ResearchQaApp {
             this.renderNotes();
         }
         this.clearNoteDragState();
+    }
+
+    scheduleNoteDragPreview(card, position) {
+        this.pendingNoteDragPreview = { card, position };
+        if (this.noteDragFrame) {
+            return;
+        }
+
+        this.noteDragFrame = window.requestAnimationFrame(() => {
+            this.noteDragFrame = 0;
+            this.flushNoteDragPreview();
+        });
+    }
+
+    flushNoteDragPreview() {
+        const pending = this.pendingNoteDragPreview;
+        this.pendingNoteDragPreview = null;
+        if (this.noteDragFrame) {
+            window.cancelAnimationFrame(this.noteDragFrame);
+            this.noteDragFrame = 0;
+        }
+
+        if (!pending || !this.noteDragState.active || !pending.card?.isConnected) {
+            return;
+        }
+
+        this.previewNoteReorder(pending.card, pending.position);
     }
 
     previewNoteReorder(targetCard, position) {
@@ -1636,6 +1753,11 @@ class ResearchQaApp {
 
     animateNoteReflow(mutator, options = {}) {
         const cards = Array.from(this.elements.noteList.querySelectorAll('.note-card[data-note-id]'));
+        if (cards.length > 40) {
+            mutator();
+            return;
+        }
+
         const firstRects = new Map(cards.map((card) => [card.dataset.noteId, card.getBoundingClientRect()]));
         mutator();
 
@@ -1748,23 +1870,33 @@ class ResearchQaApp {
         });
 
         if (!items.length) {
-            setRenderedHtml(this.elements.list, {
-                html: `
+            const emptyHtml = `
                 <div class="sidebar-panel">
                     <div class="eyebrow">${this.text('noMatch')}</div>
                     <p class="modal-note">${term ? this.text('noResults') : this.text('noProblems')}</p>
                 </div>
-            `
+            `;
+            if (this.lastListHtml === emptyHtml) {
+                return;
+            }
+            this.lastListHtml = emptyHtml;
+            setRenderedHtml(this.elements.list, {
+                html: emptyHtml
             });
             return;
         }
 
-        setRenderedHtml(this.elements.list, {
-            html: `
+        const listHtml = `
             <div class="list-card">
                 ${items.map((entry) => this.renderListRow(entry, { reorderEnabled })).join('')}
             </div>
-        `
+        `;
+        if (this.lastListHtml === listHtml) {
+            return;
+        }
+        this.lastListHtml = listHtml;
+        setRenderedHtml(this.elements.list, {
+            html: listHtml
         });
         typesetElement(this.elements.list);
     }
@@ -1848,6 +1980,8 @@ class ResearchQaApp {
         }
 
         if (!this.currentItem) {
+            this.lastDetailTitleKey = '';
+            this.lastProblemRenderKey = '';
             this.elements.emptyState.classList.remove('hidden');
             this.elements.detailView.classList.add('hidden');
             return;
@@ -1857,6 +1991,8 @@ class ResearchQaApp {
         this.elements.detailView.classList.remove('hidden');
 
         if (this.viewMode === 'trash' && this.currentSummary?.type === 'note') {
+            this.lastDetailTitleKey = '';
+            this.lastProblemRenderKey = '';
             const archivedNote = this.currentSummary;
             setRenderedHtml(this.elements.detailTitle, {
                 html: renderInlineMath(
@@ -1904,10 +2040,14 @@ class ResearchQaApp {
             ? this.text('detailTrashSubtitle')
             : this.text('detailProblemSubtitle');
         const detailPinFeedback = String(this.pinFeedback.itemId) === String(this.currentItem.id) ? this.pinFeedback.state : '';
-        setRenderedHtml(this.elements.detailTitle, {
-            html: renderInlineMath(title, { preamble: this.currentItem.preamble })
-        });
-        typesetElement(this.elements.detailTitle);
+        const detailTitleKey = [activeLanguage, title, this.currentItem.preamble].join('\u0001');
+        if (this.lastDetailTitleKey !== detailTitleKey) {
+            this.lastDetailTitleKey = detailTitleKey;
+            setRenderedHtml(this.elements.detailTitle, {
+                html: renderInlineMath(title, { preamble: this.currentItem.preamble })
+            });
+            typesetElement(this.elements.detailTitle);
+        }
         this.elements.detailSubtitle.textContent = subtitle;
         this.elements.heroKind.textContent = this.viewMode === 'trash' ? this.text('trashedProblem') : this.text('heroProblem');
         this.elements.heroUpdated.textContent = this.text('updatedAt', { date: formatDate(this.currentItem.date) });
@@ -1917,9 +2057,18 @@ class ResearchQaApp {
                 ? this.text('trashBadge')
                 : (this.config.mainGistId ? this.text('mainGist') : this.text('localCache')));
 
-        const problemHtml = renderDocument(this.currentItem.desc, { preamble: this.currentItem.preamble });
-        setRenderedHtml(this.elements.problemRender, problemHtml);
-        typesetElement(this.elements.problemRender);
+        const problemRenderKey = [
+            this.currentItem.id,
+            this.currentItem.date,
+            this.currentItem.preamble,
+            this.currentItem.desc
+        ].join('\u0001');
+        if (this.lastProblemRenderKey !== problemRenderKey) {
+            this.lastProblemRenderKey = problemRenderKey;
+            const problemHtml = renderDocument(this.currentItem.desc, { preamble: this.currentItem.preamble });
+            setRenderedHtml(this.elements.problemRender, problemHtml);
+            typesetElement(this.elements.problemRender);
+        }
 
         this.renderNotes();
         this.elements.pinItemButton.textContent = this.currentItem.isPinned ? this.text('unpin') : this.text('pin');
@@ -2004,12 +2153,36 @@ class ResearchQaApp {
                 return;
             }
 
-            const rendered = expanded
-                ? renderDocument(note.text, { preamble: this.currentItem.preamble })
-                : renderDocument(note.text || 'No content yet.', { preamble: this.currentItem.preamble });
+            const rendered = this.getCachedNoteRender(note, expanded);
             setRenderedHtml(container, rendered);
-            typesetElement(container);
         });
+        typesetElement(this.elements.noteList);
+    }
+
+    getCachedNoteRender(note, expanded) {
+        const preamble = this.currentItem?.preamble || '';
+        const source = note.text || '';
+        const mode = expanded ? 'full' : 'preview';
+        const cacheKey = [
+            mode,
+            activeLanguage,
+            note.id,
+            note.date,
+            source.length,
+            hashString(preamble),
+            hashString(source)
+        ].join('\u0001');
+        const cached = this.renderCache.noteBodies.get(cacheKey);
+        if (cached) {
+            return cached;
+        }
+
+        const rendered = expanded
+            ? renderDocument(source, { preamble })
+            : renderPreviewDocument(source, { preamble, length: 300, emptyText: 'No content yet.' });
+        this.renderCache.noteBodies.set(cacheKey, rendered);
+        pruneMap(this.renderCache.noteBodies, 120);
+        return rendered;
     }
 
     async setViewMode(mode) {

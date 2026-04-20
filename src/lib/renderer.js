@@ -433,6 +433,28 @@ export function renderExcerpt(source, options = {}) {
     return renderDocument(excerptSource, options);
 }
 
+export function renderPreviewDocument(source, options = {}) {
+    const text = String(source || '').trim();
+    if (!text) {
+        return renderExcerpt(options.emptyText || 'No content yet.', options);
+    }
+
+    const [firstBlock] = splitBlocks(text);
+    if (!firstBlock || firstBlock.type !== 'environment') {
+        return renderExcerpt(text, options);
+    }
+
+    const excerptSource = buildMathAwareExcerptSource(firstBlock.source, options.length ?? 260);
+    if (!excerptSource) {
+        return renderExcerpt(options.emptyText || 'No content yet.', options);
+    }
+
+    return renderDocument(
+        `\\begin{${firstBlock.env}}\n${excerptSource}\n\\end{${firstBlock.env}}`,
+        options
+    );
+}
+
 export function renderInlineMath(source, options = {}) {
     const text = String(source || '')
         .replace(/\r\n?/g, '\n')
