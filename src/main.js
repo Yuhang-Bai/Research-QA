@@ -366,6 +366,13 @@ class ResearchQaApp {
             previewChanged: false,
             committed: false
         };
+        this.noteDragState = {
+            noteId: null,
+            overId: null,
+            position: 'before',
+            previewChanged: false,
+            committed: false
+        };
         this.suppressRowClickUntil = 0;
         this.visitorGistId = initialRoute.visitorGistId;
         this.composerState = {
@@ -732,6 +739,10 @@ class ResearchQaApp {
                     break;
             }
         });
+        this.elements.noteList.addEventListener('dragstart', (event) => this.handleNoteDragStart(event));
+        this.elements.noteList.addEventListener('dragover', (event) => this.handleNoteDragOver(event));
+        this.elements.noteList.addEventListener('drop', (event) => this.handleNoteDrop(event));
+        this.elements.noteList.addEventListener('dragend', () => this.handleNoteDragEnd());
 
         window.addEventListener('popstate', () => this.handlePopState());
     }
@@ -1453,6 +1464,230 @@ class ResearchQaApp {
         }
     }
 
+    canReorderNotes() {
+        return Boolean(this.currentItem) && this.viewMode === 'active' && !this.visitorGistId;
+    }
+
+    isNoteDraggable(card) {
+        return Boolean(card?.dataset?.noteDraggable === 'true');
+    }
+
+    clearNoteDropMarkers() {
+        this.elements.noteList.querySelectorAll('.drop-before, .drop-after, .dragging').forEach((card) => {
+            card.classList.remove('drop-before', 'drop-after', 'dragging');
+        });
+    }
+
+    clearNoteDragState() {
+        this.clearNoteDropMarkers();
+        this.noteDragState = {
+            noteId: null,
+            overId: null,
+            position: 'before',
+            previewChanged: false,
+            committed: false
+        };
+    }
+
+    handleNoteDragStart(event) {
+        const handle = event.target.closest('[data-note-drag-handle]');
+        const card = event.target.closest('.note-card[data-note-id]');
+        if (!handle || !this.isNoteDraggable(card)) {
+            event.preventDefault();
+            return;
+        }
+
+        this.noteDragState = {
+            noteId: card.dataset.noteId,
+            overId: null,
+            position: 'before',
+            previewChanged: false,
+            committed: false
+        };
+        card.classList.add('dragging');
+        if (event.dataTransfer) {
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', card.dataset.noteId);
+        }
+    }
+
+    handleNoteDragOver(event) {
+        if (!this.noteDragState.noteId) {
+            return;
+        }
+
+        const card = event.target.closest('.note-card[data-note-id]');
+        if (!card) {
+            event.preventDefault();
+            return;
+        }
+
+        if (!this.isNoteDraggable(card)) {
+            return;
+        }
+
+        if (card.dataset.noteId === this.noteDragState.noteId) {
+            event.preventDefault();
+            return;
+        }
+
+        event.preventDefault();
+        if (event.dataTransfer) {
+            event.dataTransfer.dropEffect = 'move';
+        }
+        const position = this.getDragPreviewPosition(card, event);
+        this.previewNoteReorder(card, position);
+    }
+
+    handleNoteDrop(event) {
+        if (!this.noteDragState.noteId) {
+            return;
+        }
+
+        event.preventDefault();
+        if (event.dataTransfer) {
+            event.dataTransfer.dropEffect = 'move';
+        }
+        this.noteDragState.committed = true;
+        this.commitNotePreviewOrder()
+            .finally(() => this.clearNoteDragState());
+    }
+
+    handleNoteDragEnd() {
+        if (!this.noteDragState.noteId) {
+            return;
+        }
+
+        if (!this.noteDragState.committed && this.noteDragState.previewChanged) {
+            this.renderNotes();
+        }
+        this.clearNoteDragState();
+    }
+
+    previewNoteReorder(targetCard, position) {
+        const draggedCard = this.elements.noteList.querySelector(`.note-card[data-note-id="${this.noteDragState.noteId}"]`);
+        if (!draggedCard || !targetCard || draggedCard === targetCard) {
+            return;
+        }
+
+        const container = targetCard.parentElement;
+        if (!container) {
+            return;
+        }
+
+        if (
+            this.noteDragState.overId === targetCard.dataset.noteId
+            && this.noteDragState.position === position
+        ) {
+            return;
+        }
+
+        if (position === 'before' && draggedCard.nextElementSibling === targetCard) {
+            this.noteDragState.overId = targetCard.dataset.noteId;
+            this.noteDragState.position = position;
+            return;
+        }
+
+        if (position === 'after' && targetCard.nextElementSibling === draggedCard) {
+            this.noteDragState.overId = targetCard.dataset.noteId;
+            this.noteDragState.position = position;
+            return;
+        }
+
+        this.animateNoteReflow(() => {
+            container.insertBefore(
+                draggedCard,
+                position === 'before' ? targetCard : targetCard.nextElementSibling
+            );
+        }, { excludeId: this.noteDragState.noteId });
+
+        this.noteDragState.overId = targetCard.dataset.noteId;
+        this.noteDragState.position = position;
+        this.noteDragState.previewChanged = true;
+    }
+
+    animateNoteReflow(mutator, options = {}) {
+        const cards = Array.from(this.elements.noteList.querySelectorAll('.note-card[data-note-id]'));
+        const firstRects = new Map(cards.map((card) => [card.dataset.noteId, card.getBoundingClientRect()]));
+        mutator();
+
+        const excludeId = options.excludeId ? String(options.excludeId) : '';
+        Array.from(this.elements.noteList.querySelectorAll('.note-card[data-note-id]')).forEach((card) => {
+            if (String(card.dataset.noteId) === excludeId) {
+                return;
+            }
+
+            const first = firstRects.get(card.dataset.noteId);
+            if (!first) {
+                return;
+            }
+
+            const last = card.getBoundingClientRect();
+            const deltaX = first.left - last.left;
+            const deltaY = first.top - last.top;
+            if (Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5) {
+                return;
+            }
+
+            card.style.transition = 'none';
+            card.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+            card.style.willChange = 'transform';
+            void card.offsetWidth;
+
+            card.style.transition = 'transform 220ms cubic-bezier(0.22, 1, 0.36, 1)';
+            card.style.transform = '';
+            const cleanup = () => {
+                card.style.transition = '';
+                card.style.willChange = '';
+            };
+            card.addEventListener('transitionend', cleanup, { once: true });
+        });
+    }
+
+    getPreviewNoteIds() {
+        return Array.from(this.elements.noteList.querySelectorAll('.note-card[data-note-id]'))
+            .map((card) => card.dataset.noteId);
+    }
+
+    async commitNotePreviewOrder() {
+        if (!this.currentItem || !Array.isArray(this.currentItem.answers)) {
+            this.renderNotes();
+            return;
+        }
+
+        const orderedIds = this.getPreviewNoteIds();
+        const currentNotes = this.currentItem.answers;
+        if (orderedIds.length !== currentNotes.length) {
+            this.renderNotes();
+            return;
+        }
+
+        const noteMap = new Map(currentNotes.map((note) => [String(note.id), note]));
+        const orderedNotes = orderedIds.map((id) => noteMap.get(String(id))).filter(Boolean);
+        if (orderedNotes.length !== currentNotes.length) {
+            this.renderNotes();
+            return;
+        }
+
+        const unchanged = orderedNotes.every((note, index) => String(note.id) === String(currentNotes[index].id));
+        if (unchanged) {
+            this.renderNotes();
+            return;
+        }
+
+        this.currentItem.answers = orderedNotes;
+        this.currentItem.date = new Date().toISOString();
+
+        try {
+            await this.persistCurrentItem();
+            this.renderNotes();
+            this.toast(this.literal('Note order saved', 'Note order saved'));
+        } catch (error) {
+            this.toast(error.message, 'error');
+            this.renderNotes();
+        }
+    }
+
     finishBoot() {
         if (!document.documentElement.dataset.boot) {
             return;
@@ -1701,6 +1936,13 @@ class ResearchQaApp {
 
         this.elements.noteList.innerHTML = notes.map((note) => {
             const expanded = this.expandedNotes.has(note.id);
+            const canReorder = this.canReorderNotes();
+            const dragAttrs = canReorder
+                ? ` draggable="true" data-note-draggable="true"`
+                : '';
+            const dragHandle = canReorder
+                ? `<button class="note-drag-handle" type="button" data-note-drag-handle title="Drag to reorder" aria-label="Drag to reorder">↕</button>`
+                : '';
             const body = expanded
                 ? `<div class="rich-text" data-note-render="${note.id}"></div>`
                 : `<div class="note-excerpt rich-text" data-note-preview="${note.id}"></div>`;
@@ -1711,9 +1953,12 @@ class ResearchQaApp {
                 `;
 
             return `
-                <article class="note-card">
+                <article class="note-card" data-note-id="${note.id}"${dragAttrs}>
                     <div class="note-card-head">
-                        <time datetime="${note.date}">${formatDate(note.date)}</time>
+                        <div class="note-card-meta">
+                            ${dragHandle}
+                            <time datetime="${note.date}">${formatDate(note.date)}</time>
+                        </div>
                         <div class="note-toolbar">
                             <button class="pill-btn soft" data-note-action="toggle" data-note-id="${note.id}">${toggleLabel}</button>
                             ${toolbar}
