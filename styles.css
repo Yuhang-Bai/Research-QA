@@ -484,6 +484,32 @@ html[data-route="detail"] .main-panel {
     box-shadow: 0 14px 30px rgba(15, 118, 110, 0.16);
 }
 
+.problem-row.drop-before,
+.problem-row.drop-after {
+    position: relative;
+    border-color: rgba(15, 118, 110, 0.4);
+}
+
+.problem-row.drop-before::before,
+.problem-row.drop-after::after {
+    content: "";
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    height: 4px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgba(15, 118, 110, 0.95), rgba(216, 151, 36, 0.9));
+    box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.12);
+}
+
+.problem-row.drop-before::before {
+    top: -8px;
+}
+
+.problem-row.drop-after::after {
+    bottom: -8px;
+}
+
 .problem-row-top {
     display: flex;
     justify-content: space-between;
@@ -861,6 +887,50 @@ html[data-route="detail"] .main-panel {
     transform: scale(0.99);
     border-color: rgba(15, 118, 110, 0.34);
     box-shadow: 0 14px 30px rgba(15, 118, 110, 0.16);
+}
+
+.note-card.drop-before,
+.note-card.drop-after {
+    position: relative;
+    border-color: rgba(15, 118, 110, 0.42);
+    box-shadow: 0 18px 36px rgba(15, 118, 110, 0.14);
+}
+
+.note-card.drop-before {
+    transform: translateY(6px);
+}
+
+.note-card.drop-after {
+    transform: translateY(-6px);
+}
+
+.note-card.drop-before::before,
+.note-card.drop-after::after {
+    content: "Drop here";
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    height: 22px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgba(15, 118, 110, 0.96), rgba(216, 151, 36, 0.92));
+    color: #fffaf0;
+    display: grid;
+    place-items: center;
+    font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    box-shadow: 0 8px 20px rgba(15, 118, 110, 0.22);
+    z-index: 2;
+}
+
+.note-card.drop-before::before {
+    top: -14px;
+}
+
+.note-card.drop-after::after {
+    bottom: -14px;
 }
 
 .note-card-head {

@@ -1229,13 +1229,16 @@ class ResearchQaApp {
     }
 
     clearListDropMarkers() {
-        this.elements.list.querySelectorAll('.drop-before, .drop-after, .dragging').forEach((row) => {
-            row.classList.remove('drop-before', 'drop-after', 'dragging');
+        this.elements.list.querySelectorAll('.drop-before, .drop-after').forEach((row) => {
+            row.classList.remove('drop-before', 'drop-after');
         });
     }
 
     clearListDragState() {
         this.clearListDropMarkers();
+        this.elements.list.querySelectorAll('.dragging').forEach((row) => {
+            row.classList.remove('dragging');
+        });
         this.dragState = {
             itemId: null,
             pinGroup: '',
@@ -1344,10 +1347,12 @@ class ResearchQaApp {
             return;
         }
 
-        if (
-            this.dragState.overId === targetRow.dataset.itemId
-            && this.dragState.position === position
-        ) {
+        this.clearListDropMarkers();
+        targetRow.classList.add(position === 'before' ? 'drop-before' : 'drop-after');
+
+        const sameTarget = this.dragState.overId === targetRow.dataset.itemId
+            && this.dragState.position === position;
+        if (sameTarget) {
             return;
         }
 
@@ -1477,13 +1482,16 @@ class ResearchQaApp {
     }
 
     clearNoteDropMarkers() {
-        this.elements.noteList.querySelectorAll('.drop-before, .drop-after, .dragging').forEach((card) => {
-            card.classList.remove('drop-before', 'drop-after', 'dragging');
+        this.elements.noteList.querySelectorAll('.drop-before, .drop-after').forEach((card) => {
+            card.classList.remove('drop-before', 'drop-after');
         });
     }
 
     clearNoteDragState() {
         this.clearNoteDropMarkers();
+        this.elements.noteList.querySelectorAll('.dragging').forEach((card) => {
+            card.classList.remove('dragging');
+        });
         document.body.classList.remove('note-dragging-active');
         this.noteDragState = {
             noteId: null,
@@ -1593,10 +1601,12 @@ class ResearchQaApp {
             return;
         }
 
-        if (
-            this.noteDragState.overId === targetCard.dataset.noteId
-            && this.noteDragState.position === position
-        ) {
+        this.clearNoteDropMarkers();
+        targetCard.classList.add(position === 'before' ? 'drop-before' : 'drop-after');
+
+        const sameTarget = this.noteDragState.overId === targetCard.dataset.noteId
+            && this.noteDragState.position === position;
+        if (sameTarget) {
             return;
         }
 
