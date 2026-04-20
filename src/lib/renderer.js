@@ -64,12 +64,14 @@ function escapeRegExp(text) {
 
 function injectPreamble(mathSource, preamble = '') {
     const setup = preamble.trim();
-    if (!setup) {
-        return mathSource;
+    const displayDollar = mathSource.startsWith('$$') && mathSource.endsWith('$$');
+    if (displayDollar) {
+        const body = mathSource.slice(2, -2).trim();
+        return setup ? `\\[${setup}\n${body}\\]` : `\\[${body}\\]`;
     }
 
-    if (mathSource.startsWith('$$') && mathSource.endsWith('$$')) {
-        return `$$${setup}\n${mathSource.slice(2, -2)}$$`;
+    if (!setup) {
+        return mathSource;
     }
 
     if (mathSource.startsWith('$') && mathSource.endsWith('$')) {
