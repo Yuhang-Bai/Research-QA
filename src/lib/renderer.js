@@ -47,7 +47,10 @@ const MATH_ENVIRONMENTS = [
     'CD'
 ];
 
+const FENCE_PATTERN = /^( {0,3})(`{3,}|~{3,})/;
+
 let mathQueue = Promise.resolve();
+let mathJaxReadyPromise = null;
 
 function escapeHtml(text) {
     return String(text ?? '')
@@ -86,7 +89,126 @@ function injectPreamble(mathSource, preamble = '') {
         return `\\[${setup}\n${mathSource.slice(2, -2)}\\]`;
     }
 
+    const environmentMatch = mathSource.match(/^\\begin\{([^}]+)\}/);
+    if (environmentMatch && MATH_ENVIRONMENTS.includes(environmentMatch[1])) {
+        return `${environmentMatch[0]}${setup}\n${mathSource.slice(environmentMatch[0].length)}`;
+    }
+
     return `${setup}\n${mathSource}`;
+}
+
+function isEscaped(source, index) {
+    let slashCount = 0;
+    for (let cursor = index - 1; cursor >= 0 && source[cursor] === '\\'; cursor -= 1) {
+        slashCount += 1;
+    }
+    return slashCount % 2 === 1;
+}
+
+function countRun(source, index, character) {
+    let cursor = index;
+    while (source[cursor] === character) {
+        cursor += 1;
+    }
+    return cursor - index;
+}
+
+function lineEnd(source, index) {
+    const nextNewline = source.indexOf('\n', index);
+    return nextNewline === -1 ? source.length : nextNewline;
+}
+
+function matchFenceStart(source, index) {
+    if (index !== 0 && source[index - 1] !== '\n') {
+        return null;
+    }
+
+    const line = source.slice(index, lineEnd(source, index));
+    const match = line.match(FENCE_PATTERN);
+    if (!match) {
+        return null;
+    }
+
+    return {
+        marker: match[2][0],
+        length: match[2].length
+    };
+}
+
+function findFenceEnd(source, index, fence) {
+    let cursor = lineEnd(source, index);
+    if (source[cursor] === '\n') {
+        cursor += 1;
+    }
+
+    while (cursor < source.length) {
+        const end = lineEnd(source, cursor);
+        const line = source.slice(cursor, end);
+        const closePattern = new RegExp(`^ {0,3}${escapeRegExp(fence.marker)}{${fence.length},}\\s*$`);
+        if (closePattern.test(line)) {
+            return source[end] === '\n' ? end + 1 : end;
+        }
+        cursor = source[end] === '\n' ? end + 1 : end;
+    }
+
+    return source.length;
+}
+
+function findInlineCodeEnd(source, index) {
+    const length = countRun(source, index, '`');
+    const token = '`'.repeat(length);
+    const close = source.indexOf(token, index + length);
+    return close === -1 ? index + length : close + length;
+}
+
+function findClosingDoubleDollar(source, index) {
+    let cursor = index + 2;
+    while (cursor < source.length) {
+        const close = source.indexOf('$$', cursor);
+        if (close === -1) {
+            return -1;
+        }
+        if (!isEscaped(source, close)) {
+            return close;
+        }
+        cursor = close + 2;
+    }
+    return -1;
+}
+
+function canOpenInlineDollar(source, index) {
+    if (isEscaped(source, index)) {
+        return false;
+    }
+
+    const next = source[index + 1];
+    return Boolean(next && next !== '$' && !/\s/.test(next));
+}
+
+function canCloseInlineDollar(source, index) {
+    if (isEscaped(source, index)) {
+        return false;
+    }
+
+    const previous = source[index - 1];
+    return Boolean(previous && !/\s/.test(previous));
+}
+
+function findClosingInlineDollar(source, index) {
+    let cursor = index + 1;
+    while (cursor < source.length) {
+        if (source[cursor] === '`') {
+            cursor = findInlineCodeEnd(source, cursor);
+            continue;
+        }
+
+        if (source[cursor] === '$' && source[cursor + 1] !== '$' && canCloseInlineDollar(source, cursor)) {
+            return cursor;
+        }
+
+        cursor += 1;
+    }
+    return -1;
 }
 
 function protectMath(source, preamble) {
@@ -101,8 +223,23 @@ function protectMath(source, preamble) {
     };
 
     while (index < source.length) {
+        const fence = matchFenceStart(source, index);
+        if (fence) {
+            const end = findFenceEnd(source, index, fence);
+            output += source.slice(index, end);
+            index = end;
+            continue;
+        }
+
+        if (source[index] === '`') {
+            const end = findInlineCodeEnd(source, index);
+            output += source.slice(index, end);
+            index = end;
+            continue;
+        }
+
         if (source.startsWith('$$', index)) {
-            const close = source.indexOf('$$', index + 2);
+            const close = findClosingDoubleDollar(source, index);
             if (close !== -1) {
                 store(source.slice(index, close + 2));
                 index = close + 2;
@@ -128,9 +265,9 @@ function protectMath(source, preamble) {
             }
         }
 
-        if (source[index] === '$' && source[index - 1] !== '\\') {
-            const next = source.indexOf('$', index + 1);
-            if (next !== -1 && source[next - 1] !== '\\') {
+        if (source[index] === '$' && canOpenInlineDollar(source, index)) {
+            const next = findClosingInlineDollar(source, index);
+            if (next !== -1) {
                 store(source.slice(index, next + 1));
                 index = next + 1;
                 continue;
@@ -510,11 +647,74 @@ export function setRenderedHtml(element, rendered) {
     element.innerHTML = rendered.html || '';
 }
 
+async function waitForMathJax() {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+
+    if (window.MathJax?.startup?.promise) {
+        await window.MathJax.startup.promise;
+        return window.MathJax?.typesetPromise ? window.MathJax : null;
+    }
+
+    if (window.MathJax?.typesetPromise) {
+        return window.MathJax;
+    }
+
+    if (!mathJaxReadyPromise) {
+        mathJaxReadyPromise = new Promise((resolve) => {
+            const startedAt = Date.now();
+            const script = document.getElementById('MathJax-script');
+
+            const finish = async () => {
+                try {
+                    if (window.MathJax?.startup?.promise) {
+                        await window.MathJax.startup.promise;
+                        resolve(window.MathJax?.typesetPromise ? window.MathJax : null);
+                        return;
+                    }
+
+                    resolve(window.MathJax?.typesetPromise ? window.MathJax : null);
+                } catch (error) {
+                    resolve(null);
+                }
+            };
+
+            const poll = () => {
+                if (window.MathJax?.startup?.promise || window.MathJax?.typesetPromise || Date.now() - startedAt > 10000) {
+                    finish();
+                    return;
+                }
+                window.setTimeout(poll, 25);
+            };
+
+            if (script) {
+                script.addEventListener('load', finish, { once: true });
+                script.addEventListener('error', () => resolve(null), { once: true });
+            }
+            poll();
+        });
+    }
+
+    return mathJaxReadyPromise;
+}
+
 export async function typesetElement(element) {
-    if (!element || !window.MathJax?.typesetPromise) {
+    if (!element) {
         return;
     }
 
-    mathQueue = mathQueue.then(() => window.MathJax.typesetPromise([element])).catch(() => undefined);
+    mathQueue = mathQueue.then(async () => {
+        if (!element.isConnected) {
+            return;
+        }
+
+        const MathJax = await waitForMathJax();
+        if (!MathJax?.typesetPromise || !element.isConnected) {
+            return;
+        }
+
+        await MathJax.typesetPromise([element]);
+    }).catch(() => undefined);
     return mathQueue;
 }
