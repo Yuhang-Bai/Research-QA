@@ -294,6 +294,155 @@ function protectMath(source, preamble) {
     return { output, placeholders };
 }
 
+function renderProtectedMarkdown(source, preamble) {
+    if (!source.trim()) {
+        return '';
+    }
+
+    const { output, placeholders } = protectMath(source, preamble);
+    const html = markdown.render(output);
+    return restoreMath(html, placeholders);
+}
+
+function splitDisplayMathBlocks(source, preamble) {
+    const blocks = [];
+    const lines = source.replace(/\r\n?/g, '\n').split('\n');
+    let buffer = [];
+    let inFence = null;
+
+    const flushMarkdown = () => {
+        if (buffer.length > 0) {
+            blocks.push({ type: 'markdown', source: buffer.join('\n') });
+            buffer = [];
+        }
+    };
+
+    const pushMath = (mathSource, trailing = '') => {
+        flushMarkdown();
+        blocks.push({
+            type: 'math',
+            source: `${injectPreamble(mathSource.trim(), preamble)}${trailing}`
+        });
+    };
+
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+        const line = lines[lineIndex];
+        const trimmed = line.trim();
+
+        const fenceMatch = line.match(FENCE_PATTERN);
+        if (fenceMatch) {
+            if (inFence && fenceMatch[2][0] === inFence.marker && fenceMatch[2].length >= inFence.length) {
+                inFence = null;
+            } else if (!inFence) {
+                inFence = {
+                    marker: fenceMatch[2][0],
+                    length: fenceMatch[2].length
+                };
+            }
+            buffer.push(line);
+            continue;
+        }
+
+        if (inFence || !trimmed) {
+            buffer.push(line);
+            continue;
+        }
+
+        if (trimmed.startsWith('$$')) {
+            const close = findClosingDoubleDollar(trimmed, 0);
+            if (close !== -1) {
+                pushMath(trimmed.slice(0, close + 2), trimmed.slice(close + 2));
+                continue;
+            }
+
+            const collected = [trimmed];
+            let found = false;
+            for (let cursor = lineIndex + 1; cursor < lines.length; cursor += 1) {
+                const candidate = lines[cursor].trim();
+                const candidateClose = findClosingDoubleDollar(candidate, 0);
+                collected.push(candidate);
+                if (candidateClose !== -1) {
+                    const last = collected.pop();
+                    collected.push(last.slice(0, candidateClose + 2));
+                    pushMath(collected.join('\n'), last.slice(candidateClose + 2));
+                    lineIndex = cursor;
+                    found = true;
+                    break;
+                }
+            }
+
+            if (found) {
+                continue;
+            }
+        }
+
+        if (trimmed.startsWith('\\[')) {
+            const close = trimmed.indexOf('\\]', 2);
+            if (close !== -1) {
+                pushMath(trimmed.slice(0, close + 2), trimmed.slice(close + 2));
+                continue;
+            }
+
+            const collected = [trimmed];
+            let found = false;
+            for (let cursor = lineIndex + 1; cursor < lines.length; cursor += 1) {
+                const candidate = lines[cursor].trim();
+                const candidateClose = candidate.indexOf('\\]');
+                collected.push(candidate);
+                if (candidateClose !== -1) {
+                    const last = collected.pop();
+                    collected.push(last.slice(0, candidateClose + 2));
+                    pushMath(collected.join('\n'), last.slice(candidateClose + 2));
+                    lineIndex = cursor;
+                    found = true;
+                    break;
+                }
+            }
+
+            if (found) {
+                continue;
+            }
+        }
+
+        if (trimmed.startsWith('\\begin{')) {
+            const envMatch = trimmed.match(/^\\begin\{([^}]+)\}/);
+            if (envMatch && MATH_ENVIRONMENTS.includes(envMatch[1])) {
+                const endToken = `\\end{${envMatch[1]}}`;
+                const close = trimmed.indexOf(endToken, envMatch[0].length);
+                if (close !== -1) {
+                    pushMath(trimmed.slice(0, close + endToken.length), trimmed.slice(close + endToken.length));
+                    continue;
+                }
+
+                const collected = [trimmed];
+                let found = false;
+                for (let cursor = lineIndex + 1; cursor < lines.length; cursor += 1) {
+                    const candidate = lines[cursor].trim();
+                    const candidateClose = candidate.indexOf(endToken);
+                    collected.push(candidate);
+                    if (candidateClose !== -1) {
+                        const last = collected.pop();
+                        collected.push(last.slice(0, candidateClose + endToken.length));
+                        pushMath(collected.join('\n'), last.slice(candidateClose + endToken.length));
+                        lineIndex = cursor;
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (found) {
+                    continue;
+                }
+            }
+        }
+
+        buffer.push(line);
+    }
+
+    flushMarkdown();
+    return blocks.length ? blocks : [{ type: 'markdown', source }];
+}
+
 function restoreMath(html, placeholders) {
     return placeholders.reduce(
         (currentHtml, math, index) => currentHtml.replaceAll(`@@RQ_MATH_${index}@@`, math),
@@ -410,9 +559,18 @@ function renderMarkdown(source, preamble) {
         return '';
     }
 
-    const { output, placeholders } = protectMath(source, preamble);
-    const html = markdown.render(output);
-    return restoreMath(html, placeholders);
+    const blocks = splitDisplayMathBlocks(source, preamble);
+    if (blocks.length === 1 && blocks[0].type === 'markdown') {
+        return renderProtectedMarkdown(source, preamble);
+    }
+
+    return blocks.map((block) => {
+        if (block.type === 'math') {
+            return `<div class="math-display">${escapeHtml(block.source)}</div>`;
+        }
+
+        return renderProtectedMarkdown(block.source, preamble);
+    }).join('');
 }
 
 function replaceReferenceTokens(source, references) {
