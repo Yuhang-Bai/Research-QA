@@ -324,9 +324,26 @@ function splitBlocks(source) {
 
         const alias = startMatch[1].toLowerCase();
         const endPattern = new RegExp(`^\\s*\\\\end\\{${escapeRegExp(alias)}\\}\\s*(.*)$`, 'i');
+        const inlineEndPattern = new RegExp(`^(.*?)\\\\end\\{${escapeRegExp(alias)}\\}\\s*(.*)$`, 'i');
         const nestedPattern = new RegExp(`^\\s*\\\\begin\\{${escapeRegExp(alias)}\\}\\b`, 'i');
         let depth = 1;
         const collected = [];
+
+        const inlineEndMatch = startMatch[2].match(inlineEndPattern);
+        if (inlineEndMatch) {
+            flushBuffer();
+            blocks.push({
+                type: 'environment',
+                env: ENVIRONMENT_MAP[alias].canonical,
+                title: ENVIRONMENT_MAP[alias].title,
+                counter: ENVIRONMENT_MAP[alias].counter,
+                source: inlineEndMatch[1].trim()
+            });
+            if (inlineEndMatch[2]) {
+                buffer.push(inlineEndMatch[2]);
+            }
+            continue;
+        }
 
         if (startMatch[2]) {
             collected.push(startMatch[2]);
@@ -398,20 +415,82 @@ function renderMarkdown(source, preamble) {
     return restoreMath(html, placeholders);
 }
 
-function replaceReferences(html, references) {
-    return html
-        .replace(/\\eqref\{([^}]+)\}/g, (_, label) => {
+function replaceReferenceTokens(source, references) {
+    return source
+        .replace(/\\eqref\{([^}]+)\}/g, (match, label) => {
             const reference = references.get(label);
             return reference
                 ? `<a class="latex-ref" href="#${reference.anchorId}">(${reference.number})</a>`
-                : `<span class="latex-ref missing">(?)</span>`;
+                : match;
         })
-        .replace(/\\ref\{([^}]+)\}/g, (_, label) => {
+        .replace(/\\ref\{([^}]+)\}/g, (match, label) => {
             const reference = references.get(label);
             return reference
                 ? `<a class="latex-ref" href="#${reference.anchorId}">${reference.number}</a>`
-                : `<span class="latex-ref missing">?</span>`;
+                : match;
         });
+}
+
+function mathSpanEndAt(source, index) {
+    if (source.startsWith('$$', index)) {
+        const close = findClosingDoubleDollar(source, index);
+        return close === -1 ? -1 : close + 2;
+    }
+
+    if (source.startsWith('\\(', index)) {
+        const close = source.indexOf('\\)', index + 2);
+        return close === -1 ? -1 : close + 2;
+    }
+
+    if (source.startsWith('\\[', index)) {
+        const close = source.indexOf('\\]', index + 2);
+        return close === -1 ? -1 : close + 2;
+    }
+
+    if (source[index] === '$' && canOpenInlineDollar(source, index)) {
+        const close = findClosingInlineDollar(source, index);
+        return close === -1 ? -1 : close + 1;
+    }
+
+    if (source.startsWith('\\begin{', index)) {
+        const envMatch = source.slice(index).match(/^\\begin\{([^}]+)\}/);
+        if (envMatch && MATH_ENVIRONMENTS.includes(envMatch[1])) {
+            const endToken = `\\end{${envMatch[1]}}`;
+            const close = source.indexOf(endToken, index + envMatch[0].length);
+            return close === -1 ? -1 : close + endToken.length;
+        }
+    }
+
+    return -1;
+}
+
+function replaceReferences(html, references) {
+    let output = '';
+    let plain = '';
+    let index = 0;
+
+    const flushPlain = () => {
+        if (plain) {
+            output += replaceReferenceTokens(plain, references);
+            plain = '';
+        }
+    };
+
+    while (index < html.length) {
+        const mathEnd = mathSpanEndAt(html, index);
+        if (mathEnd !== -1) {
+            flushPlain();
+            output += html.slice(index, mathEnd);
+            index = mathEnd;
+            continue;
+        }
+
+        plain += html[index];
+        index += 1;
+    }
+
+    flushPlain();
+    return output;
 }
 
 function renderEnvironment(block, state, preamble) {
