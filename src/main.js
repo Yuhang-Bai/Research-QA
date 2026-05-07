@@ -31,6 +31,7 @@ const I18N = {
         importLegacy: 'Import legacy data',
         importLegacyUnavailable: 'No legacy config',
         exportPdf: 'Export PDF',
+        exportNotePdf: 'Export PDF',
         storageLocalFirst: 'Local-first',
         storageGistSync: 'Gist sync',
         storageSharedReadOnly: 'Shared read-only',
@@ -160,7 +161,9 @@ const I18N = {
         confirmImportLegacyOverwrite: 'Importing legacy data will overwrite the current local cache with the old main gist. Continue?',
         toastPdfPopupBlocked: 'The browser blocked the PDF window. Allow pop-ups for this site and try again.'
     },
-    zh: {}
+    zh: {
+        exportNotePdf: '导出 PDF'
+    }
 };
 
 let activeLanguage = 'en';
@@ -763,6 +766,9 @@ class ResearchQaApp {
                     break;
                 case 'edit':
                     this.openNoteEditor(noteId);
+                    break;
+                case 'pdf':
+                    this.exportNotePdf(noteId);
                     break;
                 case 'delete':
                     this.deleteNote(noteId);
@@ -2136,6 +2142,7 @@ class ResearchQaApp {
                         </div>
                         <div class="note-toolbar">
                             <button class="pill-btn soft" data-note-action="toggle" data-note-id="${note.id}">${toggleLabel}</button>
+                            <button class="pill-btn soft" data-note-action="pdf" data-note-id="${note.id}">${this.text('exportNotePdf')}</button>
                             ${toolbar}
                         </div>
                     </div>
@@ -2764,11 +2771,138 @@ class ResearchQaApp {
 </html>`;
     }
 
-    exportCurrentItemPdf() {
-        if (!this.currentItem || (this.viewMode === 'trash' && this.currentSummary?.type === 'note')) {
-            return;
+    buildPrintableNoteDocument(item, note) {
+        const problemTitle = escapeHtml(item.title || this.text('defaultUntitledProblem'));
+        const documentTitle = escapeHtml(`${item.title || this.text('defaultUntitledProblem')} - ${this.text('researchNote')}`);
+        const noteHtml = renderDocument(note.text || '', { preamble: item.preamble });
+
+        return `<!DOCTYPE html>
+<html lang="${this.language === 'zh' ? 'zh-CN' : 'en'}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${documentTitle}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=STIX+Two+Text:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            color-scheme: light;
+            --ink: #201913;
+            --muted: #675c50;
+            --line: rgba(94, 76, 56, 0.18);
+            --accent: #0f766e;
+            --paper: #fffdf9;
+        }
+        @page {
+            size: A4;
+            margin: 15mm;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+            color: var(--ink);
+            background: var(--paper);
+        }
+        main {
+            max-width: 920px;
+            margin: 0 auto;
+            padding: 28px 12px 36px;
+        }
+        h1, h2 {
+            margin: 0;
+            font-family: "STIX Two Text", Georgia, serif;
+            font-weight: 600;
+        }
+        .print-header {
+            border-bottom: 1px solid var(--line);
+            padding-bottom: 18px;
+            margin-bottom: 24px;
+        }
+        .print-kicker {
+            font-size: 12px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin-bottom: 10px;
+        }
+        .print-meta {
+            margin-top: 10px;
+            color: var(--muted);
+            font-size: 14px;
+        }
+        .print-section {
+            margin-top: 28px;
+        }
+        .print-section h2 {
+            font-size: 24px;
+            margin-bottom: 14px;
+        }
+        .rich-text {
+            line-height: 1.75;
+        }
+        .rich-text img {
+            max-width: 100%;
+        }
+    </style>
+    <script>
+        window.MathJax = {
+            loader: { load: ['[tex]/physics', '[tex]/mhchem', '[tex]/color', '[tex]/cancel', '[tex]/boldsymbol'] },
+            tex: {
+                packages: { '[+]': ['physics', 'mhchem', 'color', 'cancel', 'boldsymbol'] },
+                inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
+                displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
+                processEscapes: true,
+                tags: 'ams'
+            },
+            startup: { typeset: false }
+        };
+    </script>
+    <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+</head>
+<body>
+    <main>
+        <header class="print-header">
+            <div class="print-kicker">${escapeHtml(this.text('researchNote'))}</div>
+            <h1>${problemTitle}</h1>
+            <div class="print-meta">${escapeHtml(this.text('updatedAt', { date: formatDate(note.date) }))}</div>
+        </header>
+        <section class="print-section">
+            <h2>${escapeHtml(this.text('researchNote'))}</h2>
+            <div class="rich-text">${noteHtml.html}</div>
+        </section>
+    </main>
+    <script>
+        async function waitForMathJax() {
+            const deadline = Date.now() + 6000;
+            while (Date.now() < deadline) {
+                if (window.MathJax && window.MathJax.startup && window.MathJax.startup.promise) {
+                    await window.MathJax.startup.promise;
+                    if (window.MathJax.typesetPromise) {
+                        await window.MathJax.typesetPromise();
+                    }
+                    return;
+                }
+                await new Promise((resolve) => setTimeout(resolve, 60));
+            }
         }
 
+        window.addEventListener('load', async () => {
+            await waitForMathJax();
+            window.focus();
+            setTimeout(() => window.print(), 120);
+        });
+
+        window.addEventListener('afterprint', () => window.close());
+    </script>
+</body>
+</html>`;
+    }
+
+    printHtmlDocument(html) {
         const frame = document.createElement('iframe');
         frame.setAttribute('aria-hidden', 'true');
         frame.style.position = 'fixed';
@@ -2781,23 +2915,32 @@ class ResearchQaApp {
         frame.style.border = '0';
         const cleanup = () => frame.remove();
         frame.addEventListener('load', () => {
-            window.setTimeout(() => {
-                try {
-                    if (!frame.contentWindow?.print) {
-                        throw new Error('Print is unavailable in this browser.');
-                    }
-                    frame.contentWindow.onafterprint = cleanup;
-                    frame.contentWindow.focus();
-                    frame.contentWindow.print();
-                } catch (error) {
-                    cleanup();
-                    this.toast(this.text('toastPdfPopupBlocked'), 'error');
-                }
-            }, 700);
+            frame.contentWindow?.addEventListener('afterprint', cleanup, { once: true });
         }, { once: true });
         document.body.appendChild(frame);
-        frame.srcdoc = this.buildPrintableProblemDocument(this.currentItem);
+        frame.srcdoc = html;
         window.setTimeout(cleanup, 60000);
+    }
+
+    exportCurrentItemPdf() {
+        if (!this.currentItem || (this.viewMode === 'trash' && this.currentSummary?.type === 'note')) {
+            return;
+        }
+
+        this.printHtmlDocument(this.buildPrintableProblemDocument(this.currentItem));
+    }
+
+    exportNotePdf(noteId) {
+        if (!this.currentItem || !noteId) {
+            return;
+        }
+
+        const note = (this.currentItem.answers || []).find((entry) => entry.id === noteId);
+        if (!note) {
+            return;
+        }
+
+        this.printHtmlDocument(this.buildPrintableNoteDocument(this.currentItem, note));
     }
 
     openConfigModal() {
