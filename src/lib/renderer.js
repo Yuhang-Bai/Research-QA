@@ -301,7 +301,7 @@ function renderProtectedMarkdown(source, preamble) {
 
     const { output, placeholders } = protectMath(source, preamble);
     const html = markdown.render(output);
-    return restoreMath(html, placeholders);
+    return restoreMathHtml(html, placeholders);
 }
 
 function splitDisplayMathBlocks(source, preamble) {
@@ -443,9 +443,16 @@ function splitDisplayMathBlocks(source, preamble) {
     return blocks.length ? blocks : [{ type: 'markdown', source }];
 }
 
-function restoreMath(html, placeholders) {
+function restoreMathRaw(source, placeholders) {
     return placeholders.reduce(
-        (currentHtml, math, index) => currentHtml.replaceAll(`@@RQ_MATH_${index}@@`, math),
+        (currentSource, math, index) => currentSource.replaceAll(`@@RQ_MATH_${index}@@`, math),
+        source
+    );
+}
+
+function restoreMathHtml(html, placeholders) {
+    return placeholders.reduce(
+        (currentHtml, math, index) => currentHtml.replaceAll(`@@RQ_MATH_${index}@@`, escapeHtml(math)),
         html
     );
 }
@@ -789,7 +796,7 @@ function buildMathAwareExcerptSource(source, length = 160) {
         appendText(compact.slice(lastIndex));
     }
 
-    const restored = restoreMath(result.trim(), placeholders);
+    const restored = restoreMathRaw(result.trim(), placeholders);
     if (!restored) {
         return placeholders[0] || '';
     }
@@ -841,7 +848,7 @@ export function renderInlineMath(source, options = {}) {
     }
 
     const { output, placeholders } = protectMath(text, options.preamble || '');
-    return restoreMath(
+    return restoreMathHtml(
         escapeHtml(output).replace(/\s*\n+\s*/g, ' '),
         placeholders
     );
