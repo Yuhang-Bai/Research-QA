@@ -14,7 +14,7 @@ import { getValue, setValue } from './data/idb.js';
 import { createMainDatabase, createSharedItem, fetchMainDatabase, fetchSharedItem, saveMainDatabase, saveSharedItem } from './data/gist.js';
 import { deserializeWorkspaceSnapshot, serializeWorkspaceSnapshot } from './data/workspace.js';
 import { createMarkdownEditor } from './lib/editor.js';
-import { renderDocument, renderExcerpt, renderInlineMath, renderPreviewDocument, setRenderedHtml, typesetElement } from './lib/renderer.js';
+import { MATHJAX_UNAVAILABLE_EVENT, renderDocument, renderExcerpt, renderInlineMath, renderPreviewDocument, setRenderedHtml, typesetElement } from './lib/renderer.js';
 
 const LOCAL_DATABASE_KEY = 'rq_v2_local_database';
 const UI_LANGUAGE_KEY = 'rq_v2_language';
@@ -94,6 +94,11 @@ const I18N = {
         toastPulledLatest: 'Pulled the latest data from GitHub gist',
         statusOfflineCache: 'Offline cache',
         statusSavedLocally: 'Saved locally',
+        statusLocalAhead: 'Unsynced local changes',
+        toastLocalAheadHint: 'This device has changes that are not on the remote gist yet. Press Sync to resolve.',
+        confirmPullOverwriteLocal: 'This device has unsynced local changes. Pulling will replace them with the remote copy. Continue?',
+        confirmConflictOverwrite: 'The remote database changed since this device last synced (possibly from another device). Overwrite the remote copy with this device\'s data? Cancel keeps your changes on this device only.',
+        toastConflictKeptLocal: 'Your changes are kept on this device. Press Sync to review the remote copy.',
         statusLoadingSharedItem: 'Loading shared item',
         statusSyncedSharedItem: 'Synced shared item',
         statusSharedItemUnavailable: 'Shared item unavailable',
@@ -149,7 +154,7 @@ const I18N = {
         toastShareLinkCopied: 'Share link copied',
         promptShareLink: 'Share link',
         toastNeedTokenForShare: 'Configure a GitHub token before creating a share link.',
-        toastCreatedSharedGist: 'Created a shared gist. Click Share again to copy the link.',
+        toastCreatedSharedGist: 'Created a shared gist. Note: anyone with the link can view it. Click Share again to copy the link.',
         toastPinned: 'Pinned to the top section',
         toastUnpinned: 'Removed from the pinned section',
         statusCreatingMainGist: 'Creating main gist',
@@ -159,10 +164,157 @@ const I18N = {
         toastImportFailed: 'Import failed: {message}',
         toastNoLegacyConfig: 'No legacy config was found in this browser.',
         confirmImportLegacyOverwrite: 'Importing legacy data will overwrite the current local cache with the old main gist. Continue?',
-        toastPdfPopupBlocked: 'The browser blocked the PDF window. Allow pop-ups for this site and try again.'
+        toastPdfPopupBlocked: 'The browser blocked the PDF window. Allow pop-ups for this site and try again.',
+        backToProblems: 'Back to problems',
+        toastMathJaxUnavailable: 'The math rendering engine failed to load (CDN unreachable). Formulas are shown as source until the page reloads with a working connection.'
     },
     zh: {
-        exportNotePdf: '导出 PDF'
+        documentTitle: 'Research QA',
+        brandEyebrow: '数学问题手账',
+        sync: '同步',
+        export: '导出',
+        import: '导入',
+        settings: '设置',
+        legacy: '旧版',
+        importLegacy: '导入旧版数据',
+        importLegacyUnavailable: '无旧版配置',
+        exportPdf: '导出 PDF',
+        exportNotePdf: '导出 PDF',
+        storageLocalFirst: '本地优先',
+        storageGistSync: 'Gist 同步',
+        storageSharedReadOnly: '分享只读',
+        sidebarTitle: '问题',
+        new: '新建',
+        statusNotConnected: '未连接',
+        viewProblems: '问题',
+        viewTrash: '回收站',
+        search: '搜索',
+        searchPlaceholder: '搜索标题、正文和笔记',
+        emptyEyebrow: '准备就绪',
+        emptyTitle: '你的已有数据保持原样',
+        emptyDescription: '新应用兼容旧版 gist 数据结构，并把工作副本迁移到本地优先流程，不会改动已保存的问题。',
+        newProblemButton: '新建问题',
+        configureSync: '配置同步',
+        heroProblem: '问题',
+        heroNotLoaded: '未加载',
+        heroRemoteDefault: '本地优先',
+        detailEmptyTitle: '未选择问题',
+        detailEmptySubtitle: '在左侧选择一个问题，查看题面和研究笔记。',
+        pin: '置顶',
+        unpin: '取消置顶',
+        share: '分享',
+        edit: '编辑',
+        delete: '删除',
+        statementKicker: '题面',
+        statement: '题面',
+        notesKicker: '笔记时间线',
+        researchNotes: '研究笔记',
+        addNote: '添加笔记',
+        editProblemMode: '编辑问题',
+        contentEditor: '内容编辑器',
+        closeEditor: '关闭编辑器',
+        titleLabel: '标题',
+        titlePlaceholder: '输入问题标题',
+        preambleLabel: 'LaTeX 导言区',
+        source: '源码',
+        preview: '预览',
+        cancel: '取消',
+        save: '保存',
+        syncBridge: '同步桥',
+        syncSettings: '同步设置',
+        closeSettings: '关闭设置',
+        githubToken: 'GitHub Token',
+        githubTokenPlaceholder: '读写私有 gist 时必填',
+        mainGistId: '主数据库 Gist ID',
+        mainGistPlaceholder: '留空则保持本地优先；填写 token 后可自动创建主 gist',
+        configNote: '新应用会自动导入旧版 v7_config 设置，并继续读取 main_db.json / shared_item.json。',
+        saveSettings: '保存设置',
+        statusLoadedCache: '已加载缓存',
+        statusLoadingShare: '加载分享中',
+        statusSharedView: '分享视图',
+        statusLoadFailed: '加载失败',
+        toastNoRemoteGist: '未配置远端 gist，更改将只保存在本地缓存。',
+        statusLocalMode: '本地模式',
+        statusSyncing: '同步中',
+        statusImportedLegacy: '已导入旧版数据',
+        toastImportedLegacy: '已导入旧版数据：{problems} 个问题，{trash} 条回收站记录',
+        statusSynced: '已同步',
+        toastPulledLatest: '已从 GitHub gist 拉取最新数据',
+        statusOfflineCache: '离线缓存',
+        statusSavedLocally: '已保存到本地',
+        statusLocalAhead: '本地有未同步修改',
+        toastLocalAheadHint: '本设备有尚未同步到远端 gist 的修改，点击“同步”处理。',
+        confirmPullOverwriteLocal: '本设备有未同步的本地修改，拉取会用远端副本覆盖它们。继续吗？',
+        confirmConflictOverwrite: '远端数据库在本设备上次同步后发生了变化（可能来自其他设备）。要用本设备的数据覆盖远端吗？选择“取消”则只在本设备保留你的修改。',
+        toastConflictKeptLocal: '你的修改已保留在本设备。点击“同步”查看远端副本。',
+        statusLoadingSharedItem: '加载分享条目中',
+        statusSyncedSharedItem: '分享条目已同步',
+        statusSharedItemUnavailable: '分享条目不可用',
+        viewTrashCount: '回收站 {count}',
+        viewProblemsCount: '问题 {count}',
+        noMatch: '无匹配',
+        noResults: '没有符合当前搜索的结果。',
+        noProblems: '还没有问题。',
+        archivedNoteTitle: '已归档笔记 - {title}',
+        note: '笔记',
+        deletedAt: '删除于 {date}',
+        sharedBadge: '已分享',
+        pinnedBadge: '置顶',
+        notesCount: '{count} 条笔记',
+        restoreNoteHint: '恢复此笔记可将它放回原问题，也可以永久删除。',
+        archivedNote: '已归档笔记',
+        trashBadge: '回收站',
+        originalProblem: '原问题',
+        readyToRestore: '可恢复',
+        restoreNoteDescription: '此笔记当前在回收站中。恢复时会尽可能挂回原问题。',
+        trashedProblem: '已删除问题',
+        detailTrashSubtitle: '这是回收站视图。你可以恢复该条目，或永久删除。',
+        detailProblemSubtitle: 'Markdown、MathJax、定理/证明块和本地优先缓存都在同一工作区中。',
+        updatedAt: '更新于 {date}',
+        sharedGist: '分享 gist',
+        mainGist: '主 gist',
+        localCache: '本地缓存',
+        restoreDelete: '恢复 / 删除',
+        noNotesEyebrow: '暂无笔记',
+        noNotesTitle: '还没有研究笔记。',
+        noNotesDescription: '把想法、失败的尝试、局部引理和证明片段记在这里，方便随时搜索。',
+        collapse: '收起',
+        expand: '展开',
+        editNote: '编辑',
+        deleteNote: '删除',
+        newProblem: '新建问题',
+        defaultUntitledProblem: '未命名问题',
+        problemEditor: '问题编辑器',
+        newNoteMode: '新建笔记',
+        editNoteMode: '编辑笔记',
+        researchNote: '研究笔记',
+        toastSaved: '已保存',
+        confirmMoveNoteToTrash: '把这条笔记移入回收站？',
+        toastNoteMovedToTrash: '笔记已移入回收站',
+        promptTrashAction: '输入 1 恢复，输入 2 永久删除。',
+        confirmMoveProblemToTrash: '把这个问题移入回收站？',
+        toastProblemMovedToTrash: '问题已移入回收站',
+        recoveredNoteTitle: '恢复的笔记 - {title}',
+        recoveredNoteDescription: '原问题已不存在时自动生成，避免恢复的笔记丢失。',
+        toastRestoredFromTrash: '已从回收站恢复',
+        confirmPermanentDelete: '永久删除？此操作无法撤销。',
+        toastPermanentlyDeleted: '已永久删除',
+        toastShareLinkCopied: '分享链接已复制',
+        promptShareLink: '分享链接',
+        toastNeedTokenForShare: '创建分享链接前请先配置 GitHub token。',
+        toastCreatedSharedGist: '已创建分享 gist。注意：任何拿到链接的人都能查看。再次点击“分享”复制链接。',
+        toastPinned: '已置顶',
+        toastUnpinned: '已取消置顶',
+        statusCreatingMainGist: '正在创建主 gist',
+        toastCreatedMainGist: '已创建主数据库 gist：{id}',
+        confirmImportOverwrite: '导入将覆盖当前本地缓存和远端主数据库。继续吗？',
+        toastImportCompleted: '导入完成',
+        toastImportFailed: '导入失败：{message}',
+        toastNoLegacyConfig: '此浏览器中没有找到旧版配置。',
+        confirmImportLegacyOverwrite: '导入旧版数据会用旧的主 gist 覆盖当前本地缓存。继续吗？',
+        toastPdfPopupBlocked: '浏览器拦截了 PDF 窗口。请允许本站弹出窗口后重试。',
+        backToProblems: '返回问题列表',
+        toastMathJaxUnavailable: '数学公式渲染引擎加载失败（CDN 无法访问）。在网络恢复并刷新页面前，公式将以源码形式显示。'
     }
 };
 
@@ -365,6 +517,8 @@ class ResearchQaApp {
         this.requiresUnlock = !initialRoute.visitorGistId && Boolean(this.authProfile);
         this.config = this.requiresUnlock ? { token: '', mainGistId: '' } : loadConfig();
         this.db = normalizeDatabase({});
+        this.remoteDbVersion = '';
+        this.localDirty = false;
         this.viewMode = initialRoute.viewMode;
         this.pageMode = initialRoute.pageMode;
         this.currentId = initialRoute.itemId;
@@ -530,6 +684,31 @@ class ResearchQaApp {
         return this.config.mainGistId ? `rq_v2_main_${this.config.mainGistId}` : LOCAL_DATABASE_KEY;
     }
 
+    get databaseVersionKey() {
+        return `${this.databaseCacheKey}:version`;
+    }
+
+    get databaseDirtyKey() {
+        return `${this.databaseCacheKey}:dirty`;
+    }
+
+    async loadSyncState() {
+        this.remoteDbVersion = (await getValue(this.databaseVersionKey)) || '';
+        this.localDirty = Boolean(await getValue(this.databaseDirtyKey));
+    }
+
+    async updateSyncState(version, dirty) {
+        this.remoteDbVersion = version || '';
+        this.localDirty = Boolean(dirty);
+        await setValue(this.databaseVersionKey, this.remoteDbVersion);
+        await setValue(this.databaseDirtyKey, this.localDirty);
+    }
+
+    async markLocalDirty() {
+        this.localDirty = true;
+        await setValue(this.databaseDirtyKey, true);
+    }
+
     sharedCacheKey(gistId) {
         return `rq_v2_shared_${gistId}`;
     }
@@ -572,7 +751,7 @@ class ResearchQaApp {
         document.title = this.text('documentTitle');
 
         this.elements.brandEyebrow.textContent = this.text('brandEyebrow');
-        this.elements.backHomeButton.textContent = 'Back to problems';
+        this.elements.backHomeButton.textContent = this.text('backToProblems');
         this.elements.syncButton.textContent = this.text('sync');
         this.elements.exportButton.textContent = this.text('export');
         this.elements.importButton.textContent = this.text('import');
@@ -613,26 +792,26 @@ class ResearchQaApp {
         this.elements.configTokenInput.placeholder = this.text('githubTokenPlaceholder');
         this.elements.configGistLabel.textContent = this.text('mainGistId');
         this.elements.configGistInput.placeholder = this.text('mainGistPlaceholder');
-        this.elements.configAuthUsernameLabel.textContent = this.literal('App username', 'App username');
-        this.elements.configAuthUsernameInput.placeholder = this.literal('Set your own sign-in name', 'Set your own sign-in name');
-        this.elements.configAuthPasswordLabel.textContent = this.literal('App password', 'App password');
-        this.elements.configAuthPasswordInput.placeholder = this.literal('Leave blank to keep the current password', 'Leave blank to keep the current password');
-        this.elements.configAuthPasswordConfirmLabel.textContent = this.literal('Confirm app password', 'Confirm app password');
-        this.elements.configAuthPasswordConfirmInput.placeholder = this.literal('Repeat the password when changing it', 'Repeat the password when changing it');
-        this.elements.configAuthNote.textContent = this.literal('Once enabled, your GitHub sync token and gist ID are encrypted locally behind this username/password.', 'Once enabled, your GitHub sync token and gist ID are encrypted locally behind this username/password.');
+        this.elements.configAuthUsernameLabel.textContent = this.literal('App username', '应用用户名');
+        this.elements.configAuthUsernameInput.placeholder = this.literal('Set your own sign-in name', '设置你自己的登录名');
+        this.elements.configAuthPasswordLabel.textContent = this.literal('App password', '应用密码');
+        this.elements.configAuthPasswordInput.placeholder = this.literal('Leave blank to keep the current password', '留空则保持当前密码');
+        this.elements.configAuthPasswordConfirmLabel.textContent = this.literal('Confirm app password', '确认应用密码');
+        this.elements.configAuthPasswordConfirmInput.placeholder = this.literal('Repeat the password when changing it', '修改密码时请重复输入');
+        this.elements.configAuthNote.textContent = this.literal('Once enabled, your GitHub sync token and gist ID are encrypted locally behind this username/password.', '启用后，你的 GitHub 同步 token 和 gist ID 会在本地用此用户名/密码加密保存。');
         this.elements.configNote.innerHTML = this.text('configNote');
         this.elements.cancelConfigButton.textContent = this.text('cancel');
         this.elements.saveConfigButton.textContent = this.text('saveSettings');
         this.elements.configCloseButton.setAttribute('aria-label', this.text('closeSettings'));
-        this.elements.disableLockButton.textContent = this.literal('Disable app login', 'Disable app login');
-        this.elements.authEyebrow.textContent = this.literal('Private Workspace', 'Private Workspace');
-        this.elements.authTitle.textContent = this.literal('Unlock Research QA', 'Unlock Research QA');
-        this.elements.authDescription.textContent = this.literal('Sign in with your own app account to load the encrypted sync configuration.', 'Sign in with your own app account to load the encrypted sync configuration.');
-        this.elements.authUsernameLabel.textContent = this.literal('Username', 'Username');
-        this.elements.authUsernameInput.placeholder = this.literal('Enter your app username', 'Enter your app username');
-        this.elements.authPasswordLabel.textContent = this.literal('Password', 'Password');
-        this.elements.authPasswordInput.placeholder = this.literal('Enter your app password', 'Enter your app password');
-        this.elements.authUnlockButton.textContent = this.literal('Unlock', 'Unlock');
+        this.elements.disableLockButton.textContent = this.literal('Disable app login', '关闭应用登录');
+        this.elements.authEyebrow.textContent = this.literal('Private Workspace', '私人工作区');
+        this.elements.authTitle.textContent = this.literal('Unlock Research QA', '解锁 Research QA');
+        this.elements.authDescription.textContent = this.literal('Sign in with your own app account to load the encrypted sync configuration.', '使用你的应用账号登录，以加载加密的同步配置。');
+        this.elements.authUsernameLabel.textContent = this.literal('Username', '用户名');
+        this.elements.authUsernameInput.placeholder = this.literal('Enter your app username', '输入应用用户名');
+        this.elements.authPasswordLabel.textContent = this.literal('Password', '密码');
+        this.elements.authPasswordInput.placeholder = this.literal('Enter your app password', '输入应用密码');
+        this.elements.authUnlockButton.textContent = this.literal('Unlock', '解锁');
 
         if (this.elements.languageButton) {
             this.elements.languageButton.textContent = this.language === 'zh' ? 'EN' : 'ZH';
@@ -788,6 +967,9 @@ class ResearchQaApp {
     async init() {
         this.ensureUtilityButtons();
         this.bindEvents();
+        document.addEventListener(MATHJAX_UNAVAILABLE_EVENT, () => {
+            this.toast(this.text('toastMathJaxUnavailable'), 'error');
+        }, { once: true });
         this.applyLanguage({ rerender: false });
         if (this.requiresUnlock) {
             this.showAuthScreen();
@@ -857,7 +1039,7 @@ class ResearchQaApp {
             this.reflectConfig();
             await this.startUnlockedApp();
         } catch (error) {
-            this.elements.authError.textContent = this.literal('Incorrect username or password.', 'Incorrect username or password.');
+            this.elements.authError.textContent = this.literal('Incorrect username or password.', '用户名或密码不正确。');
             this.elements.authError.classList.remove('hidden');
         }
     }
@@ -1098,11 +1280,26 @@ class ResearchQaApp {
             return;
         }
 
+        await this.loadSyncState();
+        if (this.localDirty) {
+            if (options.quiet) {
+                // Never silently overwrite unsynced local edits during auto-pull.
+                this.setStatusKey('statusLocalAhead');
+                this.toast(this.text('toastLocalAheadHint'));
+                return;
+            }
+            if (!window.confirm(this.text('confirmPullOverwriteLocal'))) {
+                this.setStatusKey('statusLocalAhead');
+                return;
+            }
+        }
+
         try {
             this.setStatusKey('statusSyncing');
-            const remoteDatabase = normalizeDatabase(await fetchMainDatabase(this.config));
-            this.db = remoteDatabase;
+            const { database, version } = await fetchMainDatabase(this.config);
+            this.db = normalizeDatabase(database);
             await setValue(this.databaseCacheKey, this.db);
+            await this.updateSyncState(version, false);
             this.reconcileRouteSelection({ replaceRoute: true });
             if (this.pageMode === 'detail') {
                 await this.renderCurrentSelection();
@@ -1131,12 +1328,37 @@ class ResearchQaApp {
     }
 
     async saveDatabaseSnapshot() {
+        // The local cache is always written first, so user edits survive any
+        // remote failure below.
         await setValue(this.databaseCacheKey, this.db);
-        if (this.config.mainGistId) {
-            await saveMainDatabase(this.config, this.db);
-            this.setStatusKey('statusSynced');
-        } else {
+        if (!this.config.mainGistId) {
             this.setStatusKey('statusSavedLocally');
+            return;
+        }
+
+        try {
+            const version = await saveMainDatabase(this.config, this.db, {
+                expectedVersion: this.remoteDbVersion
+            });
+            await this.updateSyncState(version, false);
+            this.setStatusKey('statusSynced');
+        } catch (error) {
+            if (error?.code === 'sync-conflict') {
+                if (window.confirm(this.text('confirmConflictOverwrite'))) {
+                    const version = await saveMainDatabase(this.config, this.db, { force: true });
+                    await this.updateSyncState(version, false);
+                    this.setStatusKey('statusSynced');
+                    return;
+                }
+                await this.markLocalDirty();
+                this.setStatusKey('statusLocalAhead');
+                this.toast(this.text('toastConflictKeptLocal'), 'error');
+                return;
+            }
+
+            await this.markLocalDirty();
+            this.setStatusKey('statusOfflineCache');
+            throw error;
         }
     }
 
@@ -1837,7 +2059,7 @@ class ResearchQaApp {
         try {
             await this.persistCurrentItem();
             this.renderNotes();
-            this.toast(this.literal('Note order saved', 'Note order saved'));
+            this.toast(this.literal('Note order saved', '笔记顺序已保存'));
         } catch (error) {
             this.toast(error.message, 'error');
             this.renderNotes();
@@ -2956,7 +3178,7 @@ class ResearchQaApp {
     async disableAppLogin() {
         const shouldDisable = window.confirm(this.literal(
             'Disable the custom app login and keep the sync config stored in plain local settings for this browser?',
-            'Disable the custom app login and keep the sync config stored in plain local settings for this browser?'
+            '关闭应用登录，并把同步配置以明文形式保存在此浏览器的本地设置中？'
         ));
         if (!shouldDisable) {
             return;
@@ -2968,7 +3190,7 @@ class ResearchQaApp {
         this.config = saveConfig(this.config);
         this.configSource = getConfigSource();
         this.reflectConfig();
-        this.toast(this.literal('App login disabled for this browser.', 'App login disabled for this browser.'));
+        this.toast(this.literal('App login disabled for this browser.', '已在此浏览器中关闭应用登录。'));
     }
 
     async saveConfigFromModal() {
@@ -2982,9 +3204,11 @@ class ResearchQaApp {
                 mainGistId = mainGistId.split('/').pop().replace('.git', '');
             }
 
+            let createdMainGist = false;
             if (!mainGistId && token) {
                 this.setStatusKey('statusCreatingMainGist');
                 mainGistId = await createMainDatabase(token);
+                createdMainGist = true;
                 this.toast(this.text('toastCreatedMainGist', { id: mainGistId }));
             }
 
@@ -2994,13 +3218,13 @@ class ResearchQaApp {
 
             if (wantsCredentialUpdate) {
                 if (!authUsername) {
-                    throw new Error(this.literal('App username is required to enable the custom login.', 'App username is required to enable the custom login.'));
+                    throw new Error(this.literal('App username is required to enable the custom login.', '启用应用登录需要填写用户名。'));
                 }
                 if (!authPassword) {
-                    throw new Error(this.literal('Enter a password when setting or changing the custom login.', 'Enter a password when setting or changing the custom login.'));
+                    throw new Error(this.literal('Enter a password when setting or changing the custom login.', '设置或修改应用登录时请输入密码。'));
                 }
                 if (authPassword !== authPasswordConfirm) {
-                    throw new Error(this.literal('The password confirmation does not match.', 'The password confirmation does not match.'));
+                    throw new Error(this.literal('The password confirmation does not match.', '两次输入的密码不一致。'));
                 }
                 nextAuthSession = {
                     username: authUsername,
@@ -3022,7 +3246,15 @@ class ResearchQaApp {
             this.configSource = getConfigSource();
             this.reflectConfig();
             this.closeConfigModal();
-            await this.syncPull();
+            if (createdMainGist) {
+                // Seed the brand-new gist with this device's current data
+                // instead of pulling the empty database back over it.
+                await this.updateSyncState('', false);
+                await this.saveDatabaseSnapshot();
+                this.renderAll();
+            } else {
+                await this.syncPull();
+            }
         } catch (error) {
             this.toast(error.message, 'error');
         }
@@ -3054,8 +3286,19 @@ class ResearchQaApp {
             }
 
             this.setStatusKey('statusSyncing');
-            this.db = normalizeDatabase(await fetchMainDatabase(legacyConfig));
+            const { database, version } = await fetchMainDatabase({
+                ...legacyConfig,
+                token: legacyConfig.token || this.config.token
+            });
+            this.db = normalizeDatabase(database);
             await setValue(this.databaseCacheKey, this.db);
+            if (legacyConfig.mainGistId === this.config.mainGistId) {
+                await this.updateSyncState(version, false);
+            } else {
+                // Imported from a different gist: local copy now diverges from
+                // the configured remote until the next explicit save/pull.
+                await this.markLocalDirty();
+            }
             this.viewMode = 'active';
             this.updateViewModeButtons();
             this.reconcileRouteSelection({ replaceRoute: true });

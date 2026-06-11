@@ -51,6 +51,22 @@ const FENCE_PATTERN = /^( {0,3})(`{3,}|~{3,})/;
 
 let mathQueue = Promise.resolve();
 let mathJaxReadyPromise = null;
+let mathJaxFailureNotified = false;
+
+export const MATHJAX_UNAVAILABLE_EVENT = 'research-qa:mathjax-unavailable';
+
+function notifyMathJaxUnavailable() {
+    if (mathJaxFailureNotified || typeof document === 'undefined') {
+        return;
+    }
+    mathJaxFailureNotified = true;
+    document.dispatchEvent(new CustomEvent(MATHJAX_UNAVAILABLE_EVENT));
+}
+
+function containsMathSource(element) {
+    const text = element?.textContent || '';
+    return text.includes('\\(') || text.includes('\\[') || text.includes('$$') || text.includes('\\begin{');
+}
 
 function escapeHtml(text) {
     return String(text ?? '')
@@ -954,7 +970,13 @@ export async function typesetElement(element) {
         }
 
         const MathJax = await waitForMathJax();
-        if (!MathJax?.typesetPromise || !element.isConnected) {
+        if (!MathJax?.typesetPromise) {
+            if (containsMathSource(element)) {
+                notifyMathJaxUnavailable();
+            }
+            return;
+        }
+        if (!element.isConnected) {
             return;
         }
 

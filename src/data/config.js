@@ -164,14 +164,15 @@ export function hasLockedConfig() {
     return Boolean(getLockedConfigProfile());
 }
 
-export async function lockConfig(config, credentials) {
-    const username = typeof credentials?.username === 'string' ? credentials.username.trim() : '';
-    const password = typeof credentials?.password === 'string' ? credentials.password : '';
-    if (!username || !password) {
-        throw new Error('App username and password are required.');
+function redactLegacyToken() {
+    const raw = readJson(LEGACY_CONFIG_KEY);
+    if (raw && typeof raw === 'object' && !Array.isArray(raw) && raw.token) {
+        const { token, ...rest } = raw;
+        localStorage.setItem(LEGACY_CONFIG_KEY, JSON.stringify(rest));
     }
+}
 
-    const normalized = normalizeConfig(config);
+async function persistLockedRecord(normalized, { username, password }) {
     const salt = crypto.getRandomValues(new Uint8Array(16));
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const key = await deriveAesKey(password, salt, ['encrypt']);
@@ -190,7 +191,21 @@ export async function lockConfig(config, credentials) {
     };
 
     localStorage.setItem(LOCKED_CONFIG_KEY, JSON.stringify(record));
+}
+
+export async function lockConfig(config, credentials) {
+    const username = typeof credentials?.username === 'string' ? credentials.username.trim() : '';
+    const password = typeof credentials?.password === 'string' ? credentials.password : '';
+    if (!username || !password) {
+        throw new Error('App username and password are required.');
+    }
+
+    // Fold any legacy plaintext settings into the encrypted record so the
+    // plaintext copies can be removed without losing data.
+    const normalized = mergeConfig(normalizeConfig(config), loadLegacyConfig());
+    await persistLockedRecord(normalized, { username, password });
     localStorage.removeItem(CONFIG_KEY);
+    redactLegacyToken();
     return normalized;
 }
 
@@ -206,6 +221,7 @@ export async function unlockConfig(credentials) {
         throw new Error('Incorrect username or password.');
     }
 
+    let parsed;
     try {
         const key = await deriveAesKey(password, base64ToBytes(locked.salt), ['decrypt']);
         const decrypted = await crypto.subtle.decrypt(
@@ -213,12 +229,23 @@ export async function unlockConfig(credentials) {
             key,
             base64ToBytes(locked.ciphertext)
         );
-        const parsed = JSON.parse(decoder.decode(decrypted));
-        const legacy = normalizeConfig(readJson(LEGACY_CONFIG_KEY) || {});
-        return mergeConfig(normalizeConfig(parsed), legacy);
+        parsed = normalizeConfig(JSON.parse(decoder.decode(decrypted)));
     } catch (error) {
         throw new Error('Incorrect username or password.');
     }
+
+    // Locked records created by older versions may predate the legacy merge:
+    // fold any remaining legacy plaintext into the encrypted record, then
+    // remove the plaintext token copy.
+    const legacy = loadLegacyConfig();
+    const merged = mergeConfig(parsed, legacy);
+    if (merged.token !== parsed.token || merged.mainGistId !== parsed.mainGistId) {
+        await persistLockedRecord(merged, { username, password });
+    }
+    if (legacy.token) {
+        redactLegacyToken();
+    }
+    return merged;
 }
 
 export function clearLockedConfig() {
