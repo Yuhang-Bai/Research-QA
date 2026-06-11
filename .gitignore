@@ -4,8 +4,3 @@ dist/
 .vite-preview*.log
 src-tauri/target/
 src-tauri/gen/
-
-# Local build output mirrored at the repo root (Pages deploys from dist/ via Actions)
-/index.html
-/app.html
-/assets/
