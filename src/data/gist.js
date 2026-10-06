@@ -63,7 +63,12 @@ async function fetchJsonFromRawUrl(url, token) {
 }
 
 async function readJsonFile(file, token) {
-    const content = file.content ?? (file.raw_url ? await fetchJsonFromRawUrl(file.raw_url, token) : '');
+    if (file.truncated && !file.raw_url) {
+        throw new Error('The gist file was truncated without a raw download URL.');
+    }
+    const content = file.truncated || file.content == null
+        ? (file.raw_url ? await fetchJsonFromRawUrl(file.raw_url, token) : '')
+        : file.content;
     if (!content) {
         throw new Error('The gist file is empty.');
     }
@@ -117,7 +122,10 @@ export async function saveMainDatabase(config, database, options = {}) {
 
     // Optimistic concurrency: refuse to overwrite a remote copy that moved on
     // since this device last synced, unless the caller explicitly forces it.
-    if (options.expectedVersion && !options.force) {
+    if (!options.expectedVersion && !options.force) {
+        throw new SyncConflictError('unknown');
+    }
+    if (!options.force) {
         const remoteVersion = await fetchMainDatabaseVersion(config);
         if (remoteVersion && remoteVersion !== options.expectedVersion) {
             throw new SyncConflictError(remoteVersion);

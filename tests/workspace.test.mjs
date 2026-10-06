@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
     WORKSPACE_FORMAT,
+    parseWorkspaceSnapshot,
     deserializeWorkspaceSnapshot,
     serializeWorkspaceSnapshot
 } from '../src/data/workspace.js';
@@ -118,4 +119,49 @@ test('serialize tolerates empty or malformed databases', () => {
 
     const restored = deserializeWorkspaceSnapshot(serializeWorkspaceSnapshot({}));
     assert.deepEqual(restored, { items: [], trash: [] });
+});
+
+test('numeric legacy IDs survive export/import, including trash parent links', () => {
+    const db = structuredClone(sampleDatabase);
+    db.items[0].id = 1700000000000;
+    db.items[0].answers[0].id = 1700000000001;
+    db.trash[0].parentId = 1700000000000;
+    const restored = parseWorkspaceSnapshot(JSON.parse(JSON.stringify(serializeWorkspaceSnapshot(db))));
+    assert.equal(restored.items[0].id, '1700000000000');
+    assert.equal(restored.items[0].answers[0].id, '1700000000001');
+    assert.equal(restored.trash[0].parentId, restored.items[0].id);
+});
+test('unrelated JSON cannot be normalized into an empty import', () => {
+    for (const payload of [{ hello: 'world' }, {}, null, 42, { items: 'wrong' }, { items: [], trash: {} }]) {
+        assert.throws(() => parseWorkspaceSnapshot(payload));
+    }
+});
+test('legacy arrays and wrapped backups remain importable', () => {
+    const rows = [{ id: 123, title: 'Legacy', desc: 'Text', answers: [] }];
+    assert.equal(parseWorkspaceSnapshot(rows).items[0].id, 123);
+    assert.equal(parseWorkspaceSnapshot({ db: { items: rows } }).items[0].id, 123);
+});
+test('unsupported workspace versions and missing library arrays are rejected', () => {
+    const snapshot = serializeWorkspaceSnapshot(sampleDatabase);
+    assert.throws(() => parseWorkspaceSnapshot({ ...snapshot, version: 99 }), /version/);
+    assert.throws(() => parseWorkspaceSnapshot({ ...snapshot, library: {} }), /arrays/);
+});
+test('missing, duplicate, or unsafe IDs and malformed content are rejected', () => {
+    for (const rows of [[{ id: '', title: 'A' }], [{ id: 'x', title: 'A' }, { id: 'x', title: 'B' }], [{ id: 'x" onmouseover="x', title: 'A' }], [{ id: 'a', title: 'A', desc: 42 }], [{ id: 'a', title: 'A', answers: [null] }]]) {
+        assert.throws(() => parseWorkspaceSnapshot({ items: rows, trash: [] }));
+    }
+});
+test('null sort ranks are not converted to zero', () => {
+    const snapshot = serializeWorkspaceSnapshot({ items: [{ ...sampleDatabase.items[0], sortRank: null }] });
+    assert.equal(snapshot.library.problems[0].pin.sortRank, null);
+    assert.equal(deserializeWorkspaceSnapshot(snapshot).items[0].sortRank, null);
+});
+
+test('malformed portable trash content is rejected before conversion', () => {
+    const snapshot = serializeWorkspaceSnapshot(sampleDatabase);
+    snapshot.library.trash[0].note.content = 42;
+    assert.throws(() => parseWorkspaceSnapshot(snapshot), /note content/);
+    const second = serializeWorkspaceSnapshot(sampleDatabase);
+    second.library.trash[1].problem.statement = { invalid: true };
+    assert.throws(() => parseWorkspaceSnapshot(second), /workspace problem/);
 });

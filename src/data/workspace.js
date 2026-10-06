@@ -5,11 +5,17 @@ function toText(value) {
     return typeof value === 'string' ? value : '';
 }
 
+function toId(value) {
+    return typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value))
+        ? String(value) : '';
+}
+
 function toBoolean(value) {
     return Boolean(value);
 }
 
 function toNumberOrNull(value) {
+    if (value == null || value === '') return null;
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : null;
 }
@@ -25,7 +31,7 @@ function slugify(title, fallback = 'problem') {
 
 function serializeNote(note = {}) {
     return {
-        id: toText(note.id),
+        id: toId(note.id),
         updatedAt: toText(note.date),
         content: toText(note.text)
     };
@@ -34,7 +40,7 @@ function serializeNote(note = {}) {
 function serializeProblem(problem = {}) {
     return {
         kind: 'problem',
-        id: toText(problem.id),
+        id: toId(problem.id),
         slug: slugify(problem.title, toText(problem.id) || 'problem'),
         title: toText(problem.title),
         statement: toText(problem.desc),
@@ -56,10 +62,10 @@ function serializeTrashEntry(entry = {}) {
     if (entry?.type === 'note') {
         return {
             kind: 'note',
-            id: toText(entry.id),
+            id: toId(entry.id),
             deletedAt: toText(entry.deletedAt),
             parent: {
-                id: toText(entry.parentId),
+                id: toId(entry.parentId),
                 title: toText(entry.parentTitle),
                 latexPreamble: toText(entry.parentPreamble)
             },
@@ -77,7 +83,7 @@ function serializeTrashEntry(entry = {}) {
 
 function deserializeNote(note = {}) {
     return {
-        id: toText(note.id),
+        id: toId(note.id),
         text: toText(note.content),
         date: toText(note.updatedAt)
     };
@@ -85,7 +91,7 @@ function deserializeNote(note = {}) {
 
 function deserializeProblem(problem = {}) {
     return {
-        id: toText(problem.id),
+        id: toId(problem.id),
         title: toText(problem.title),
         desc: toText(problem.statement),
         preamble: toText(problem.latexPreamble),
@@ -101,10 +107,10 @@ function deserializeProblem(problem = {}) {
 function deserializeTrashEntry(entry = {}) {
     if (entry?.kind === 'note') {
         return {
-            id: toText(entry.id),
+            id: toId(entry.id),
             type: 'note',
             deletedAt: toText(entry.deletedAt),
-            parentId: toText(entry.parent?.id),
+            parentId: toId(entry.parent?.id),
             parentTitle: toText(entry.parent?.title),
             parentPreamble: toText(entry.parent?.latexPreamble),
             data: deserializeNote(entry.note)
@@ -139,6 +145,13 @@ export function deserializeWorkspaceSnapshot(payload = {}) {
         return payload?.db || payload;
     }
 
+    if (payload.version !== WORKSPACE_VERSION) {
+        throw new Error(`Unsupported workspace version: ${payload.version}`);
+    }
+    if (!Array.isArray(payload.library?.problems) || !Array.isArray(payload.library?.trash)) {
+        throw new Error('Invalid workspace: problems and trash must be arrays.');
+    }
+
     const library = payload.library || {};
     const problems = Array.isArray(library.problems) ? library.problems : [];
     const trash = Array.isArray(library.trash) ? library.trash : [];
@@ -147,6 +160,88 @@ export function deserializeWorkspaceSnapshot(payload = {}) {
         items: problems.map(deserializeProblem),
         trash: trash.map(deserializeTrashEntry)
     };
+}
+
+function requireObject(value, label) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`Invalid ${label}.`);
+}
+
+function validateIds(rows, label) {
+    const seen = new Set();
+    for (const row of rows) {
+        requireObject(row, label);
+        const id = toId(row.id);
+        // IDs are embedded in DOM attributes and must also be safe selectors.
+        if (!id.trim() || /[\s"'<>\\]/u.test(id) || seen.has(id)) throw new Error(`Invalid or duplicate ${label} ID.`);
+        seen.add(id);
+    }
+}
+
+function validateNotes(notes) {
+    if (!Array.isArray(notes)) throw new Error('Invalid notes array.');
+    validateIds(notes, 'note');
+    for (const note of notes) {
+        if (typeof note.text !== 'string') throw new Error('Invalid note content.');
+    }
+}
+
+function validateProblem(problem) {
+    if (typeof problem.title !== 'string') throw new Error('Invalid problem title.');
+    if (problem.desc != null && typeof problem.desc !== 'string') throw new Error('Invalid statement.');
+    if (problem.preamble != null && typeof problem.preamble !== 'string') throw new Error('Invalid LaTeX preamble.');
+    if (problem.answers != null) validateNotes(problem.answers);
+}
+
+function validatePortableProblem(problem) {
+    requireObject(problem, 'workspace problem');
+    validateIds([problem], 'problem');
+    if (typeof problem.title !== 'string' || typeof problem.statement !== 'string' || !Array.isArray(problem.notes)
+        || (problem.latexPreamble != null && typeof problem.latexPreamble !== 'string')) {
+        throw new Error('Invalid workspace problem.');
+    }
+    validateIds(problem.notes, 'note');
+    if (problem.notes.some((note) => typeof note.content !== 'string')) throw new Error('Invalid note content.');
+}
+
+// Validate before normalization can turn an unrelated/malformed file into an
+// empty database. Missing legacy trash is allowed; missing items is not.
+export function parseWorkspaceSnapshot(payload) {
+    if (payload?.format && payload.format !== WORKSPACE_FORMAT) throw new Error('Unknown backup format.');
+    if (payload?.format === WORKSPACE_FORMAT) {
+        const problems = payload.library?.problems;
+        if (Array.isArray(problems)) {
+            validateIds(problems, 'problem');
+            problems.forEach(validatePortableProblem);
+        }
+        if (Array.isArray(payload.library?.trash)) {
+            for (const entry of payload.library.trash) {
+                requireObject(entry, 'trash entry');
+                if (entry.kind === 'problem') validatePortableProblem(entry.problem);
+                else if (entry.kind === 'note') {
+                    validateIds([entry.note], 'note');
+                    if (typeof entry.note.content !== 'string') throw new Error('Invalid note content.');
+                } else throw new Error('Invalid trash entry kind.');
+            }
+        }
+    }
+    const parsed = deserializeWorkspaceSnapshot(payload);
+    const value = Array.isArray(parsed) ? { items: parsed, trash: [] } : parsed;
+    requireObject(value, 'backup');
+    if (!Array.isArray(value.items) || (value.trash != null && !Array.isArray(value.trash))) {
+        throw new Error('Invalid backup: expected an items array.');
+    }
+    validateIds(value.items, 'problem');
+    value.items.forEach(validateProblem);
+    validateIds(value.trash || [], 'trash entry');
+    for (const entry of value.trash || []) {
+        if (entry.type === 'note') {
+            validateNotes([entry.data]);
+            if (!toId(entry.parentId)) throw new Error('Invalid parent problem ID.');
+        } else {
+            validateProblem(entry);
+        }
+    }
+    return value;
 }
 
 export { WORKSPACE_FORMAT, WORKSPACE_VERSION };

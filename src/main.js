@@ -10,9 +10,9 @@
     saveConfig,
     unlockConfig
 } from './data/config.js';
-import { getValue, setValue } from './data/idb.js';
+import { acknowledgeSync, commitDatabase, getValue, readDatabaseState, replaceFromRemote, setValue } from './data/idb.js';
 import { createMainDatabase, createSharedItem, fetchMainDatabase, fetchSharedItem, saveMainDatabase, saveSharedItem } from './data/gist.js';
-import { deserializeWorkspaceSnapshot, serializeWorkspaceSnapshot } from './data/workspace.js';
+import { parseWorkspaceSnapshot, serializeWorkspaceSnapshot } from './data/workspace.js';
 import { createMarkdownEditor } from './lib/editor.js';
 import { MATHJAX_UNAVAILABLE_EVENT, renderDocument, renderExcerpt, renderInlineMath, renderPreviewDocument, setRenderedHtml, typesetElement } from './lib/renderer.js';
 
@@ -369,16 +369,16 @@ function clone(value) {
 
 function normalizeNote(note = {}) {
     return {
-        id: typeof note.id === 'string' ? note.id : createId('note'),
+        id: typeof note.id === 'string' || Number.isFinite(note.id) ? String(note.id) : createId('note'),
         text: typeof note.text === 'string' ? note.text : '',
         date: typeof note.date === 'string' ? note.date : new Date().toISOString()
     };
 }
 
 function normalizeItem(item = {}) {
-    const parsedSortRank = Number(item.sortRank);
+    const parsedSortRank = item.sortRank == null || item.sortRank === '' ? NaN : Number(item.sortRank);
     return {
-        id: item.id ?? createId('item'),
+        id: item.id == null ? createId('item') : String(item.id),
         title: typeof item.title === 'string' && item.title.trim() ? item.title : 'Untitled problem',
         desc: typeof item.desc === 'string' ? item.desc : '',
         preamble: typeof item.preamble === 'string' ? item.preamble : '',
@@ -517,6 +517,10 @@ class ResearchQaApp {
         this.requiresUnlock = !initialRoute.visitorGistId && Boolean(this.authProfile);
         this.config = this.requiresUnlock ? { token: '', mainGistId: '' } : loadConfig();
         this.db = normalizeDatabase({});
+        this.baseDb = clone(this.db);
+        this.listLimit = 100;
+        this.saving = false;
+        this.syncJobs = new Map();
         this.remoteDbVersion = '';
         this.localDirty = false;
         this.viewMode = initialRoute.viewMode;
@@ -692,23 +696,6 @@ class ResearchQaApp {
         return `${this.databaseCacheKey}:dirty`;
     }
 
-    async loadSyncState() {
-        this.remoteDbVersion = (await getValue(this.databaseVersionKey)) || '';
-        this.localDirty = Boolean(await getValue(this.databaseDirtyKey));
-    }
-
-    async updateSyncState(version, dirty) {
-        this.remoteDbVersion = version || '';
-        this.localDirty = Boolean(dirty);
-        await setValue(this.databaseVersionKey, this.remoteDbVersion);
-        await setValue(this.databaseDirtyKey, this.localDirty);
-    }
-
-    async markLocalDirty() {
-        this.localDirty = true;
-        await setValue(this.databaseDirtyKey, true);
-    }
-
     sharedCacheKey(gistId) {
         return `rq_v2_shared_${gistId}`;
     }
@@ -880,7 +867,7 @@ class ResearchQaApp {
         this.elements.disableLockButton.addEventListener('click', () => this.disableAppLogin());
         this.elements.authUnlockButton.addEventListener('click', () => this.unlockApp());
 
-        this.elements.searchInput.addEventListener('input', () => this.scheduleListRender());
+        this.elements.searchInput.addEventListener('input', () => { this.listLimit = 100; this.scheduleListRender(); });
         this.elements.composerPreambleInput.addEventListener('input', () => this.scheduleComposerPreview(this.editor.getValue()));
         this.elements.importFileInput.addEventListener('change', (event) => this.importBackup(event));
         this.elements.authPasswordInput.addEventListener('keydown', (event) => {
@@ -894,6 +881,11 @@ class ResearchQaApp {
         });
 
         this.elements.list.addEventListener('click', (event) => {
+            if (event.target.closest('[data-load-more]')) {
+                this.listLimit += 100;
+                this.renderList();
+                return;
+            }
             if (Date.now() < this.suppressRowClickUntil) {
                 return;
             }
@@ -961,6 +953,16 @@ class ResearchQaApp {
         document.addEventListener('pointerup', (event) => this.handleNotePointerUp(event));
         document.addEventListener('pointercancel', (event) => this.handleNotePointerCancel(event));
 
+        window.addEventListener('beforeunload', (event) => {
+            if (this.hasUnsavedComposer()) { event.preventDefault(); event.returnValue = ''; }
+        });
+        window.addEventListener('focus', () => this.refreshFromStorage());
+        if (typeof BroadcastChannel !== 'undefined') {
+            this.storageChannel = new BroadcastChannel('research-qa-storage');
+            this.storageChannel.onmessage = (event) => {
+                if (event.data === this.databaseCacheKey) this.refreshFromStorage();
+            };
+        }
         window.addEventListener('popstate', () => this.handlePopState());
     }
 
@@ -988,9 +990,12 @@ class ResearchQaApp {
             return;
         }
 
-        const cached = await getValue(this.databaseCacheKey);
+        const initialState = await readDatabaseState(this.databaseCacheKey);
+        const cached = initialState.database;
+        this.localDirty = initialState.dirty;
         if (cached) {
             this.db = normalizeDatabase(cached);
+            this.baseDb = clone(this.db);
             this.reconcileRouteSelection({ replaceRoute: true });
             if (this.pageMode === 'detail') {
                 await this.renderCurrentSelection();
@@ -1005,7 +1010,7 @@ class ResearchQaApp {
         if (this.config.mainGistId) {
             await this.syncPull({ quiet: Boolean(cached), announceLegacyImport: this.configSource === 'legacy' && !cached });
         } else {
-            this.setStatusKey('statusLocalMode');
+            this.setStatusKey(this.localDirty ? 'statusLocalAhead' : 'statusLocalMode');
         }
     }
 
@@ -1170,6 +1175,7 @@ class ResearchQaApp {
             return;
         }
 
+        if (!this.closeComposer()) return;
         this.pageMode = 'home';
         this.currentId = null;
         this.currentItem = null;
@@ -1204,6 +1210,10 @@ class ResearchQaApp {
 
     handlePopState() {
         if (this.visitorGistId) {
+            return;
+        }
+        if (!this.closeComposer()) {
+            this.syncRouteState();
             return;
         }
 
@@ -1254,7 +1264,8 @@ class ResearchQaApp {
                 this.renderAll();
             }
 
-            const remote = normalizeItem(await fetchSharedItem(this.visitorGistId, this.config.token));
+            const payload = await fetchSharedItem(this.visitorGistId, this.config.token);
+            const remote = normalizeItem(parseWorkspaceSnapshot({ items: [payload], trash: [] }).items[0]);
             this.currentItem = remote;
             this.currentId = remote.id;
             this.currentSource = 'shared';
@@ -1268,98 +1279,126 @@ class ResearchQaApp {
         }
     }
 
+    async refreshFromStorage() {
+        if (this.visitorGistId || this.requiresUnlock || this.composerState.open || this.saving) return;
+        const key = this.databaseCacheKey;
+        const state = await readDatabaseState(key);
+        if (!state.database || key !== this.databaseCacheKey || this.composerState.open || this.saving) return;
+        this.db = normalizeDatabase(state.database);
+        this.baseDb = clone(this.db);
+        this.reconcileRouteSelection({ replaceRoute: true });
+        await this.renderCurrentSelection();
+    }
+
     async syncPull(options = {}) {
-        if (this.visitorGistId) {
-            await this.loadVisitorItem();
+        if (this.visitorGistId) return this.loadVisitorItem();
+        if (this.hasUnsavedComposer()) {
+            this.toast(this.literal('Save or cancel the open draft before syncing.', '请先保存或取消正在编辑的草稿。'));
             return;
         }
-
+        const key = this.databaseCacheKey;
+        const state = await readDatabaseState(key);
+        if (state.dirty) {
+            this.setStatusKey('statusLocalAhead');
+            if (!options.quiet) await this.syncPending();
+            return;
+        }
         if (!this.config.mainGistId) {
-            this.toast(this.text('toastNoRemoteGist'));
             this.setStatusKey('statusLocalMode');
             return;
         }
-
-        await this.loadSyncState();
-        if (this.localDirty) {
-            if (options.quiet) {
-                // Never silently overwrite unsynced local edits during auto-pull.
-                this.setStatusKey('statusLocalAhead');
-                this.toast(this.text('toastLocalAheadHint'));
-                return;
-            }
-            if (!window.confirm(this.text('confirmPullOverwriteLocal'))) {
-                this.setStatusKey('statusLocalAhead');
-                return;
-            }
-        }
-
         try {
             this.setStatusKey('statusSyncing');
-            const { database, version } = await fetchMainDatabase(this.config);
-            this.db = normalizeDatabase(database);
-            await setValue(this.databaseCacheKey, this.db);
-            await this.updateSyncState(version, false);
+            const { database, version } = await fetchMainDatabase({ ...this.config });
+            if (this.composerState.open || this.saving) return;
+            const next = normalizeDatabase(parseWorkspaceSnapshot(database));
+            const saved = await replaceFromRemote(key, next, state.revision, version, normalizeDatabase);
+            if (key !== this.databaseCacheKey) return;
+            this.db = saved.database;
+            this.baseDb = clone(this.db);
+            this.remoteDbVersion = version;
+            this.localDirty = false;
+            this.storageChannel?.postMessage(key);
             this.reconcileRouteSelection({ replaceRoute: true });
-            if (this.pageMode === 'detail') {
-                await this.renderCurrentSelection();
-            } else {
-                this.renderAll();
-            }
-            if (options.announceLegacyImport) {
-                this.setStatusKey('statusImportedLegacy');
-                this.toast(this.text('toastImportedLegacy', {
-                    problems: this.db.items.length,
-                    trash: this.db.trash.length
-                }));
-            } else {
-                this.setStatusKey('statusSynced');
-            }
-
-            if (!options.quiet && !options.announceLegacyImport) {
-                this.toast(this.text('toastPulledLatest'));
-            }
+            await this.renderCurrentSelection();
+            this.setStatusKey('statusSynced');
+            if (!options.quiet) this.toast(this.text('toastPulledLatest'));
         } catch (error) {
-            this.setStatusKey('statusOfflineCache');
-            if (!options.quiet) {
-                this.toast(error.message, 'error');
-            }
+            this.setStatusKey(error.code === 'local-conflict' ? 'statusLocalAhead' : 'statusOfflineCache');
+            if (!options.quiet) this.toast(error.message, 'error');
         }
     }
 
-    async saveDatabaseSnapshot() {
-        // The local cache is always written first, so user edits survive any
-        // remote failure below.
-        await setValue(this.databaseCacheKey, this.db);
-        if (!this.config.mainGistId) {
-            this.setStatusKey('statusSavedLocally');
-            return;
-        }
-
+    async saveDatabaseSnapshot({ replace = false } = {}) {
+        const key = this.databaseCacheKey;
+        let saved;
         try {
-            const version = await saveMainDatabase(this.config, this.db, {
-                expectedVersion: this.remoteDbVersion
+            saved = await commitDatabase(key, clone(this.baseDb), clone(this.db), {
+                normalize: normalizeDatabase, remote: Boolean(this.config.mainGistId), replace
             });
-            await this.updateSyncState(version, false);
-            this.setStatusKey('statusSynced');
         } catch (error) {
-            if (error?.code === 'sync-conflict') {
-                if (window.confirm(this.text('confirmConflictOverwrite'))) {
-                    const version = await saveMainDatabase(this.config, this.db, { force: true });
-                    await this.updateSyncState(version, false);
-                    this.setStatusKey('statusSynced');
-                    return;
-                }
-                await this.markLocalDirty();
-                this.setStatusKey('statusLocalAhead');
-                this.toast(this.text('toastConflictKeptLocal'), 'error');
-                return;
-            }
-
-            await this.markLocalDirty();
-            this.setStatusKey('statusOfflineCache');
+            // Failed deletes, pins and imports must not remain as phantom
+            // in-memory changes. An editor keeps its original comparison base.
+            this.db = clone(this.baseDb);
+            if (!this.composerState.open) await this.refreshFromStorage();
             throw error;
         }
+        this.db = saved.database;
+        this.baseDb = clone(this.db);
+        this.localDirty = saved.dirty;
+        this.setStatusKey('statusSavedLocally');
+        this.storageChannel?.postMessage(key);
+        // Local durability does not wait for the network. The queue and dirty
+        // marker live in the same transaction as the user's content.
+        if (saved.dirty) void this.syncPending();
+    }
+
+    async syncPending() {
+        const key = this.databaseCacheKey;
+        if (this.syncJobs.has(key)) return this.syncJobs.get(key);
+        const config = { ...this.config };
+        const job = (async () => {
+            try {
+                if (!navigator.locks?.request) throw new Error('Sync needs browser Web Locks. Your changes are saved locally.');
+                await navigator.locks.request('research-qa-sync:' + key, async () => {
+                    for (;;) {
+                        const sent = await readDatabaseState(key);
+                        if (!sent.dirty) return;
+                        for (const [gistId, item] of Object.entries(sent.pendingShares)) {
+                            await saveSharedItem(gistId, config.token, item);
+                        }
+                        let version = sent.version;
+                        if (config.mainGistId) {
+                            if (!version) {
+                                const remote = await fetchMainDatabase(config);
+                                const contents = parseWorkspaceSnapshot(remote.database);
+                                if (contents.items.length || contents.trash?.length) {
+                                    throw new Error('The remote contains data but its base version is unknown. Export your local backup before reconnecting.');
+                                }
+                                // Bootstrap only a verified empty main gist. The
+                                // subsequent version check still guards changes.
+                                version = remote.version;
+                            }
+                            version = await saveMainDatabase(config, sent.database, { expectedVersion: version });
+                        }
+                        const saved = await acknowledgeSync(key, sent, version);
+                        if (key === this.databaseCacheKey) {
+                            this.remoteDbVersion = saved.version;
+                            this.localDirty = saved.dirty;
+                            this.setStatusKey(saved.dirty ? 'statusLocalAhead' : (config.mainGistId ? 'statusSynced' : 'statusSavedLocally'));
+                        }
+                        if (!saved.dirty) return;
+                    }
+                });
+            } catch (error) {
+                if (key === this.databaseCacheKey) {
+                    this.setStatusKey('statusLocalAhead');
+                    this.toast(this.literal('Saved locally; sync is pending. ', '已保存到本地，等待同步。') + error.message, 'error');
+                }
+            }
+        })();
+        this.syncJobs.set(key, job);
+        try { await job; } finally { this.syncJobs.delete(key); }
     }
 
     async renderCurrentSelection() {
@@ -1400,40 +1439,36 @@ class ResearchQaApp {
             return;
         }
 
+        // The owned library is authoritative. Sharing publishes a copy; it
+        // must never replace local edits or discard the local share linkage.
         if (summary.shareId) {
-            const cached = await getValue(this.sharedCacheKey(summary.shareId));
-            if (cached && selectionMark === this.selectionToken) {
-                this.currentItem = normalizeItem(cached);
-                this.currentSource = 'shared';
-                this.renderAll();
-            }
-
-            try {
-                if (!options.silent) {
-                    this.setStatusKey('statusLoadingSharedItem');
-                }
-
-                const remoteItem = normalizeItem(await fetchSharedItem(summary.shareId, this.config.token));
-                if (selectionMark !== this.selectionToken) {
-                    return;
-                }
-
-                this.currentItem = remoteItem;
-                this.currentSource = 'shared';
-                await setValue(this.sharedCacheKey(summary.shareId), remoteItem);
-                this.renderAll();
-                if (!options.silent) {
-                    this.setStatusKey('statusSyncedSharedItem');
-                }
-            } catch (error) {
-                if (!cached) {
+            const key = this.databaseCacheKey;
+            this.currentItem = clone(summary);
+            this.currentSource = 'shared';
+            this.renderAll();
+            // Older libraries may only contain a shared problem's summary.
+            // Hydrate that one case, without blocking local/offline reading.
+            const state = await readDatabaseState(key);
+            if (!summary.desc && !summary.answers.length && !state.pendingShares[summary.shareId]) {
+                try {
+                    const payload = await fetchSharedItem(summary.shareId, this.config.token);
+                    const remote = parseWorkspaceSnapshot({ items: [payload], trash: [] }).items[0];
+                    if (selectionMark !== this.selectionToken || this.composerState.open || key !== this.databaseCacheKey) return;
+                    const hydrated = normalizeItem({ ...remote, id: summary.id, shareId: summary.shareId,
+                        isPinned: summary.isPinned, pinnedAt: summary.pinnedAt, sortRank: summary.sortRank });
+                    this.currentItem = hydrated;
+                    this.db.items[this.db.items.indexOf(summary)] = clone(hydrated);
+                    // Hydration is local only. A later explicit save publishes it.
+                    const saved = await commitDatabase(this.databaseCacheKey, this.baseDb, this.db, {
+                        normalize: normalizeDatabase, remote: Boolean(this.config.mainGistId)
+                    });
+                    this.db = saved.database;
+                    this.baseDb = clone(this.db);
+                    this.renderAll();
+                } catch (error) {
                     this.toast(error.message, 'error');
                 }
-                if (!options.silent) {
-                    this.setStatusKey('statusSharedItemUnavailable');
-                }
             }
-
             return;
         }
 
@@ -1444,7 +1479,12 @@ class ResearchQaApp {
 
     renderAll() {
         this.applyRouteMode();
-        this.renderList();
+        if (!this.visitorGistId && this.pageMode === 'home') {
+            this.renderList();
+        } else if (this.lastListHtml) {
+            setRenderedHtml(this.elements.list, { html: '' });
+            this.lastListHtml = '';
+        }
         this.renderDetail();
         this.finishBoot();
     }
@@ -2077,6 +2117,7 @@ class ResearchQaApp {
     }
 
     renderList() {
+        if (this.visitorGistId || this.pageMode !== 'home') return;
         const collection = this.getCurrentCollection();
         const term = this.elements.searchInput.value.trim().toLowerCase();
         const reorderEnabled = this.canReorderList(term);
@@ -2116,8 +2157,9 @@ class ResearchQaApp {
 
         const listHtml = `
             <div class="list-card">
-                ${items.map((entry) => this.renderListRow(entry, { reorderEnabled })).join('')}
+                ${items.slice(0, this.listLimit).map((entry) => this.renderListRow(entry, { reorderEnabled: reorderEnabled && items.length <= this.listLimit })).join('')}
             </div>
+            ${items.length > this.listLimit ? `<button class="secondary-btn" data-load-more>${this.literal('Show more', '显示更多')} (${this.listLimit}/${items.length})</button>` : ''}
         `;
         if (this.lastListHtml === listHtml) {
             return;
@@ -2202,6 +2244,11 @@ class ResearchQaApp {
 
     renderDetail() {
         if (!this.visitorGistId && this.pageMode !== 'detail') {
+            setRenderedHtml(this.elements.noteList, { html: '' });
+            setRenderedHtml(this.elements.problemRender, { html: '' });
+            setRenderedHtml(this.elements.detailTitle, { html: '' });
+            this.lastDetailTitleKey = '';
+            this.lastProblemRenderKey = '';
             this.elements.emptyState.classList.add('hidden');
             this.elements.detailView.classList.add('hidden');
             return;
@@ -2238,7 +2285,7 @@ class ResearchQaApp {
             setRenderedHtml(this.elements.problemRender, noteHtml);
             typesetElement(this.elements.problemRender);
 
-            this.elements.noteList.innerHTML = `
+            setRenderedHtml(this.elements.noteList, { html: `
                 <article class="note-card">
                     <div class="note-card-head">
                         <div>
@@ -2249,7 +2296,7 @@ class ResearchQaApp {
                     </div>
                     <div class="note-excerpt">${this.text('restoreNoteDescription')}</div>
                 </article>
-            `;
+            ` });
             typesetElement(this.elements.noteList);
 
             this.elements.newNoteButton.disabled = true;
@@ -2319,7 +2366,7 @@ class ResearchQaApp {
         const notes = this.currentItem.answers || [];
 
         if (!notes.length) {
-            this.elements.noteList.innerHTML = `
+            setRenderedHtml(this.elements.noteList, { html: `
                 <article class="note-card">
                     <div class="note-card-head">
                         <div>
@@ -2330,7 +2377,7 @@ class ResearchQaApp {
                     </div>
                     <div class="note-excerpt">${this.text('noNotesDescription')}</div>
                 </article>
-            `;
+            ` });
 
             const inlineNew = document.getElementById('inline-new-note-btn');
             if (inlineNew) {
@@ -2339,7 +2386,7 @@ class ResearchQaApp {
             return;
         }
 
-        this.elements.noteList.innerHTML = notes.map((note) => {
+        setRenderedHtml(this.elements.noteList, { html: notes.map((note) => {
             const expanded = this.expandedNotes.has(note.id);
             const canReorder = this.canReorderNotes();
             const dragAttrs = canReorder ? ` data-note-draggable="true"` : '';
@@ -2371,7 +2418,7 @@ class ResearchQaApp {
                     ${body}
                 </article>
             `;
-        }).join('');
+        }).join('') });
 
         notes.forEach((note) => {
             const expanded = this.expandedNotes.has(note.id);
@@ -2420,6 +2467,7 @@ class ResearchQaApp {
         }
 
         this.viewMode = mode;
+        this.listLimit = 100;
         this.updateViewModeButtons();
 
         if (this.pageMode !== 'detail') {
@@ -2447,10 +2495,10 @@ class ResearchQaApp {
         if (this.visitorGistId) {
             return;
         }
+        if (!this.closeComposer()) return;
 
         const nextItem = normalizeItem({ id: createId('item'), title: this.text('newProblem'), desc: '', answers: [], date: new Date().toISOString(), isPinned: false });
-        this.db.items.unshift(nextItem);
-        sortItemsInPlace(this.db.items);
+        // Keep a new problem as a draft until the first successful save.
         this.currentId = nextItem.id;
         this.currentItem = clone(nextItem);
         this.currentSummary = nextItem;
@@ -2465,6 +2513,7 @@ class ResearchQaApp {
         if (!this.currentItem || this.viewMode === 'trash' || this.visitorGistId) {
             return;
         }
+        if (this.composerState.open && !this.closeComposer()) return;
 
         this.composerState = { open: true, kind: 'problem', noteId: null };
         this.elements.workspace.classList.add('composer-open');
@@ -2483,6 +2532,7 @@ class ResearchQaApp {
         if (!this.currentItem || this.viewMode === 'trash' || this.visitorGistId) {
             return;
         }
+        if (this.composerState.open && !this.closeComposer()) return;
 
         const note = noteId ? this.currentItem.answers.find((entry) => entry.id === noteId) : null;
         this.composerState = { open: true, kind: 'note', noteId };
@@ -2497,10 +2547,21 @@ class ResearchQaApp {
         window.setTimeout(() => this.editor.focus(), 40);
     }
 
-    closeComposer() {
+    hasUnsavedComposer() {
+        if (!this.composerState.open) return false;
+        const note = this.currentItem?.answers?.find((entry) => entry.id === this.composerState.noteId);
+        return this.editor.getValue() !== (this.composerState.kind === 'problem' ? this.currentItem?.desc || '' : note?.text || '')
+            || (this.composerState.kind === 'problem' && (
+                this.elements.composerTitleInput.value !== (this.currentItem?.title || '')
+                || this.elements.composerPreambleInput.value !== (this.currentItem?.preamble || '')));
+    }
+
+    closeComposer({ discard = false } = {}) {
+        if (!discard && this.hasUnsavedComposer() && !window.confirm(this.literal('Discard the unsaved draft?', '放弃尚未保存的草稿？'))) return false;
         this.composerState = { open: false, kind: 'problem', noteId: null };
         this.elements.workspace.classList.remove('composer-open');
         this.elements.composer.classList.add('hidden');
+        return true;
     }
 
     scheduleComposerPreview(value, immediate = false) {
@@ -2526,10 +2587,14 @@ class ResearchQaApp {
     }
 
     async saveComposer() {
+        if (this.saving) return;
         if (!this.currentItem) {
             return;
         }
 
+        this.saving = true;
+        this.elements.saveComposerButton.disabled = true;
+        const before = clone(this.currentItem);
         const body = this.editor.getValue();
         if (this.composerState.kind === 'problem') {
             this.currentItem.title = this.elements.composerTitleInput.value.trim() || this.text('defaultUntitledProblem');
@@ -2549,11 +2614,15 @@ class ResearchQaApp {
 
         try {
             await this.persistCurrentItem();
-            this.closeComposer();
+            this.closeComposer({ discard: true });
             this.renderAll();
             this.toast(this.text('toastSaved'));
         } catch (error) {
+            this.currentItem = before;
             this.toast(error.message, 'error');
+        } finally {
+            this.saving = false;
+            this.elements.saveComposerButton.disabled = false;
         }
     }
 
@@ -2571,23 +2640,26 @@ class ResearchQaApp {
         }
         sortItemsInPlace(this.db.items);
 
-        const persistedItem = this.db.items.find((entry) => String(entry.id) === String(normalized.id));
-        if (persistedItem?.shareId) {
-            await saveSharedItem(persistedItem.shareId, this.config.token, normalized);
-            await setValue(this.sharedCacheKey(persistedItem.shareId), normalized);
-        }
-
         await this.saveDatabaseSnapshot();
-        this.currentSummary = persistedItem;
+        this.currentSummary = this.db.items.find((entry) => String(entry.id) === String(normalized.id));
+        this.currentItem = clone(this.currentSummary);
     }
 
     toggleNote(noteId) {
-        if (this.expandedNotes.has(noteId)) {
-            this.expandedNotes.delete(noteId);
-        } else {
-            this.expandedNotes.add(noteId);
-        }
-        this.renderNotes();
+        const expanded = !this.expandedNotes.has(noteId);
+        if (expanded) this.expandedNotes.add(noteId);
+        else this.expandedNotes.delete(noteId);
+        const note = this.currentItem.answers.find((entry) => entry.id === noteId);
+        const card = this.elements.noteList.querySelector('[data-note-id="' + CSS.escape(noteId) + '"]');
+        const body = card?.querySelector('[data-note-render], [data-note-preview]');
+        if (!note || !body) return;
+        body.className = expanded ? 'rich-text' : 'note-excerpt rich-text';
+        delete body.dataset.noteRender;
+        delete body.dataset.notePreview;
+        body.dataset[expanded ? 'noteRender' : 'notePreview'] = noteId;
+        setRenderedHtml(body, this.getCachedNoteRender(note, expanded));
+        card.querySelector('[data-note-action="toggle"]').textContent = this.text(expanded ? 'collapse' : 'expand');
+        typesetElement(body);
     }
 
     async deleteNote(noteId) {
@@ -3194,6 +3266,11 @@ class ResearchQaApp {
     }
 
     async saveConfigFromModal() {
+        if (this.hasUnsavedComposer()) {
+            this.toast(this.literal('Save or cancel the open draft before changing sync settings.', '更改同步设置前，请先保存或取消草稿。'));
+            return;
+        }
+        const previousKey = this.databaseCacheKey;
         try {
             const token = this.elements.configTokenInput.value.trim();
             let mainGistId = this.elements.configGistInput.value.trim();
@@ -3205,15 +3282,8 @@ class ResearchQaApp {
             }
 
             let createdMainGist = false;
-            if (!mainGistId && token) {
-                this.setStatusKey('statusCreatingMainGist');
-                mainGistId = await createMainDatabase(token);
-                createdMainGist = true;
-                this.toast(this.text('toastCreatedMainGist', { id: mainGistId }));
-            }
-
-            const nextConfig = { token, mainGistId };
-            const wantsCredentialUpdate = Boolean(authUsername || authPassword || authPasswordConfirm);
+            const wantsCredentialUpdate = Boolean(authPassword || authPasswordConfirm
+                || (authUsername && authUsername !== this.authSession?.username));
             let nextAuthSession = this.authSession;
 
             if (wantsCredentialUpdate) {
@@ -3232,6 +3302,20 @@ class ResearchQaApp {
                 };
             }
 
+            let createdState = null;
+            if (!mainGistId && token) {
+                this.setStatusKey('statusCreatingMainGist');
+                mainGistId = await createMainDatabase(token);
+                createdMainGist = true;
+                // Persist the current library before switching the config's
+                // cache key. A failed/interrupted first upload remains local.
+                createdState = await commitDatabase(`rq_v2_main_${mainGistId}`, normalizeDatabase({}), this.db, {
+                    normalize: normalizeDatabase, remote: true
+                });
+                this.toast(this.text('toastCreatedMainGist', { id: mainGistId }));
+            }
+            const nextConfig = { token, mainGistId };
+
             if (nextAuthSession) {
                 this.config = await lockConfig(nextConfig, nextAuthSession);
                 this.authSession = nextAuthSession;
@@ -3247,12 +3331,20 @@ class ResearchQaApp {
             this.reflectConfig();
             this.closeConfigModal();
             if (createdMainGist) {
-                // Seed the brand-new gist with this device's current data
-                // instead of pulling the empty database back over it.
-                await this.updateSyncState('', false);
-                await this.saveDatabaseSnapshot();
+                this.db = createdState.database;
+                this.baseDb = clone(this.db);
+                this.localDirty = true;
+                this.setStatusKey('statusSavedLocally');
+                void this.syncPending();
                 this.renderAll();
             } else {
+                if (previousKey !== this.databaseCacheKey) {
+                    const state = await readDatabaseState(this.databaseCacheKey);
+                    this.db = normalizeDatabase(state.database || {});
+                    this.baseDb = clone(this.db);
+                    this.reconcileRouteSelection({ replaceRoute: true });
+                    await this.renderCurrentSelection();
+                }
                 await this.syncPull();
             }
         } catch (error) {
@@ -3261,6 +3353,10 @@ class ResearchQaApp {
     }
 
     async importLegacyData() {
+        if (this.hasUnsavedComposer()) {
+            this.toast(this.literal('Save or cancel the draft before importing.', '导入前请先保存或取消草稿。'));
+            return;
+        }
         const legacyConfig = loadLegacyConfig();
         if (!legacyConfig.mainGistId) {
             this.toast(this.text('toastNoLegacyConfig'), 'error');
@@ -3290,15 +3386,15 @@ class ResearchQaApp {
                 ...legacyConfig,
                 token: legacyConfig.token || this.config.token
             });
-            this.db = normalizeDatabase(database);
-            await setValue(this.databaseCacheKey, this.db);
-            if (legacyConfig.mainGistId === this.config.mainGistId) {
-                await this.updateSyncState(version, false);
-            } else {
-                // Imported from a different gist: local copy now diverges from
-                // the configured remote until the next explicit save/pull.
-                await this.markLocalDirty();
+            const imported = normalizeDatabase(parseWorkspaceSnapshot(database));
+            const target = await readDatabaseState(this.databaseCacheKey);
+            this.baseDb = normalizeDatabase(target.database || {});
+            this.db = imported;
+            if (legacyConfig.mainGistId === this.config.mainGistId && !target.version) {
+                // Establish a known base without acknowledging any dirty edits.
+                await setValue(this.databaseVersionKey, version);
             }
+            await this.saveDatabaseSnapshot({ replace: true });
             this.viewMode = 'active';
             this.updateViewModeButtons();
             this.reconcileRouteSelection({ replaceRoute: true });
@@ -3319,8 +3415,9 @@ class ResearchQaApp {
         }
     }
 
-    exportBackup() {
-        const payload = serializeWorkspaceSnapshot(this.db, {
+    async exportBackup() {
+        const stored = await readDatabaseState(this.databaseCacheKey);
+        const payload = serializeWorkspaceSnapshot(stored.database || this.db, {
             exportedAt: new Date().toISOString()
         });
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -3338,17 +3435,22 @@ class ResearchQaApp {
             return;
         }
 
+        if (this.hasUnsavedComposer()) {
+            this.toast(this.literal('Save or cancel the draft before importing.', '导入前请先保存或取消草稿。'));
+            event.target.value = '';
+            return;
+        }
         try {
             const text = await file.text();
             const parsed = JSON.parse(text);
-            const nextDatabase = normalizeDatabase(deserializeWorkspaceSnapshot(parsed));
+            const nextDatabase = normalizeDatabase(parseWorkspaceSnapshot(parsed));
             if (!window.confirm(this.text('confirmImportOverwrite'))) {
                 event.target.value = '';
                 return;
             }
 
             this.db = nextDatabase;
-            await this.saveDatabaseSnapshot();
+            await this.saveDatabaseSnapshot({ replace: true });
             this.reconcileRouteSelection({ replaceRoute: true });
             if (this.pageMode === 'detail') {
                 await this.renderCurrentSelection();
@@ -3366,5 +3468,3 @@ class ResearchQaApp {
 
 const app = new ResearchQaApp();
 app.init();
-
-

@@ -50,6 +50,7 @@ const MATH_ENVIRONMENTS = [
 const FENCE_PATTERN = /^( {0,3})(`{3,}|~{3,})/;
 
 let mathQueue = Promise.resolve();
+const mathVersions = new WeakMap();
 let mathJaxReadyPromise = null;
 let mathJaxFailureNotified = false;
 
@@ -903,6 +904,7 @@ export function setRenderedHtml(element, rendered) {
         return;
     }
 
+    mathVersions.set(element, (mathVersions.get(element) || 0) + 1);
     clearMath(element);
     element.innerHTML = rendered.html || '';
 }
@@ -964,8 +966,10 @@ export async function typesetElement(element) {
         return;
     }
 
+    const version = (mathVersions.get(element) || 0) + 1;
+    mathVersions.set(element, version);
     mathQueue = mathQueue.then(async () => {
-        if (!element.isConnected) {
+        if (!element.isConnected || mathVersions.get(element) !== version) {
             return;
         }
 
@@ -976,7 +980,7 @@ export async function typesetElement(element) {
             }
             return;
         }
-        if (!element.isConnected) {
+        if (!element.isConnected || mathVersions.get(element) !== version) {
             return;
         }
 
