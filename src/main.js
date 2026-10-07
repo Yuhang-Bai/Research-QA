@@ -14,7 +14,8 @@ import { acknowledgeSync, commitDatabase, getValue, readDatabaseState, replaceFr
 import { createMainDatabase, createSharedItem, fetchMainDatabase, fetchSharedItem, saveMainDatabase, saveSharedItem } from './data/gist.js';
 import { parseWorkspaceSnapshot, serializeWorkspaceSnapshot } from './data/workspace.js';
 import { createMarkdownEditor } from './lib/editor.js';
-import { MATHJAX_UNAVAILABLE_EVENT, renderDocument, renderExcerpt, renderInlineMath, renderPreviewDocument, setRenderedHtml, typesetElement } from './lib/renderer.js';
+import { contentTags, contentReferences, matchesLibraryFilter } from './lib/notebook.js';
+import { MATHJAX_UNAVAILABLE_EVENT, renderDocument, renderInlineMath, renderPreviewDocument, setRenderedHtml, typesetElement } from './lib/renderer.js';
 
 const LOCAL_DATABASE_KEY = 'rq_v2_local_database';
 const UI_LANGUAGE_KEY = 'rq_v2_language';
@@ -519,7 +520,14 @@ class ResearchQaApp {
         this.db = normalizeDatabase({});
         this.baseDb = clone(this.db);
         this.listLimit = 100;
+        this.libraryFilter = 'all';
+        this.libraryTag = '';
+        this.contextVisible = window.matchMedia('(min-width: 1201px)').matches;
+        this.editorView = 'source';
         this.saving = false;
+        this.sharing = false;
+        this.pendingLocalCommits = 0;
+        this.tagCache = new WeakMap();
         this.syncJobs = new Map();
         this.remoteDbVersion = '';
         this.localDirty = false;
@@ -680,7 +688,7 @@ class ResearchQaApp {
         this.editor = createMarkdownEditor({
             host: this.elements.editorHost,
             placeholderText: 'Markdown / LaTeX',
-            onChange: (value) => this.scheduleComposerPreview(value)
+            onChange: (value) => { this.scheduleComposerPreview(value); this.refreshDraftStatus(); }
         });
     }
 
@@ -804,6 +812,7 @@ class ResearchQaApp {
             this.elements.languageButton.textContent = this.language === 'zh' ? 'EN' : 'ZH';
         }
 
+        this.applyNotebookLanguage();
         this.updateLegacyImportButton();
         this.updateDisableLockButton();
         this.refreshComposerChrome();
@@ -841,7 +850,103 @@ class ResearchQaApp {
         this.elements.importLegacyButton.textContent = available ? this.text('importLegacy') : this.text('importLegacyUnavailable');
     }
 
+    applyNotebookLanguage() {
+        const labels = {
+            'workspace-menu-label': ['Workspace', '工作区'], 'tags-label': ['Tags', '标签'],
+            'breadcrumb-home-btn': ['Problem library', '问题库'], 'breadcrumb-current': ['Notebook', '研究手账'],
+            'reader-mode-label': ['Reading', '阅读'], 'open-item-tab-btn': ['Open in new tab', '在新标签页打开']
+        };
+        for (const [id, words] of Object.entries(labels)) document.getElementById(id).textContent = this.literal(...words);
+        this.elements.createItemButton.textContent = '+ ' + this.text('newProblemButton');
+        this.elements.sidebarTitle.textContent = this.literal('My problems', '我的问题');
+        this.elements.emptyEyebrow.textContent = this.literal('A place to think', '为思考留一页');
+        this.elements.emptyTitle.textContent = this.literal('Every idea starts with a question.', '每个想法，从一个问题开始。');
+        this.elements.emptyDescription.textContent = this.literal('Choose a problem from your library, or start a new page. Your statements, formulas, and research notes stay together, saved on this device.', '从左侧选择问题，或开启新的一页。问题、公式与研究记录保存在一起，随时继续思考。');
+        this.elements.searchInput.placeholder = this.literal('Search problems…', '搜索问题…');
+        const toggle = document.getElementById('library-toggle-btn');
+        toggle.setAttribute('aria-label', this.literal('Toggle problem library', '打开或关闭问题库'));
+        document.getElementById('context-toggle-btn').setAttribute('aria-label', this.literal('Toggle context panel', '打开或关闭相关资料'));
+        document.querySelectorAll('button[data-editor-view]').forEach(button => {
+            const labels = { source: ['Edit', '编辑'], preview: ['Preview', '预览'], split: ['Split view', '分栏'] };
+            button.textContent = this.literal(...labels[button.dataset.editorView]);
+        });
+        this.refreshDraftStatus();
+    }
+
+    setLibraryOpen(open) {
+        this.elements.workspace.classList.toggle('library-open', open);
+        const toggle = document.getElementById('library-toggle-btn');
+        toggle.setAttribute('aria-expanded', String(open));
+        document.getElementById('library-scrim').classList.toggle('hidden', !open);
+        if (window.matchMedia('(max-width: 760px)').matches) {
+            this.elements.composer.inert = open;
+            document.querySelector('.main-panel').inert = open;
+            document.getElementById('context-panel').inert = open;
+            if (open) this.elements.searchInput.focus();
+            else toggle.focus();
+        }
+    }
+
+    setEditorView(view) {
+        this.editorView = view;
+        this.elements.composer.dataset.editorView = view;
+        document.querySelectorAll('button[data-editor-view]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.editorView === view)));
+    }
+
+    refreshDraftStatus() {
+        if (!this.elements) return;
+        const draft = this.hasUnsavedComposer();
+        const text = this.sharing ? this.literal('Creating shared copy…', '正在创建分享副本…') : (this.saving || this.pendingLocalCommits) ? this.literal('Saving…', '正在保存…') : draft ? this.literal('Unsaved draft', '草稿未保存') : this.composerState.open ? this.literal('No unsaved changes', '没有未保存的更改') : this.text(this.statusState.key, this.statusState.params);
+        document.getElementById('workspace-save-status').textContent = text;
+        document.getElementById('composer-save-status').textContent = text;
+        document.getElementById('workspace-save-status').dataset.state = this.saving ? 'saving' : draft ? 'draft' : 'saved';
+        this.elements.saveComposerButton.textContent = this.saving ? this.literal('Saving…', '正在保存…') : this.text('save');
+    }
+
     bindEvents() {
+        document.getElementById('library-toggle-btn').addEventListener('click', () => this.setLibraryOpen(!this.elements.workspace.classList.contains('library-open')));
+        document.getElementById('library-scrim').addEventListener('click', () => this.setLibraryOpen(false));
+        document.getElementById('breadcrumb-home-btn').addEventListener('click', () => this.goHome());
+        document.getElementById('open-item-tab-btn').addEventListener('click', () => this.openItemPageInNewTab(this.currentId));
+        document.getElementById('context-toggle-btn').addEventListener('click', () => { this.contextVisible = !this.contextVisible; this.renderContext(); });
+        document.querySelectorAll('button[data-editor-view]').forEach(button => button.addEventListener('click', () => this.setEditorView(button.dataset.editorView)));
+        this.elements.composerTitleInput.addEventListener('input', () => this.refreshDraftStatus());
+        this.elements.composerPreambleInput.addEventListener('input', () => this.refreshDraftStatus());
+        document.getElementById('library-filters').addEventListener('click', event => {
+            const button = event.target.closest('[data-library-filter]'); if (!button) return;
+            this.libraryFilter = button.dataset.libraryFilter; this.listLimit = 100; this.renderList();
+        });
+        document.getElementById('library-tags').addEventListener('click', event => {
+            const button = event.target.closest('[data-library-tag]'); if (!button) return;
+            this.libraryTag = this.libraryTag === button.dataset.libraryTag ? '' : button.dataset.libraryTag;
+            this.listLimit = 100; this.renderList();
+        });
+        document.getElementById('context-panel').addEventListener('click', event => {
+            if (event.target.closest('[data-close-context]')) { this.contextVisible = false; this.renderContext(); }
+            const related = event.target.closest('[data-related-item]');
+            if (related) this.openItemPage(related.dataset.relatedItem);
+            const outline = event.target.closest('[data-outline-target]');
+            if (outline) document.getElementById(outline.dataset.outlineTarget)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        });
+        document.addEventListener('keydown', event => {
+            if (event.defaultPrevented) return;
+            if (event.key === 'Escape') {
+                if (!this.elements.authScreen.classList.contains('hidden')) return;
+                if (!this.elements.configModal.classList.contains('hidden')) { this.closeConfigModal(); return; }
+                if (this.elements.workspace.classList.contains('library-open')) { this.setLibraryOpen(false); return; }
+                if (window.matchMedia('(max-width: 1200px)').matches && this.contextVisible) { this.contextVisible = false; this.renderContext(); return; }
+                const menus = [...document.querySelectorAll('details[open]')];
+                if (menus.length) { menus.forEach(menu => { menu.open = false; }); return; }
+                if (this.composerState.open) this.closeComposer();
+            }
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's' && this.composerState.open) { event.preventDefault(); this.saveComposer(); }
+        });
+        window.matchMedia('(max-width: 760px)').addEventListener('change', () => {
+            this.setLibraryOpen(false);
+            this.elements.composer.inert = false;
+            document.querySelector('.main-panel').inert = false;
+            document.getElementById('context-panel').inert = false;
+        });
         this.elements.syncButton.addEventListener('click', () => this.syncPull());
         this.elements.exportButton.addEventListener('click', () => this.exportBackup());
         this.elements.importButton.addEventListener('click', () => this.elements.importFileInput.click());
@@ -895,6 +1000,9 @@ class ResearchQaApp {
                 event.preventDefault();
                 event.stopPropagation();
 
+                if (listAction.dataset.listAction === 'open-tab') {
+                    this.openItemPageInNewTab(listAction.dataset.itemId);
+                }
                 if (listAction.dataset.listAction === 'pin') {
                     this.togglePinById(listAction.dataset.itemId);
                 }
@@ -906,7 +1014,9 @@ class ResearchQaApp {
                 return;
             }
 
-            this.openItemPageInNewTab(row.dataset.itemId);
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            event.preventDefault();
+            this.openItemPage(row.dataset.itemId);
         });
 
         this.elements.list.addEventListener('contextmenu', (event) => {
@@ -1078,6 +1188,7 @@ class ResearchQaApp {
 
     refreshStatus() {
         this.elements.syncStatus.textContent = this.text(this.statusState.key, this.statusState.params);
+        this.refreshDraftStatus();
     }
 
     readRouteFromLocation() {
@@ -1136,6 +1247,8 @@ class ResearchQaApp {
         this.elements.workspace.classList.toggle('route-home', homeRoute);
         this.elements.workspace.classList.toggle('route-detail', !homeRoute);
         this.elements.backHomeButton.classList.toggle('hidden', homeRoute || Boolean(this.visitorGistId));
+        this.elements.workspace.classList.toggle('visitor-workspace', Boolean(this.visitorGistId));
+        document.getElementById('library-toggle-btn').classList.toggle('hidden', Boolean(this.visitorGistId));
     }
 
     reconcileRouteSelection({ replaceRoute = false } = {}) {
@@ -1176,6 +1289,7 @@ class ResearchQaApp {
         }
 
         if (!this.closeComposer()) return;
+        ++this.selectionToken;
         this.pageMode = 'home';
         this.currentId = null;
         this.currentItem = null;
@@ -1185,10 +1299,11 @@ class ResearchQaApp {
     }
 
     async openItemPage(itemId, { replace = false } = {}) {
-        if (!itemId) {
-            return;
-        }
-
+        if (!itemId || this.saving) return;
+        if (String(itemId) === String(this.currentId) && this.pageMode === 'detail') { this.setLibraryOpen(false); return; }
+        if (!this.closeComposer()) return;
+        this.setLibraryOpen(false);
+        document.querySelector('.main-panel').scrollTop = 0;
         this.pageMode = 'detail';
         this.currentId = itemId;
         this.syncRouteState({ replace });
@@ -1217,6 +1332,7 @@ class ResearchQaApp {
             return;
         }
 
+        ++this.selectionToken;
         const route = this.readRouteFromLocation();
         this.viewMode = route.viewMode;
         this.pageMode = route.pageMode;
@@ -1330,27 +1446,34 @@ class ResearchQaApp {
     }
 
     async saveDatabaseSnapshot({ replace = false } = {}) {
-        const key = this.databaseCacheKey;
-        let saved;
+        this.pendingLocalCommits++;
+        this.refreshDraftStatus();
         try {
-            saved = await commitDatabase(key, clone(this.baseDb), clone(this.db), {
-                normalize: normalizeDatabase, remote: Boolean(this.config.mainGistId), replace
-            });
-        } catch (error) {
-            // Failed deletes, pins and imports must not remain as phantom
-            // in-memory changes. An editor keeps its original comparison base.
-            this.db = clone(this.baseDb);
-            if (!this.composerState.open) await this.refreshFromStorage();
-            throw error;
+            const key = this.databaseCacheKey;
+            let saved;
+            try {
+                saved = await commitDatabase(key, clone(this.baseDb), clone(this.db), {
+                    normalize: normalizeDatabase, remote: Boolean(this.config.mainGistId), replace
+                });
+            } catch (error) {
+                // Failed deletes, pins and imports must not remain as phantom
+                // in-memory changes. An editor keeps its original comparison base.
+                this.db = clone(this.baseDb);
+                if (!this.composerState.open) await this.refreshFromStorage();
+                throw error;
+            }
+            this.db = saved.database;
+            this.baseDb = clone(this.db);
+            this.localDirty = saved.dirty;
+            this.setStatusKey('statusSavedLocally');
+            this.storageChannel?.postMessage(key);
+            // Local durability does not wait for the network. The queue and dirty
+            // marker live in the same transaction as the user's content.
+            if (saved.dirty) void this.syncPending();
+        } finally {
+            this.pendingLocalCommits--;
+            this.refreshDraftStatus();
         }
-        this.db = saved.database;
-        this.baseDb = clone(this.db);
-        this.localDirty = saved.dirty;
-        this.setStatusKey('statusSavedLocally');
-        this.storageChannel?.postMessage(key);
-        // Local durability does not wait for the network. The queue and dirty
-        // marker live in the same transaction as the user's content.
-        if (saved.dirty) void this.syncPending();
     }
 
     async syncPending() {
@@ -1453,7 +1576,8 @@ class ResearchQaApp {
                 try {
                     const payload = await fetchSharedItem(summary.shareId, this.config.token);
                     const remote = parseWorkspaceSnapshot({ items: [payload], trash: [] }).items[0];
-                    if (selectionMark !== this.selectionToken || this.composerState.open || key !== this.databaseCacheKey) return;
+                    if (selectionMark !== this.selectionToken || this.composerState.open || key !== this.databaseCacheKey
+                        || this.db.items.find(item => String(item.id) === String(summary.id)) !== summary) return;
                     const hydrated = normalizeItem({ ...remote, id: summary.id, shareId: summary.shareId,
                         isPinned: summary.isPinned, pinnedAt: summary.pinnedAt, sortRank: summary.sortRank });
                     this.currentItem = hydrated;
@@ -1479,23 +1603,21 @@ class ResearchQaApp {
 
     renderAll() {
         this.applyRouteMode();
-        if (!this.visitorGistId && this.pageMode === 'home') {
+        if (!this.visitorGistId) {
             this.renderList();
         } else if (this.lastListHtml) {
             setRenderedHtml(this.elements.list, { html: '' });
             this.lastListHtml = '';
         }
         this.renderDetail();
+        this.renderContext();
         this.finishBoot();
     }
 
     refreshVisiblePanels() {
-        if (!this.visitorGistId && this.pageMode === 'home') {
-            this.renderList();
-            return;
-        }
-
+        if (!this.visitorGistId) this.renderList();
         this.renderDetail();
+        this.renderContext();
     }
 
     scheduleListRender() {
@@ -1528,7 +1650,7 @@ class ResearchQaApp {
     }
 
     canReorderList(term = '') {
-        return !this.visitorGistId && this.pageMode === 'home' && this.viewMode === 'active' && !String(term).trim();
+        return !this.visitorGistId && this.viewMode === 'active' && !String(term).trim() && this.libraryFilter === 'all' && !this.libraryTag && !this.composerState.open;
     }
 
     isRowDraggable(row) {
@@ -1563,7 +1685,7 @@ class ResearchQaApp {
 
     handleListDragStart(event) {
         const row = event.target.closest('.problem-row[data-item-id]');
-        if (!this.isRowDraggable(row) || event.target.closest('[data-list-action]')) {
+        if (this.saving || this.sharing || this.pendingLocalCommits || !this.canReorderList(this.elements.searchInput.value) || !this.isRowDraggable(row) || event.target.closest('[data-list-action]')) {
             event.preventDefault();
             return;
         }
@@ -1641,12 +1763,7 @@ class ResearchQaApp {
 
     getDragPreviewPosition(row, event) {
         const bounds = row.getBoundingClientRect();
-        const offsetX = event.clientX - (bounds.left + bounds.width / 2);
         const offsetY = event.clientY - (bounds.top + bounds.height / 2);
-        const horizontalBias = Math.abs(offsetX) > Math.abs(offsetY) * 1.1;
-        if (horizontalBias) {
-            return offsetX < 0 ? 'before' : 'after';
-        }
         return offsetY < 0 ? 'before' : 'after';
     }
 
@@ -2117,8 +2234,9 @@ class ResearchQaApp {
     }
 
     renderList() {
-        if (this.visitorGistId || this.pageMode !== 'home') return;
+        if (this.visitorGistId) return;
         const collection = this.getCurrentCollection();
+        this.renderLibraryFilters(collection);
         const term = this.elements.searchInput.value.trim().toLowerCase();
         const reorderEnabled = this.canReorderList(term);
         this.elements.viewStatus.textContent = this.viewMode === 'trash'
@@ -2126,6 +2244,7 @@ class ResearchQaApp {
             : this.text('viewProblemsCount', { count: collection.length });
 
         const items = collection.filter((entry) => {
+            if (this.viewMode === 'active' && (!matchesLibraryFilter(entry, this.libraryFilter) || (this.libraryTag && !this.getItemTags(entry).includes(this.libraryTag)))) return false;
             if (!term) {
                 return true;
             }
@@ -2165,81 +2284,56 @@ class ResearchQaApp {
             return;
         }
         this.lastListHtml = listHtml;
-        setRenderedHtml(this.elements.list, {
-            html: listHtml
-        });
-        typesetElement(this.elements.list);
+        const scrollTop = this.elements.list.scrollTop;
+        setRenderedHtml(this.elements.list, { html: listHtml });
+        this.elements.list.scrollTop = scrollTop;
+    }
+
+    getItemTags(item) {
+        const cached = this.tagCache.get(item);
+        if (cached && cached.desc === item.desc && cached.answers === item.answers) return cached.tags;
+        const tags = contentTags(item);
+        this.tagCache.set(item, { desc: item.desc, answers: item.answers, tags });
+        return tags;
+    }
+
+    renderLibraryFilters(collection) {
+        const filters = [ ['all', this.literal('All problems', '全部问题')], ['pinned', this.text('pinnedBadge')], ['notes', this.literal('With notes', '有研究记录')], ['shared', this.text('sharedBadge')] ];
+        document.getElementById('library-filters').innerHTML = this.viewMode === 'trash' ? '' : filters.map(([key, label]) => `<button type="button" data-library-filter="${key}" aria-pressed="${key === this.libraryFilter}"><span class="filter-dot ${key}"></span>${label}<span>${collection.filter(item => matchesLibraryFilter(item, key)).length}</span></button>`).join('');
+        const tags = [...new Set(collection.flatMap(item => this.getItemTags(item)))].sort((a, b) => a.localeCompare(b)).slice(0, 40);
+        document.getElementById('library-tags').innerHTML = tags.length ? tags.map(tag => `<button type="button" class="tag-button" data-library-tag="${escapeHtml(tag)}" aria-pressed="${tag === this.libraryTag}">${escapeHtml(tag)}</button>`).join('') : `<p class="tag-hint">${this.literal('Use #tags in your notes to organise ideas.', '在内容中写下 #标签，串联想法。')}</p>`;
     }
 
     renderListRow(entry, options = {}) {
-        if (entry.type === 'note') {
-            const activeClass = String(entry.id) === String(this.currentId) ? 'active' : '';
-            const excerpt = renderExcerpt(entry.data.text, {
-                preamble: entry.parentPreamble,
-                length: 180,
-                emptyText: 'No content yet.'
-            });
-            return `
-                <article class="problem-row trash ${activeClass}" data-item-id="${entry.id}">
-                    <div class="problem-row-top">
-                        <h3>${renderInlineMath(this.text('archivedNoteTitle', { title: entry.parentTitle }), { preamble: entry.parentPreamble })}</h3>
-                        <span class="meta-pill">${this.text('note')}</span>
-                    </div>
-                    <div class="problem-row-excerpt rich-text">${excerpt.html}</div>
-                    <div class="item-meta">
-                        <span class="meta-pill">${this.text('deletedAt', { date: formatDate(entry.deletedAt) })}</span>
-                    </div>
-                </article>
-            `;
-        }
+        const active = String(entry.id) === String(this.currentId);
+        const title = entry.type === 'note' ? this.text('archivedNoteTitle', { title: entry.parentTitle }) : (entry.title || this.text('defaultUntitledProblem'));
+        const noteCount = entry.answers?.length || 0;
+        const url = escapeHtml(this.buildRouteUrl({ pageMode: 'detail', viewMode: this.viewMode, itemId: entry.id }).toString());
+        const id = escapeHtml(entry.id);
+        const draggable = options.reorderEnabled ? ` draggable="true" data-draggable="true" data-pin-group="${entry.isPinned ? 'pinned' : 'regular'}"` : '';
+        return `<article class="problem-row ${active ? 'active' : ''} ${this.viewMode === 'trash' ? 'trash' : ''}" data-item-id="${id}"${draggable}>
+            <a class="problem-row-link" href="${url}" ${active ? 'aria-current="page"' : ''}><span class="problem-icon" aria-hidden="true">${entry.isPinned ? '⌖' : '▤'}</span><span class="problem-row-text"><h3>${escapeHtml(title)}</h3><span class="row-secondary">${entry.type === 'note' ? this.text('archivedNote') : this.text('notesCount', {count: noteCount})}${entry.shareId ? ' · ' + this.text('sharedBadge') : ''}</span></span></a>
+            <div class="problem-row-actions"><button type="button" class="row-icon-btn" data-list-action="open-tab" data-item-id="${id}" aria-label="${this.literal('Open in new tab', '在新标签页打开')}" title="${this.literal('Open in new tab', '在新标签页打开')}">↗</button>${this.viewMode === 'active' ? `<button type="button" class="row-icon-btn ${entry.isPinned ? 'is-active' : ''}" data-list-action="pin" data-item-id="${id}" aria-label="${entry.isPinned ? this.text('unpin') : this.text('pin')}" title="${entry.isPinned ? this.text('unpin') : this.text('pin')}">⌖</button>` : ''}</div>
+        </article>`;
+    }
 
-        const activeClass = String(entry.id) === String(this.currentId) ? 'active' : '';
-        const trashClass = this.viewMode === 'trash' ? 'trash' : '';
-        const syncBadge = entry.shareId ? `<span class="meta-pill">${this.text('sharedBadge')}</span>` : '';
-        const pinBadge = entry.isPinned ? `<span class="meta-pill">${this.text('pinnedBadge')}</span>` : '';
-        const noteCount = Array.isArray(entry.answers) ? entry.answers.length : 0;
-        const pinFeedbackState = String(this.pinFeedback.itemId) === String(entry.id) ? this.pinFeedback.state : '';
-        const draggableAttrs = options.reorderEnabled
-            ? ` draggable="true" data-draggable="true" data-pin-group="${entry.isPinned ? 'pinned' : 'regular'}"`
-            : '';
-        const pinAction = this.viewMode === 'active' && !this.visitorGistId
-            ? `
-                <button
-                    class="row-icon-btn ${entry.isPinned ? 'is-active' : ''} ${pinFeedbackState ? `is-${pinFeedbackState}` : ''}"
-                    type="button"
-                    data-list-action="pin"
-                    data-item-id="${entry.id}"
-                    aria-label="${entry.isPinned ? this.text('unpin') : this.text('pin')}"
-                    title="${entry.isPinned ? this.text('unpin') : this.text('pin')}"
-                >${entry.isPinned ? this.text('unpin') : this.text('pin')}</button>
-            `
-            : '';
-        const excerpt = renderExcerpt(entry.desc, {
-            preamble: entry.preamble,
-            length: 200,
-            emptyText: 'No content yet.'
-        });
-        const deletionBadge = entry.deletedAt
-            ? `<span class="meta-pill">${this.text('deletedAt', { date: formatDate(entry.deletedAt) })}</span>`
-            : `<span class="meta-pill">${formatDate(entry.date)}</span>`;
-
-        return `
-            <article class="problem-row ${activeClass} ${trashClass} ${pinFeedbackState ? `pin-feedback pin-${pinFeedbackState}` : ''}" data-item-id="${entry.id}"${draggableAttrs}>
-                <div class="problem-row-top">
-                    <h3>${renderInlineMath(entry.title || this.text('defaultUntitledProblem'), { preamble: entry.preamble })}</h3>
-                    <div class="problem-row-actions">
-                        ${pinAction}
-                        <span class="meta-pill">${this.text('notesCount', { count: noteCount })}</span>
-                    </div>
-                </div>
-                <div class="problem-row-excerpt rich-text">${excerpt.html}</div>
-                <div class="item-meta">
-                    ${deletionBadge}
-                    ${pinBadge}
-                    ${syncBadge}
-                </div>
-            </article>
-        `;
+    renderContext() {
+        const panel = document.getElementById('context-panel');
+        const visible = this.contextVisible && Boolean(this.currentItem) && this.pageMode === 'detail';
+        panel.classList.toggle('hidden', !visible);
+        this.elements.workspace.classList.toggle('context-open', visible);
+        document.getElementById('context-toggle-btn').setAttribute('aria-expanded', String(visible));
+        if (!visible) { panel.innerHTML = ''; return; }
+        const tags = this.getItemTags(this.currentItem);
+        const refs = contentReferences(this.currentItem);
+        const related = this.visitorGistId || !tags.length ? [] : this.db.items.filter(item => String(item.id) !== String(this.currentId) && this.getItemTags(item).some(tag => tags.includes(tag))).slice(0, 5);
+        const section = (title, body) => `<section class="context-section"><h3>${title}</h3>${body}</section>`;
+        const empty = text => `<p class="context-empty">${text}</p>`;
+        const outline = [{id:'statement-section', label:this.text('statement')}, {id:'notes-section', label:this.text('researchNotes')}];
+        panel.innerHTML = `<button class="context-close icon-btn" data-close-context aria-label="${this.literal('Close context', '关闭相关资料')}">×</button>` + section(this.literal('References', '相关资料'), refs.length ? refs.map(ref => `<a class="context-link" href="${escapeHtml(ref.url)}" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">▤</span><span>${escapeHtml(ref.title)}</span><span aria-hidden="true">↗</span></a>`).join('') : empty(this.literal('Links in this problem and its notes appear here.', '问题与笔记中的资料链接会显示在这里。')))
+            + section(this.literal('Related problems', '相关问题'), related.length ? related.map(item => `<button class="context-link" data-related-item="${escapeHtml(item.id)}"><span aria-hidden="true">▤</span><span>${escapeHtml(item.title)}</span><span aria-hidden="true">›</span></button>`).join('') : empty(this.literal('Add a shared #tag to connect problems.', '用相同的 #标签关联问题。')))
+            + section(this.literal('On this page', '本页目录'), `<nav class="page-outline">${outline.map(item => `<button data-outline-target="${item.id}">${item.label}</button>`).join('')}</nav>`)
+            + section(this.literal('Notebook details', '手账信息'), `<dl class="context-meta"><dt>${this.text('researchNotes')}</dt><dd>${this.currentItem.answers?.length || 0}</dd><dt>${this.literal('Storage', '存储')}</dt><dd>${this.elements.heroRemote.textContent}</dd></dl>${tags.length ? `<div class="context-tags">${tags.map(tag=>`<span class="tag-button">${escapeHtml(tag)}</span>`).join('')}</div>` : ''}`);
     }
 
     renderDetail() {
@@ -2249,7 +2343,7 @@ class ResearchQaApp {
             setRenderedHtml(this.elements.detailTitle, { html: '' });
             this.lastDetailTitleKey = '';
             this.lastProblemRenderKey = '';
-            this.elements.emptyState.classList.add('hidden');
+            this.elements.emptyState.classList.remove('hidden');
             this.elements.detailView.classList.add('hidden');
             return;
         }
@@ -2354,7 +2448,7 @@ class ResearchQaApp {
         this.elements.newNoteButton.disabled = this.viewMode === 'trash' || Boolean(this.visitorGistId);
         this.elements.editProblemButton.disabled = this.viewMode === 'trash' || Boolean(this.visitorGistId);
         this.elements.pinItemButton.disabled = this.viewMode === 'trash' || Boolean(this.visitorGistId);
-        this.elements.shareItemButton.disabled = this.viewMode === 'trash' || Boolean(this.visitorGistId);
+        this.elements.shareItemButton.disabled = this.sharing || this.viewMode === 'trash' || Boolean(this.visitorGistId);
         this.elements.pdfItemButton.disabled = false;
         this.elements.restoreItemButton.classList.toggle('hidden', this.viewMode !== 'trash');
         this.elements.destroyItemButton.classList.toggle('hidden', this.viewMode !== 'trash');
@@ -2462,10 +2556,14 @@ class ResearchQaApp {
     }
 
     async setViewMode(mode) {
-        if (mode === this.viewMode) {
+        if (this.saving || mode === this.viewMode) {
             return;
         }
 
+        if (!this.closeComposer()) return;
+        ++this.selectionToken;
+        this.libraryFilter = 'all';
+        this.libraryTag = '';
         this.viewMode = mode;
         this.listLimit = 100;
         this.updateViewModeButtons();
@@ -2492,11 +2590,17 @@ class ResearchQaApp {
     }
 
     createNewItem() {
-        if (this.visitorGistId) {
+        if (this.visitorGistId || this.sharing || this.pendingLocalCommits) {
             return;
         }
         if (!this.closeComposer()) return;
 
+        ++this.selectionToken;
+        this.viewMode = 'active';
+        this.libraryFilter = 'all';
+        this.libraryTag = '';
+        this.updateViewModeButtons();
+        this.setLibraryOpen(false);
         const nextItem = normalizeItem({ id: createId('item'), title: this.text('newProblem'), desc: '', answers: [], date: new Date().toISOString(), isPinned: false });
         // Keep a new problem as a draft until the first successful save.
         this.currentId = nextItem.id;
@@ -2510,7 +2614,7 @@ class ResearchQaApp {
     }
 
     openProblemEditor() {
-        if (!this.currentItem || this.viewMode === 'trash' || this.visitorGistId) {
+        if (!this.currentItem || this.viewMode === 'trash' || this.visitorGistId || this.sharing || this.pendingLocalCommits) {
             return;
         }
         if (this.composerState.open && !this.closeComposer()) return;
@@ -2518,6 +2622,7 @@ class ResearchQaApp {
         this.composerState = { open: true, kind: 'problem', noteId: null };
         this.elements.workspace.classList.add('composer-open');
         this.elements.composer.classList.remove('hidden');
+        this.setEditorView('source');
         this.refreshComposerChrome();
         this.elements.composerTitleField.classList.remove('hidden');
         this.elements.composerPreambleField.classList.remove('hidden');
@@ -2525,11 +2630,13 @@ class ResearchQaApp {
         this.elements.composerPreambleInput.value = this.currentItem.preamble;
         this.editor.setValue(this.currentItem.desc);
         this.scheduleComposerPreview(this.currentItem.desc, true);
+        this.refreshDraftStatus();
+        this.renderList();
         window.setTimeout(() => this.editor.focus(), 40);
     }
 
     openNoteEditor(noteId = null) {
-        if (!this.currentItem || this.viewMode === 'trash' || this.visitorGistId) {
+        if (!this.currentItem || this.viewMode === 'trash' || this.visitorGistId || this.sharing || this.pendingLocalCommits) {
             return;
         }
         if (this.composerState.open && !this.closeComposer()) return;
@@ -2538,12 +2645,15 @@ class ResearchQaApp {
         this.composerState = { open: true, kind: 'note', noteId };
         this.elements.workspace.classList.add('composer-open');
         this.elements.composer.classList.remove('hidden');
+        this.setEditorView('source');
         this.refreshComposerChrome();
         this.elements.composerTitleField.classList.add('hidden');
         this.elements.composerPreambleField.classList.add('hidden');
         this.elements.composerTitleInput.value = '';
         this.editor.setValue(note ? note.text : '');
         this.scheduleComposerPreview(note ? note.text : '', true);
+        this.refreshDraftStatus();
+        this.renderList();
         window.setTimeout(() => this.editor.focus(), 40);
     }
 
@@ -2557,10 +2667,12 @@ class ResearchQaApp {
     }
 
     closeComposer({ discard = false } = {}) {
+        if (this.saving && !discard) return false;
         if (!discard && this.hasUnsavedComposer() && !window.confirm(this.literal('Discard the unsaved draft?', '放弃尚未保存的草稿？'))) return false;
         this.composerState = { open: false, kind: 'problem', noteId: null };
         this.elements.workspace.classList.remove('composer-open');
         this.elements.composer.classList.add('hidden');
+        this.refreshDraftStatus();
         return true;
     }
 
@@ -2587,12 +2699,13 @@ class ResearchQaApp {
     }
 
     async saveComposer() {
-        if (this.saving) return;
+        if (this.saving || this.pendingLocalCommits) return;
         if (!this.currentItem) {
             return;
         }
 
         this.saving = true;
+        this.refreshDraftStatus();
         this.elements.saveComposerButton.disabled = true;
         const before = clone(this.currentItem);
         const body = this.editor.getValue();
@@ -2623,6 +2736,7 @@ class ResearchQaApp {
         } finally {
             this.saving = false;
             this.elements.saveComposerButton.disabled = false;
+            this.refreshDraftStatus();
         }
     }
 
@@ -2703,15 +2817,18 @@ class ResearchQaApp {
         }
 
         await this.deleteItemById(this.currentItem.id, {
-            prompt: true,
-            returnHomeOnCurrentDelete: true
+            prompt: true
         });
     }
 
     async deleteItemById(itemId, options = {}) {
+        if (this.saving || this.sharing || this.pendingLocalCommits) return;
+        if (this.composerState.open && String(itemId) !== String(this.currentId)) {
+            this.toast(this.literal('Save or close the editor before changing the library.', '请先保存或关闭编辑器，再修改问题库。')); return;
+        }
+        if (String(itemId) === String(this.currentId) && !this.closeComposer()) return;
         const {
-            prompt = false,
-            returnHomeOnCurrentDelete = false
+            prompt = false
         } = options;
 
         if (!itemId || this.viewMode === 'trash' || this.visitorGistId) {
@@ -2732,18 +2849,17 @@ class ResearchQaApp {
         const deletedCurrent = String(this.currentId) === String(itemId);
 
         if (deletedCurrent) {
+            ++this.selectionToken;
+            this.pageMode = 'home';
             this.currentId = null;
             this.currentItem = null;
             this.currentSummary = null;
+            this.syncRouteState({ replace: true });
         }
 
         try {
             await this.saveDatabaseSnapshot();
-            if (deletedCurrent && returnHomeOnCurrentDelete) {
-                await this.goHome({ replace: true });
-            } else {
-                this.renderAll();
-            }
+            this.renderAll();
             this.toast(this.text('toastProblemMovedToTrash'));
         } catch (error) {
             this.toast(error.message, 'error');
@@ -2751,6 +2867,7 @@ class ResearchQaApp {
     }
 
     async restoreTrashItem() {
+        if (this.sharing || this.saving || this.pendingLocalCommits) return;
         if (this.viewMode !== 'trash' || !this.currentSummary) {
             return;
         }
@@ -2760,6 +2877,7 @@ class ResearchQaApp {
             return;
         }
 
+        const restoreSelection = ++this.selectionToken;
         const restored = this.db.trash.splice(index, 1)[0];
         delete restored.deletedAt;
         let nextActiveId = null;
@@ -2791,6 +2909,11 @@ class ResearchQaApp {
 
         try {
             await this.saveDatabaseSnapshot();
+            if (restoreSelection !== this.selectionToken) {
+                this.renderAll();
+                this.toast(this.text('toastRestoredFromTrash'));
+                return;
+            }
             this.viewMode = 'active';
             this.updateViewModeButtons();
             this.pageMode = nextActiveId ? 'detail' : 'home';
@@ -2804,6 +2927,7 @@ class ResearchQaApp {
     }
 
     async destroyTrashItem() {
+        if (this.sharing || this.saving || this.pendingLocalCommits) return;
         if (this.viewMode !== 'trash' || !this.currentSummary || !window.confirm(this.text('confirmPermanentDelete'))) {
             return;
         }
@@ -2813,6 +2937,7 @@ class ResearchQaApp {
             return;
         }
 
+        const destroySelection = ++this.selectionToken;
         this.db.trash.splice(index, 1);
         this.currentId = this.db.trash[0]?.id ?? null;
         this.currentItem = null;
@@ -2820,6 +2945,11 @@ class ResearchQaApp {
 
         try {
             await this.saveDatabaseSnapshot();
+            if (destroySelection !== this.selectionToken) {
+                this.renderAll();
+                this.toast(this.text('toastPermanentlyDeleted'));
+                return;
+            }
             this.pageMode = this.currentId ? 'detail' : 'home';
             this.syncRouteState({ replace: true });
             await this.renderCurrentSelection();
@@ -2838,6 +2968,10 @@ class ResearchQaApp {
     }
 
     async togglePinById(itemId) {
+        if (this.saving || this.sharing || this.pendingLocalCommits || this.composerState.open) {
+            this.toast(this.literal('Save or close the editor before changing the library.', '请先保存或关闭编辑器，再修改问题库。'));
+            return;
+        }
         const index = this.db.items.findIndex((entry) => String(entry.id) === String(itemId));
         if (index === -1) {
             return;
@@ -2857,7 +2991,7 @@ class ResearchQaApp {
 
         try {
             await this.saveDatabaseSnapshot();
-            this.currentSummary = this.db.items.find((entry) => String(entry.id) === String(itemId)) ?? this.currentSummary;
+            if (String(this.currentId) === String(itemId)) this.currentSummary = this.db.items.find((entry) => String(entry.id) === String(itemId)) ?? this.currentSummary;
             this.queuePinFeedback(itemId, target.isPinned ? 'pinned' : 'unpinned');
             this.refreshVisiblePanels();
             this.toast(this.text(target.isPinned ? 'toastPinned' : 'toastUnpinned'));
@@ -2867,7 +3001,7 @@ class ResearchQaApp {
     }
 
     async handleShare() {
-        if (!this.currentItem || this.viewMode === 'trash') {
+        if (this.sharing || this.saving || this.pendingLocalCommits || this.composerState.open || this.visitorGistId || !this.currentItem || this.viewMode === 'trash') {
             return;
         }
 
@@ -2895,14 +3029,26 @@ class ResearchQaApp {
                 return;
             }
 
-            const shareId = await createSharedItem(this.config.token, this.currentItem);
-            entry.shareId = shareId;
-            this.currentItem.shareId = shareId;
+            const sourceId = String(entry.id);
+            const sourceKey = this.databaseCacheKey;
+            const sharedCopy = clone(entry);
+            this.sharing = true;
+            this.refreshDraftStatus();
+            const shareId = await createSharedItem(this.config.token, sharedCopy);
+            if (sourceKey !== this.databaseCacheKey) throw new Error(this.literal('The library changed while sharing. The shared copy was created but was not linked to this library.', '分享过程中问题库已改变。副本已创建，但没有关联到当前问题库。'));
+            const latestEntry = this.db.items.find(item => String(item.id) === sourceId);
+            if (!latestEntry) throw new Error(this.literal('The original problem was removed while its shared copy was created.', '分享副本已创建，但原问题已被移除。'));
+            latestEntry.shareId = shareId;
+            if (String(this.currentId) === sourceId && this.currentItem) this.currentItem.shareId = shareId;
             await this.saveDatabaseSnapshot();
             this.toast(this.text('toastCreatedSharedGist'));
             this.renderAll();
         } catch (error) {
             this.toast(error.message, 'error');
+        } finally {
+            this.sharing = false;
+            this.elements.shareItemButton.disabled = !this.currentItem || this.viewMode === 'trash' || Boolean(this.visitorGistId);
+            this.refreshDraftStatus();
         }
     }
 
@@ -3266,6 +3412,7 @@ class ResearchQaApp {
     }
 
     async saveConfigFromModal() {
+        if (this.sharing || this.saving || this.pendingLocalCommits) return;
         if (this.hasUnsavedComposer()) {
             this.toast(this.literal('Save or cancel the open draft before changing sync settings.', '更改同步设置前，请先保存或取消草稿。'));
             return;
@@ -3353,6 +3500,7 @@ class ResearchQaApp {
     }
 
     async importLegacyData() {
+        if (this.sharing || this.saving || this.pendingLocalCommits) return;
         if (this.hasUnsavedComposer()) {
             this.toast(this.literal('Save or cancel the draft before importing.', '导入前请先保存或取消草稿。'));
             return;
@@ -3430,6 +3578,7 @@ class ResearchQaApp {
     }
 
     async importBackup(event) {
+        if (this.sharing || this.saving || this.pendingLocalCommits) { event.target.value = ''; return; }
         const file = event.target.files?.[0];
         if (!file) {
             return;
@@ -3442,6 +3591,7 @@ class ResearchQaApp {
         }
         try {
             const text = await file.text();
+            if (this.composerState.open || this.sharing || this.saving || this.pendingLocalCommits) throw new Error(this.literal('Close the editor and finish saving before importing.', '请先关闭编辑器并完成保存，再导入。'));
             const parsed = JSON.parse(text);
             const nextDatabase = normalizeDatabase(parseWorkspaceSnapshot(parsed));
             if (!window.confirm(this.text('confirmImportOverwrite'))) {

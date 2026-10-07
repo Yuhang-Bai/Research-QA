@@ -44,13 +44,24 @@ is available. Browsers without Web Locks keep edits local and report pending syn
 
 ## Rendering behavior and measured comparison
 
-Details do not build the hidden problem list. Home initially renders 100 results;
-“Show more” adds 100. Search still examines the whole library. Drag reordering is
-available when the full unfiltered list is displayed, so hidden rows cannot be
-accidentally dropped from an order update.
+The notebook workspace retains a compact sidebar on desktop while reading.
+The sidebar initially renders at most 100 results; “Show more” adds 100. Search
+still examines the whole library. Sidebar rows render escaped titles and counts,
+not full statement excerpts or MathJax subtrees. The list keeps its scroll position
+when selecting a problem, and regular links navigate in the current workspace.
+An explicit open-in-new-tab control remains available.
+
+Drag reordering is available only for a complete, unfiltered collection and is
+blocked while the editor is open or a save/share is in progress. Sidebar metadata
+mutations are also blocked during an open draft so they cannot advance its
+concurrent-edit comparison baseline. Tags are derived from #tags in Markdown;
+references and related problems are derived from existing content. No status or
+tag fields are added to the portable data format.
 
 Note toggles update only that note's body. Replacing a rendered subtree first
 clears its MathJax registrations; superseded queued typesets are skipped.
+
+**Historical measurements from the pre-notebook layout, not current UI results.**
 
 Measured on the same Windows computer with Chrome 154, no CPU throttling, warm
 public MathJax resources, and synthetic records (three short formulas per problem):
@@ -70,3 +81,21 @@ The repository currently tracks root `index.html`, `app.html`, and `assets/` as
 well as source files. After source changes, rebuild and refresh those generated
 files from `dist` before any future branch-root Pages release. Building or copying
 these files locally does not publish a site.
+
+## Notebook redesign verification status
+
+The redesign adds notebook metadata unit tests and browser coverage for same-tab
+navigation, history, draft protection, delayed operations, editor views, desktop
+sidebar behaviour, visitor isolation, and 390px mobile layout. Run the full
+commands above before release. The existing data adapters, renderer, and editor
+implementation are unchanged.
+
+In the implementation workspace, unit tests and production build passed. Native
+Chromium could not start because its local socket call was denied; the supported
+cloud browser also blocked the local preview URL with ERR_BLOCKED_BY_CLIENT.
+Consequently, the browser suite, visual screenshots, real responsive rendering,
+MathJax visual quality, and updated performance measurements have not been
+verified in this workspace. Supplemental synthetic DOM/state checks are useful
+for navigation and persistence logic but do not substitute for those checks.
+Do not treat this implementation as visually approved or ready for deployment
+until real desktop and mobile browser verification succeeds.
