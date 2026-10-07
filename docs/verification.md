@@ -90,12 +90,22 @@ sidebar behaviour, visitor isolation, and 390px mobile layout. Run the full
 commands above before release. The existing data adapters, renderer, and editor
 implementation are unchanged.
 
-In the implementation workspace, unit tests and production build passed. Native
-Chromium could not start because its local socket call was denied; the supported
-cloud browser also blocked the local preview URL with ERR_BLOCKED_BY_CLIENT.
-Consequently, the browser suite, visual screenshots, real responsive rendering,
-MathJax visual quality, and updated performance measurements have not been
-verified in this workspace. Supplemental synthetic DOM/state checks are useful
-for navigation and persistence logic but do not substitute for those checks.
-Do not treat this implementation as visually approved or ready for deployment
-until real desktop and mobile browser verification succeeds.
+The initial implementation workspace passed unit tests and the production build,
+but could not launch native Chromium because its local socket call was denied.
+Its cloud browser also blocked the local preview URL with ERR_BLOCKED_BY_CLIENT.
+Supplemental synthetic DOM/state checks therefore did not establish visual
+correctness.
+
+The subsequently published commit
+`c342f4803f8437e6e8cc66ad999278096a9cf150` passed **30/30 unit tests and 39/39
+browser regression tests** on GitHub, and both Pages deployment workflows
+completed successfully. Live visual inspection then found a legacy CSS grid
+rule squeezing the Tags heading and content into separate narrow columns.
+
+The current local patch makes the Tags panel single-column, wraps long tags,
+and adds two browser regressions covering empty and populated panels at 1586px,
+1100px, and 390px widths. The patch passes local unit tests and build; its new
+browser checks and post-deployment visual verification are pending. The earlier
+39/39 result applies to the published baseline, not this unverified patch.
+Updated performance measurements, PDF print rendering, and cross-device Gist
+concurrency have not been newly verified.

@@ -692,3 +692,53 @@ test('an in-flight sidebar pin blocks editor entry until its comparison baseline
     assert.equal((await read(p)).items.find(item => item.id === 'b').isPinned, true);
     assert.equal((await read(p)).items.length, 2);
 });
+
+
+async function assertTagPanelLayout(p, expectedTags) {
+    const metrics = await p.locator('.tag-panel').evaluate(panel => {
+        const heading = panel.querySelector('h2').getBoundingClientRect();
+        const tags = panel.querySelector('#library-tags');
+        const body = tags.getBoundingClientRect();
+        return {
+            display: getComputedStyle(panel).display,
+            panelWidth: panel.clientWidth, panelScrollWidth: panel.scrollWidth,
+            tagsWidth: tags.clientWidth, tagsScrollWidth: tags.scrollWidth,
+            headingBottom: heading.bottom, tagsTop: body.top,
+            panelLeft: panel.getBoundingClientRect().left, tagsLeft: body.left,
+            buttons: [...tags.querySelectorAll('button')].map(button => ({
+                width: button.getBoundingClientRect().width,
+                clientWidth: button.clientWidth, scrollWidth: button.scrollWidth
+            }))
+        };
+    });
+    assert.equal(metrics.display, 'block', JSON.stringify(metrics));
+    assert.ok(metrics.tagsTop >= metrics.headingBottom, JSON.stringify(metrics));
+    assert.ok(Math.abs(metrics.tagsLeft - metrics.panelLeft) <= 1, JSON.stringify(metrics));
+    assert.ok(metrics.tagsWidth >= metrics.panelWidth - 20, JSON.stringify(metrics));
+    assert.ok(metrics.panelScrollWidth <= metrics.panelWidth + 1, JSON.stringify(metrics));
+    assert.ok(metrics.tagsScrollWidth <= metrics.tagsWidth + 1, JSON.stringify(metrics));
+    assert.equal(metrics.buttons.length, expectedTags);
+    for (const button of metrics.buttons) {
+        assert.ok(button.width <= metrics.tagsWidth + 1, JSON.stringify(metrics));
+        assert.ok(button.scrollWidth <= button.clientWidth + 1, JSON.stringify(metrics));
+    }
+    await assertNoHorizontalOverflow(p);
+}
+
+for (const filled of [false, true]) {
+    test(`the ${filled ? 'filled' : 'empty'} Tags panel stays single-column without horizontal overflow`, async t => {
+        const c = await context(t);
+        const longTag = 'long_research_tag_' + 'x'.repeat(70);
+        await seed(c, filled ? [{ ...problem(), desc: `Statement #algebra #图论 #${longTag}` }] : []);
+        const p = await open(c, filled ? '?item=a' : '');
+        for (const width of [1586, 1100, 390]) {
+            await p.setViewportSize({ width, height: 1000 });
+            if (width === 390) {
+                await p.locator('#library-toggle-btn').click();
+                assert.equal(await p.locator('#library-toggle-btn').getAttribute('aria-expanded'), 'true');
+            }
+            await assertTagPanelLayout(p, filled ? 3 : 0);
+            assert.equal(await p.locator('.tag-hint').isVisible(), !filled);
+        }
+    });
+}

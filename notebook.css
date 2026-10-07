@@ -74,6 +74,9 @@ summary::-webkit-details-marker { display: none; }
 .row-icon-btn { min-width: 22px; width: 24px; height: 24px; font-size: 14px; padding: 0; border: 0; border-radius: 4px; background: transparent; cursor: pointer; }
 .row-icon-btn.is-active { background: #dce7f1; box-shadow: none; color: var(--primary); }
 .tag-panel { padding: 20px 0; border-top: 1px solid var(--line); margin-top: 12px; max-height: 165px; overflow: auto; }
+/* Override the legacy two-column sidebar-panel grid for notebook tags. */
+.sidebar > .sidebar-panel.tag-panel { display: block; }
+#library-tags .tag-button { max-width: 100%; overflow-wrap: anywhere; }
 #library-tags, .context-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
 .tag-button { display: inline-flex; padding: 4px 8px; font-size: 11px; background: transparent; border: 1px solid #dddeda; border-radius: 4px; color: #626c77; cursor: pointer; }
 .tag-button[aria-pressed="true"] { color: var(--primary-strong); background: #e5edf4; border-color: #bfcfdf; }
