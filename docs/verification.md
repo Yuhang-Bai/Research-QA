@@ -44,7 +44,15 @@ is available. Browsers without Web Locks keep edits local and report pending syn
 
 ## Rendering behavior and measured comparison
 
-The notebook workspace retains a compact sidebar on desktop while reading.
+The notebook workspace starts with a 340px sidebar on desktop while reading.
+Drag its right edge to resize (280–520px, with space reserved for the reader),
+or use the focused separator's arrow/Home/End keys. Double-click resets the width.
+The sidebar can be collapsed and reopened from the top bar. Width and desktop
+collapse preferences stay in device-local UI storage, outside research backups
+and Gist sync. Filters and tags start folded so the list owns the remaining height.
+“Expand directory” opens a modal view of the same search and list with complete,
+wrapping titles. Selecting a result returns to reading through the existing draft
+protection and navigation flow; Escape or Back to reading cancels browsing.
 The sidebar initially renders at most 100 results; “Show more” adds 100. Search
 still examines the whole library. Sidebar rows render escaped titles and counts,
 not full statement excerpts or MathJax subtrees. The list keeps its scroll position
@@ -102,10 +110,47 @@ browser regression tests** on GitHub, and both Pages deployment workflows
 completed successfully. Live visual inspection then found a legacy CSS grid
 rule squeezing the Tags heading and content into separate narrow columns.
 
-The current local patch makes the Tags panel single-column, wraps long tags,
-and adds two browser regressions covering empty and populated panels at 1586px,
-1100px, and 390px widths. The patch passes local unit tests and build; its new
-browser checks and post-deployment visual verification are pending. The earlier
-39/39 result applies to the published baseline, not this unverified patch.
-Updated performance measurements, PDF print rendering, and cross-device Gist
-concurrency have not been newly verified.
+The tag-layout fix in main `3904223d58e0c122b5adc129c19c03f6e15347a5` makes
+the Tags panel single-column and wraps long tags. Its two regressions cover empty
+and populated panels at 1586px, 1100px, and 390px; both were rerun successfully as
+part of the directory verification below.
+
+## Directory usability verification — 2026-10-25
+
+Local branch `feat/question-directory-usability` started from clean main
+`3904223d58e0c122b5adc129c19c03f6e15347a5`. No AGENTS.md or .agents/skills
+were present in the checkout. No packages, data adapters, renderer, or editor
+implementation changed. The results below describe the local verification
+completed before publication approval; hosted CI and Pages results are checked
+separately against the exact published commit.
+
+- `npm test`: **30/30 passed**.
+- `npm run build`: **passed** (existing large-chunk advisory remains).
+- Chromium 151.0.7922.34: **47/47 browser regressions passed**.
+- `git diff --check`: passed.
+
+The six new browser cases cover pointer/keyboard resizing, reset and persisted
+collapse state, viewport width limits, expanded full titles (including Chinese
+and unbroken strings), search across all 230 synthetic problems and their notes,
+load-more batches, empty results, folded active filters, selection and Back/Forward,
+eight repeated open/Escape/draft-rejection cycles, the existing New/editor/save
+flow with a synthetic formula, and mobile modal focus/selection/resize recovery
+at 390px and 320px. Existing persistence and simulated sync regressions also pass.
+
+At 1180×757, the default sidebar measured **340px**, the list **303×378px**,
+and the title text column **238px**. The supplied online baseline was 246px,
+209×165px, and 145px respectively. These new measurements use synthetic fixtures.
+
+To save the four review screenshots and matching geometry JSON while testing,
+set `RESEARCH_QA_SCREENSHOT_DIR` to an output folder before running the browser
+suite. Captures show the 1180px reading view, collapsed directory, expanded long
+title, and 390px mobile expanded search. All four were visually inspected.
+In this implementation workspace, logs and captures are in `../verification/`.
+
+Windows sandbox realpath restrictions blocked the first dependency/build attempts;
+the final runs completed with authorized local execution using exact package-lock
+versions. Browsers used fresh isolated profiles, synthetic data and fake tokens;
+every external request was intercepted. No real research data, Gist, credential,
+or existing browser profile was accessed. External fonts and live MathJax CDN
+rendering, real network sync, other browser engines, PDF output and deployment
+were not verified by this run.

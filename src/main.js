@@ -14,6 +14,7 @@ import { acknowledgeSync, commitDatabase, getValue, readDatabaseState, replaceFr
 import { createMainDatabase, createSharedItem, fetchMainDatabase, fetchSharedItem, saveMainDatabase, saveSharedItem } from './data/gist.js';
 import { parseWorkspaceSnapshot, serializeWorkspaceSnapshot } from './data/workspace.js';
 import { createMarkdownEditor } from './lib/editor.js';
+import { createProblemDirectory } from './lib/directory.js';
 import { contentTags, contentReferences, matchesLibraryFilter } from './lib/notebook.js';
 import { MATHJAX_UNAVAILABLE_EVENT, renderDocument, renderInlineMath, renderPreviewDocument, setRenderedHtml, typesetElement } from './lib/renderer.js';
 
@@ -685,6 +686,12 @@ class ResearchQaApp {
             saveConfigButton: document.getElementById('save-config-btn')
         };
 
+        this.directory = createProblemDirectory({
+            workspace: this.elements.workspace,
+            sidebar: document.getElementById('library-sidebar'),
+            searchInput: this.elements.searchInput,
+            composer: this.elements.composer
+        });
         this.editor = createMarkdownEditor({
             host: this.elements.editorHost,
             placeholderText: 'Markdown / LaTeX',
@@ -852,18 +859,29 @@ class ResearchQaApp {
 
     applyNotebookLanguage() {
         const labels = {
+            'filters-label': ['Filters & tags', '筛选与标签'],
+            'expand-directory-btn': ['Expand directory', '展开目录'],
+            'directory-title': ['Problem directory', '问题目录'],
+            'close-directory-btn': ['Back to reading', '返回阅读'],
             'workspace-menu-label': ['Workspace', '工作区'], 'tags-label': ['Tags', '标签'],
             'breadcrumb-home-btn': ['Problem library', '问题库'], 'breadcrumb-current': ['Notebook', '研究手账'],
             'reader-mode-label': ['Reading', '阅读'], 'open-item-tab-btn': ['Open in new tab', '在新标签页打开']
         };
         for (const [id, words] of Object.entries(labels)) document.getElementById(id).textContent = this.literal(...words);
-        this.elements.createItemButton.textContent = '+ ' + this.text('newProblemButton');
+        this.elements.createItemButton.textContent = '+ ' + this.text('new');
+        this.elements.createItemButton.title = this.text('newProblemButton');
         this.elements.sidebarTitle.textContent = this.literal('My problems', '我的问题');
         this.elements.emptyEyebrow.textContent = this.literal('A place to think', '为思考留一页');
         this.elements.emptyTitle.textContent = this.literal('Every idea starts with a question.', '每个想法，从一个问题开始。');
         this.elements.emptyDescription.textContent = this.literal('Choose a problem from your library, or start a new page. Your statements, formulas, and research notes stay together, saved on this device.', '从左侧选择问题，或开启新的一页。问题、公式与研究记录保存在一起，随时继续思考。');
         this.elements.searchInput.placeholder = this.literal('Search problems…', '搜索问题…');
         const toggle = document.getElementById('library-toggle-btn');
+        toggle.title = this.literal('Toggle problem library', '打开或关闭问题库');
+        const collapseButton = document.getElementById('collapse-library-btn');
+        collapseButton.title = this.literal('Collapse problem library', '收起问题目录');
+        collapseButton.setAttribute('aria-label', collapseButton.title);
+        document.getElementById('directory-resizer').setAttribute('aria-label', this.literal('Resize problem library', '调整问题目录宽度'));
+        document.getElementById('library-sidebar').setAttribute('aria-label', this.literal('Problem library', '问题目录'));
         toggle.setAttribute('aria-label', this.literal('Toggle problem library', '打开或关闭问题库'));
         document.getElementById('context-toggle-btn').setAttribute('aria-label', this.literal('Toggle context panel', '打开或关闭相关资料'));
         document.querySelectorAll('button[data-editor-view]').forEach(button => {
@@ -874,17 +892,7 @@ class ResearchQaApp {
     }
 
     setLibraryOpen(open) {
-        this.elements.workspace.classList.toggle('library-open', open);
-        const toggle = document.getElementById('library-toggle-btn');
-        toggle.setAttribute('aria-expanded', String(open));
-        document.getElementById('library-scrim').classList.toggle('hidden', !open);
-        if (window.matchMedia('(max-width: 760px)').matches) {
-            this.elements.composer.inert = open;
-            document.querySelector('.main-panel').inert = open;
-            document.getElementById('context-panel').inert = open;
-            if (open) this.elements.searchInput.focus();
-            else toggle.focus();
-        }
+        this.directory.setOpen(open);
     }
 
     setEditorView(view) {
@@ -904,7 +912,7 @@ class ResearchQaApp {
     }
 
     bindEvents() {
-        document.getElementById('library-toggle-btn').addEventListener('click', () => this.setLibraryOpen(!this.elements.workspace.classList.contains('library-open')));
+        document.getElementById('library-toggle-btn').addEventListener('click', () => this.directory.toggle());
         document.getElementById('library-scrim').addEventListener('click', () => this.setLibraryOpen(false));
         document.getElementById('breadcrumb-home-btn').addEventListener('click', () => this.goHome());
         document.getElementById('open-item-tab-btn').addEventListener('click', () => this.openItemPageInNewTab(this.currentId));
@@ -931,6 +939,7 @@ class ResearchQaApp {
         document.addEventListener('keydown', event => {
             if (event.defaultPrevented) return;
             if (event.key === 'Escape') {
+                if (this.directory.expanded) { event.preventDefault(); this.directory.closeExpanded(); return; }
                 if (!this.elements.authScreen.classList.contains('hidden')) return;
                 if (!this.elements.configModal.classList.contains('hidden')) { this.closeConfigModal(); return; }
                 if (this.elements.workspace.classList.contains('library-open')) { this.setLibraryOpen(false); return; }
@@ -940,12 +949,6 @@ class ResearchQaApp {
                 if (this.composerState.open) this.closeComposer();
             }
             if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's' && this.composerState.open) { event.preventDefault(); this.saveComposer(); }
-        });
-        window.matchMedia('(max-width: 760px)').addEventListener('change', () => {
-            this.setLibraryOpen(false);
-            this.elements.composer.inert = false;
-            document.querySelector('.main-panel').inert = false;
-            document.getElementById('context-panel').inert = false;
         });
         this.elements.syncButton.addEventListener('click', () => this.syncPull());
         this.elements.exportButton.addEventListener('click', () => this.exportBackup());
@@ -1300,14 +1303,17 @@ class ResearchQaApp {
 
     async openItemPage(itemId, { replace = false } = {}) {
         if (!itemId || this.saving) return;
-        if (String(itemId) === String(this.currentId) && this.pageMode === 'detail') { this.setLibraryOpen(false); return; }
+        if (String(itemId) === String(this.currentId) && this.pageMode === 'detail') { this.directory.closeExpanded(); this.setLibraryOpen(false); return; }
         if (!this.closeComposer()) return;
+        const fromDirectory = this.directory.expanded;
+        this.directory.closeExpanded({ restoreFocus: false });
         this.setLibraryOpen(false);
         document.querySelector('.main-panel').scrollTop = 0;
         this.pageMode = 'detail';
         this.currentId = itemId;
         this.syncRouteState({ replace });
         await this.selectItem(itemId, { silent: true });
+        if (fromDirectory) this.elements.detailTitle.focus();
     }
 
     openItemPageInNewTab(itemId) {
@@ -1327,6 +1333,7 @@ class ResearchQaApp {
         if (this.visitorGistId) {
             return;
         }
+        this.directory.closeExpanded();
         if (!this.closeComposer()) {
             this.syncRouteState();
             return;
@@ -2256,6 +2263,8 @@ class ResearchQaApp {
             const haystack = [entry.title, entry.desc, ...(entry.answers || []).map((note) => note.text)].join(' ').toLowerCase();
             return haystack.includes(term);
         });
+        document.getElementById('directory-results').textContent = this.literal(
+            `${items.length} of ${collection.length} results`, `${items.length} / ${collection.length} 项结果`);
 
         if (!items.length) {
             const emptyHtml = `
@@ -2301,6 +2310,8 @@ class ResearchQaApp {
         const filters = [ ['all', this.literal('All problems', '全部问题')], ['pinned', this.text('pinnedBadge')], ['notes', this.literal('With notes', '有研究记录')], ['shared', this.text('sharedBadge')] ];
         document.getElementById('library-filters').innerHTML = this.viewMode === 'trash' ? '' : filters.map(([key, label]) => `<button type="button" data-library-filter="${key}" aria-pressed="${key === this.libraryFilter}"><span class="filter-dot ${key}"></span>${label}<span>${collection.filter(item => matchesLibraryFilter(item, key)).length}</span></button>`).join('');
         const tags = [...new Set(collection.flatMap(item => this.getItemTags(item)))].sort((a, b) => a.localeCompare(b)).slice(0, 40);
+        document.getElementById('active-filter-label').textContent = this.viewMode === 'active'
+            ? [this.libraryFilter !== 'all' ? filters.find(([key]) => key === this.libraryFilter)?.[1] : '', this.libraryTag ? `#${this.libraryTag}` : ''].filter(Boolean).join(' · ') : '';
         document.getElementById('library-tags').innerHTML = tags.length ? tags.map(tag => `<button type="button" class="tag-button" data-library-tag="${escapeHtml(tag)}" aria-pressed="${tag === this.libraryTag}">${escapeHtml(tag)}</button>`).join('') : `<p class="tag-hint">${this.literal('Use #tags in your notes to organise ideas.', '在内容中写下 #标签，串联想法。')}</p>`;
     }
 
@@ -2312,7 +2323,7 @@ class ResearchQaApp {
         const id = escapeHtml(entry.id);
         const draggable = options.reorderEnabled ? ` draggable="true" data-draggable="true" data-pin-group="${entry.isPinned ? 'pinned' : 'regular'}"` : '';
         return `<article class="problem-row ${active ? 'active' : ''} ${this.viewMode === 'trash' ? 'trash' : ''}" data-item-id="${id}"${draggable}>
-            <a class="problem-row-link" href="${url}" ${active ? 'aria-current="page"' : ''}><span class="problem-icon" aria-hidden="true">${entry.isPinned ? '⌖' : '▤'}</span><span class="problem-row-text"><h3>${escapeHtml(title)}</h3><span class="row-secondary">${entry.type === 'note' ? this.text('archivedNote') : this.text('notesCount', {count: noteCount})}${entry.shareId ? ' · ' + this.text('sharedBadge') : ''}</span></span></a>
+            <a class="problem-row-link" href="${url}" title="${escapeHtml(title)}" ${active ? 'aria-current="page"' : ''}><span class="problem-icon" aria-hidden="true">${entry.isPinned ? '⌖' : '▤'}</span><span class="problem-row-text"><h3>${escapeHtml(title)}</h3><span class="row-secondary">${entry.type === 'note' ? this.text('archivedNote') : this.text('notesCount', {count: noteCount})}${entry.shareId ? ' · ' + this.text('sharedBadge') : ''}</span></span></a>
             <div class="problem-row-actions"><button type="button" class="row-icon-btn" data-list-action="open-tab" data-item-id="${id}" aria-label="${this.literal('Open in new tab', '在新标签页打开')}" title="${this.literal('Open in new tab', '在新标签页打开')}">↗</button>${this.viewMode === 'active' ? `<button type="button" class="row-icon-btn ${entry.isPinned ? 'is-active' : ''}" data-list-action="pin" data-item-id="${id}" aria-label="${entry.isPinned ? this.text('unpin') : this.text('pin')}" title="${entry.isPinned ? this.text('unpin') : this.text('pin')}">⌖</button>` : ''}</div>
         </article>`;
     }
@@ -2594,7 +2605,7 @@ class ResearchQaApp {
             return;
         }
         if (!this.closeComposer()) return;
-
+        this.directory.closeExpanded({ restoreFocus: false });
         ++this.selectionToken;
         this.viewMode = 'active';
         this.libraryFilter = 'all';

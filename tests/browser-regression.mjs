@@ -379,6 +379,7 @@ test('library filters, derived tags, and note search leave the current document 
     const b = { ...problem('b', 'Original B'), answers: [{ id: 'n-b', text: 'A private note marker #topology', date: a.date }] };
     const shared = { ...problem('c', 'Shared C'), desc: 'Another statement #algebra', shareId: 'audit-existing-share' };
     await seed(c, [a, b, shared]); const p = await open(c, '?item=a');
+    await p.locator('#library-filter-panel > summary').click();
     for (const [filter, ids] of [['pinned', ['a']], ['notes', ['b']], ['shared', ['c']]]) {
         await p.locator(`[data-library-filter="${filter}"]`).click();
         await until(async () => JSON.stringify(await visibleIds(p)) === JSON.stringify(ids));
@@ -406,7 +407,7 @@ test('renaming and pinning update the persistent sidebar without reopening the p
     assert.ok((await row(p, 'a').innerText()).includes('Renamed in notebook'));
     assert.equal(await p.locator('#detail-title').innerText(), 'Renamed in notebook');
     await clickAction(p, '#pin-item-btn'); await until(async () => (await read(p)).items.find(item => item.id === 'a').isPinned);
-    await p.locator('[data-library-filter="pinned"]').click(); await until(async () => JSON.stringify(await visibleIds(p)) === '["a"]');
+    await clickAction(p, '[data-library-filter="pinned"]'); await until(async () => JSON.stringify(await visibleIds(p)) === '["a"]');
     await clickAction(p, '#pin-item-btn'); await until(async () => !(await read(p)).items.find(item => item.id === 'a').isPinned);
     await until(async () => (await visibleIds(p)).length === 0);
     assert.equal(await p.locator('#detail-title').innerText(), 'Renamed in notebook');
@@ -731,6 +732,7 @@ for (const filled of [false, true]) {
         const longTag = 'long_research_tag_' + 'x'.repeat(70);
         await seed(c, filled ? [{ ...problem(), desc: `Statement #algebra #图论 #${longTag}` }] : []);
         const p = await open(c, filled ? '?item=a' : '');
+        await p.locator('#library-filter-panel > summary').click();
         for (const width of [1586, 1100, 390]) {
             await p.setViewportSize({ width, height: 1000 });
             if (width === 390) {
@@ -742,3 +744,169 @@ for (const filled of [false, true]) {
         }
     });
 }
+
+async function directoryScreenshot(p, name) {
+    if (!process.env.RESEARCH_QA_SCREENSHOT_DIR) return;
+    await fs.mkdir(process.env.RESEARCH_QA_SCREENSHOT_DIR, { recursive: true });
+    await p.screenshot({ path: path.join(process.env.RESEARCH_QA_SCREENSHOT_DIR, name + '.png'), animations: 'disabled' });
+    const metrics = await p.evaluate(() => {
+        const bounds = selector => {
+            const element = document.querySelector(selector), box = element.getBoundingClientRect();
+            return { width: box.width, height: box.height, scrollWidth: element.scrollWidth, scrollHeight: element.scrollHeight };
+        };
+        return { fixture: 'Synthetic data only; all external requests intercepted', viewport: { width: innerWidth, height: innerHeight },
+            sidebar: bounds('#library-sidebar'), list: bounds('#problem-list'), firstTitle: bounds('.problem-row h3'),
+            expanded: document.querySelector('#directory-dialog').open };
+    });
+    await fs.writeFile(path.join(process.env.RESEARCH_QA_SCREENSHOT_DIR, name + '.json'), JSON.stringify({ browser: browser.version(), ...metrics }, null, 2));
+}
+const longDirectoryTitle = 'Synthetic question: classification of compact operators and spectral bounds under changing boundary conditions — 完整长标题与数学问题检索 — ' + 'unbroken_identifier_'.repeat(12);
+const directoryItems = () => Array.from({ length: 230 }, (_, i) => ({
+    ...problem('directory-' + i, i === 7 ? longDirectoryTitle : `Synthetic research question ${String(i).padStart(3, '0')}: estimates, examples and open directions`),
+    desc: i === 229 ? 'Synthetic body marker needle-at-the-end #analysis' : 'Synthetic statement #analysis',
+    answers: i === 9 ? [{ id: 'synthetic-note', text: 'note-only-directory-marker', date: '2026-10-01T12:00:00Z' }] : []
+}));
+
+test('New from the expanded directory returns to the existing editor and saves one local problem', async t => {
+    const c = await context(t); await seed(c, [problem()]); const p = await open(c, '?item=a');
+    await p.locator('#expand-directory-btn').click(); await p.locator('#create-item-btn').click();
+    assert.equal(await p.locator('#directory-dialog').evaluate(dialog => dialog.open), false);
+    assert.equal(await p.locator('#composer').isVisible(), true);
+    assert.equal((await read(p)).items.length, 1);
+    await p.locator('#composer-title-input').fill('Synthetic problem from directory');
+    await p.locator('.cm-content').fill('Synthetic equation $x^2 + y^2 = 1$'); await save(p);
+    const saved = await read(p);
+    assert.equal(saved.items.length, 2); assert.equal(saved.items.find(item => item.id === 'a').title, 'Original A');
+    assert.equal(saved.items.find(item => item.id !== 'a').desc, 'Synthetic equation $x^2 + y^2 = 1$');
+    await p.locator('#expand-directory-btn').click(); await selectRow(p, 'a');
+    assert.equal(await p.locator('#detail-title').innerText(), 'Original A');
+});
+
+test('directory defaults give the list space and resizing/collapse persist without changing data', async t => {
+    const c = await context(t, null, { viewport: { width: 1180, height: 757 } });
+    await seed(c, directoryItems()); const p = await open(c, '?item=directory-0');
+    const before = await read(p);
+    const sidebar = p.locator('#library-sidebar'), list = p.locator('#problem-list'), handle = p.locator('#directory-resizer');
+    assert.equal(Math.round((await sidebar.boundingBox()).width), 340);
+    assert.equal(await p.locator('#library-filter-panel').evaluate(panel => panel.open), false);
+    const bounds = await list.boundingBox();
+    assert.ok(bounds.width >= 300 && bounds.height >= 300, JSON.stringify(bounds));
+    await directoryScreenshot(p, '01-desktop-1180');
+    const separator = await handle.boundingBox();
+    await p.mouse.move(separator.x + separator.width / 2, separator.y + 100);
+    await p.mouse.down(); await p.mouse.move(separator.x + 93, separator.y + 100, { steps: 10 }); await p.mouse.up();
+    const resized = Math.round((await sidebar.boundingBox()).width);
+    assert.ok(resized >= 425 && resized <= 435, String(resized));
+    await handle.focus(); await p.keyboard.press('Home'); assert.equal(Math.round((await sidebar.boundingBox()).width), 280);
+    await p.keyboard.press('End'); assert.equal(Math.round((await sidebar.boundingBox()).width), 520);
+    await p.keyboard.press('ArrowLeft'); assert.equal(Math.round((await sidebar.boundingBox()).width), 500);
+    await p.reload(); await p.locator('#detail-title').waitFor(); assert.equal(Math.round((await sidebar.boundingBox()).width), 500);
+    await p.locator('#collapse-library-btn').click(); assert.equal(await sidebar.isVisible(), false);
+    assert.equal(await p.locator('#library-toggle-btn').getAttribute('aria-expanded'), 'false');
+    await directoryScreenshot(p, '02-desktop-collapsed');
+    await p.reload(); await p.locator('#detail-title').waitFor(); assert.equal(await sidebar.isVisible(), false);
+    await p.locator('#library-toggle-btn').click(); assert.equal(Math.round((await sidebar.boundingBox()).width), 500);
+    await p.setViewportSize({ width: 761, height: 757 });
+    assert.ok((await sidebar.boundingBox()).width <= 341); await assertNoHorizontalOverflow(p);
+    await p.setViewportSize({ width: 1180, height: 757 }); assert.equal(Math.round((await sidebar.boundingBox()).width), 500);
+    await handle.dblclick(); assert.equal(Math.round((await sidebar.boundingBox()).width), 340);
+    assert.deepEqual(await read(p), before); assert.equal(await read(p, dbKey + ':dirty'), false);
+});
+
+test('expanded directory shows full titles, searches all batches and returns to reading with history', async t => {
+    const c = await context(t, null, { viewport: { width: 1180, height: 757 } });
+    await seed(c, directoryItems()); const p = await open(c, '?item=directory-0'); const pages = c.pages().length;
+    await p.locator('#expand-directory-btn').click();
+    assert.equal(await p.locator('#directory-dialog').evaluate(dialog => dialog.open), true);
+    assert.equal(await p.locator('#search-input').evaluate(input => input === document.activeElement), true);
+    assert.equal(await p.locator('.problem-row').count(), 100);
+    const title = row(p, 'directory-7').locator('h3');
+    assert.equal(await title.innerText(), longDirectoryTitle);
+    const metrics = await title.evaluate(h => ({ clamp: getComputedStyle(h).webkitLineClamp, height: h.clientHeight, scrollHeight: h.scrollHeight, width: h.clientWidth, scrollWidth: h.scrollWidth }));
+    assert.equal(metrics.clamp, 'none'); assert.ok(metrics.scrollHeight <= metrics.height + 1); assert.ok(metrics.scrollWidth <= metrics.width + 1);
+    await title.scrollIntoViewIfNeeded(); await directoryScreenshot(p, '03-expanded-full-title');
+    await p.locator('[data-load-more]').click(); assert.equal(await p.locator('.problem-row').count(), 200);
+    await p.locator('#search-input').fill('needle-at-the-end'); await until(async () => JSON.stringify(await visibleIds(p)) === '["directory-229"]');
+    await selectRow(p, 'directory-229'); assert.equal(await p.locator('#directory-dialog').evaluate(dialog => dialog.open), false);
+    assert.ok((await p.locator('#detail-title').innerText()).includes('229')); assert.equal(c.pages().length, pages);
+    assert.equal(await p.locator('#search-input').inputValue(), 'needle-at-the-end');
+    await p.goBack(); await until(async () => (await p.locator('#detail-title').innerText()).includes('000'));
+    await p.goForward(); await until(async () => (await p.locator('#detail-title').innerText()).includes('229'));
+    await p.locator('#expand-directory-btn').click(); await p.locator('#search-input').fill('note-only-directory-marker');
+    await until(async () => JSON.stringify(await visibleIds(p)) === '["directory-9"]');
+    await p.locator('#search-input').fill('synthetic-absent-token'); await until(async () => (await visibleIds(p)).length === 0);
+    assert.ok((await p.locator('#directory-results').innerText()).startsWith('0 of 230'));
+    await p.locator('#close-directory-btn').click(); assert.ok((await p.locator('#detail-title').innerText()).includes('229'));
+    await assertNoHorizontalOverflow(p);
+});
+
+test('directory filters stay discoverable when folded and survive expanded browsing', async t => {
+    const c = await context(t); const items = directoryItems(); items[3].isPinned = true;
+    await seed(c, items); const p = await open(c, '?item=directory-0');
+    const fullHeight = (await p.locator('#problem-list').boundingBox()).height;
+    await p.locator('#library-filter-panel > summary').click(); await p.locator('[data-library-filter="pinned"]').click();
+    await until(async () => JSON.stringify(await visibleIds(p)) === '["directory-3"]');
+    await p.locator('#library-filter-panel > summary').click();
+    assert.ok((await p.locator('#active-filter-label').innerText()).includes('Pinned'));
+    assert.ok((await p.locator('#problem-list').boundingBox()).height >= fullHeight - 1);
+    await p.locator('#expand-directory-btn').click(); assert.deepEqual(await visibleIds(p), ['directory-3']);
+    await clickAction(p, '[data-library-filter="all"]'); await p.locator('[data-library-tag="analysis"]').click();
+    await p.locator('#library-filter-panel > summary').click(); assert.ok((await p.locator('#active-filter-label').innerText()).includes('#analysis'));
+    await p.keyboard.press('Escape'); assert.equal(new URL(p.url()).searchParams.get('item'), 'directory-0');
+});
+
+test('repeated directory opens, Escape, selection and draft rejection retain one functional list', async t => {
+    const c = await context(t); await seed(c, [problem(), problem('b', 'Original B')]); const p = await open(c, '?item=a');
+    const before = await read(p); let discard = false;
+    p.on('dialog', dialog => discard ? dialog.accept() : dialog.dismiss());
+    await beginEdit(p, 'Protected directory draft'); await p.locator('.cm-content').fill('Synthetic $x^2$ draft');
+    for (let i = 0; i < 8; i++) {
+        await p.locator('#expand-directory-btn').click();
+        await row(p, 'b').locator('a').click();
+        assert.equal(new URL(p.url()).searchParams.get('item'), 'a');
+        assert.equal(await p.locator('#directory-dialog').evaluate(dialog => dialog.open), true);
+        await p.keyboard.press('Escape');
+        assert.equal(await p.locator('#composer-title-input').inputValue(), 'Protected directory draft');
+        assert.equal(await p.locator('.cm-content').innerText(), 'Synthetic $x^2$ draft');
+        assert.equal(await p.locator('#problem-list').count(), 1);
+        assert.equal(await p.locator('#library-sidebar').evaluate(sidebar => sidebar.parentElement.classList.contains('workspace')), true);
+        assert.equal(await p.locator('#expand-directory-btn').evaluate(button => button === document.activeElement), true);
+    }
+    assert.deepEqual(await read(p), before);
+    await p.locator('#expand-directory-btn').click(); discard = true; await selectRow(p, 'b');
+    assert.equal(await p.locator('#composer').isVisible(), false); assert.equal(await p.locator('#directory-dialog').evaluate(dialog => dialog.open), false);
+    assert.deepEqual(await read(p), before);
+    await p.locator('#expand-directory-btn').click(); await row(p, 'b').locator('a').click();
+    assert.equal(await p.locator('#directory-dialog').evaluate(dialog => dialog.open), false);
+});
+
+test('mobile expanded directory keeps full titles, modal focus and reversible drawer state', async t => {
+    const c = await context(t, null, { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    await seed(c, directoryItems()); const p = await open(c, '?item=directory-0');
+    for (let i = 0; i < 3; i++) {
+        await p.locator('#library-toggle-btn').click(); await p.locator('#expand-directory-btn').click();
+        await p.locator('#search-input').fill('完整长标题'); await until(async () => JSON.stringify(await visibleIds(p)) === '["directory-7"]');
+        const h = row(p, 'directory-7').locator('h3');
+        assert.equal(await h.innerText(), longDirectoryTitle);
+        assert.equal(await h.evaluate(h => h.scrollHeight <= h.clientHeight + 1 && h.scrollWidth <= h.clientWidth + 1), true);
+        await assertNoHorizontalOverflow(p);
+        if (!i) await directoryScreenshot(p, '04-mobile-expanded');
+        await p.locator('#close-directory-btn').focus(); await p.keyboard.press('Shift+Tab');
+        assert.equal(await p.locator('#directory-dialog').evaluate(dialog => dialog.contains(document.activeElement)), true);
+        await selectRow(p, 'directory-7');
+        assert.equal(await p.locator('#directory-dialog').evaluate(dialog => dialog.open), false);
+        assert.equal(await p.locator('#library-toggle-btn').getAttribute('aria-expanded'), 'false');
+        assert.equal(await p.locator('.main-panel').evaluate(panel => panel.inert), false);
+        await p.locator('#library-sidebar').waitFor({ state: 'hidden' });
+        assert.equal(await p.locator('#library-sidebar').isVisible(), false);
+    }
+    await p.locator('#library-toggle-btn').click(); await p.locator('#expand-directory-btn').click();
+    await p.setViewportSize({ width: 1180, height: 757 }); await p.keyboard.press('Escape');
+    assert.equal(await p.locator('#library-sidebar').isVisible(), true);
+    assert.equal(await p.locator('.main-panel').evaluate(panel => panel.inert), false);
+    await p.setViewportSize({ width: 320, height: 568 }); await p.locator('#library-toggle-btn').click();
+    await p.locator('#expand-directory-btn').click(); await assertNoHorizontalOverflow(p); await p.keyboard.press('Escape');
+    await p.keyboard.press('Escape'); await p.locator('#library-sidebar').waitFor({ state: 'hidden' });
+    assert.equal(await p.locator('#library-sidebar').isVisible(), false);
+    assert.equal(await p.locator('.main-panel').evaluate(panel => panel.inert), false);
+});

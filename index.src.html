@@ -60,7 +60,7 @@
     <div class="app-shell">
         <header class="topbar">
             <div class="topbar-brand">
-                <button class="icon-btn mobile-menu" id="library-toggle-btn" aria-label="Open problem library" aria-controls="library-sidebar" aria-expanded="false">☰</button>
+                <button class="icon-btn mobile-menu" id="library-toggle-btn" aria-label="Toggle problem library" aria-controls="library-sidebar" aria-expanded="true">☰</button>
                 <div class="brand-mark" aria-hidden="true">◈</div>
                 <div>
                     <div class="eyebrow">Mathematical Problem Ledger</div>
@@ -82,21 +82,32 @@
         <div class="workspace">
             <button class="drawer-scrim hidden" id="library-scrim" aria-label="Close problem library" tabindex="-1"></button>
             <aside class="sidebar" id="library-sidebar" aria-label="Problem library">
+                <div class="directory-tools">
+                    <button class="secondary-btn" id="expand-directory-btn" aria-haspopup="dialog" aria-controls="directory-dialog">Expand directory</button>
+                    <button class="icon-btn" id="collapse-library-btn" aria-label="Collapse problem library" title="Collapse problem library">‹</button>
+                </div>
                 <div class="sidebar-panel search-panel">
                     <label class="search-shell"><span>Search</span><input type="search" id="search-input" placeholder="Search problems…"></label>
                     <button class="primary-btn" id="create-item-btn">New problem</button>
                 </div>
                 <div class="sidebar-panel accent-panel">
                     <div class="panel-row"><h2>My problems</h2><span class="status-chip soft" id="view-status">Problems</span></div>
-                    <nav class="library-filters" id="library-filters" aria-label="Filter problems"></nav>
                     <div class="segmented">
                         <button class="segmented-btn active" data-view-mode="active">Problems</button>
                         <button class="segmented-btn" data-view-mode="trash">Trash</button>
                     </div>
                 </div>
+                <details class="directory-filters" id="library-filter-panel">
+                    <summary><span id="filters-label">Filters &amp; tags</span><span id="active-filter-label"></span></summary>
+                    <div class="filter-scroll">
+                        <nav class="library-filters" id="library-filters" aria-label="Filter problems"></nav>
+                        <section class="sidebar-panel tag-panel"><h2 id="tags-label">Tags</h2><div id="library-tags"></div></section>
+                    </div>
+                </details>
+                <div class="directory-results" id="directory-results" role="status" aria-live="polite"></div>
                 <div class="sidebar-scroll" id="problem-list"></div>
-                <section class="sidebar-panel tag-panel"><h2 id="tags-label">Tags</h2><div id="library-tags"></div></section>
                 <div class="sidebar-footer"><span id="storage-label">Local-first</span><span class="status-chip" id="sync-status" role="status">Not connected</span></div>
+                <div class="directory-resizer" id="directory-resizer" role="separator" tabindex="0" aria-label="Resize problem library" aria-orientation="vertical" aria-valuemin="280" aria-valuemax="520" aria-valuenow="340"></div>
             </aside>
             <main class="main-panel">
                 <section class="empty-state" id="empty-state">
@@ -121,7 +132,7 @@
                         </div>
                         <div class="hero-header">
                             <div>
-                                <h2 id="detail-title">No problem selected</h2>
+                                <h2 id="detail-title" tabindex="-1">No problem selected</h2>
                                 <p id="detail-subtitle">Pick a problem on the left to read the statement and research notes.</p>
                             </div>
                             <div class="hero-actions">
@@ -201,6 +212,9 @@
             </aside>
         </div>
     </div>
+    <dialog class="directory-dialog" id="directory-dialog" aria-labelledby="directory-title">
+        <div class="directory-heading"><h2 id="directory-title">Problem directory</h2><button class="secondary-btn" id="close-directory-btn">Back to reading</button></div>
+    </dialog>
     <div class="modal hidden" id="config-modal">
         <div class="modal-card">
             <div class="modal-header">
