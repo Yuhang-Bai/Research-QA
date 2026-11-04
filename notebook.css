@@ -184,6 +184,7 @@ body { overflow: hidden; }
 @media (max-width: 760px) { .note-card-head { align-items: flex-start; } }
 
 /* Directory controls retain the notebook's paper palette and existing list. */
+.home-directory-heading { display: none; }
 .mobile-menu { display: inline-grid; place-items: center; width: 32px; height: 32px; font-size: 18px; cursor: pointer; }
 .directory-tools { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex: 0 0 auto; }
 .directory-tools > .secondary-btn { flex: 1; text-align: left; font-size: 12px; }
@@ -237,4 +238,41 @@ body { overflow: hidden; }
     .directory-heading h2 { font-size: 22px; }
     .directory-dialog .sidebar.directory-expanded { padding: 14px 16px 0; }
     .directory-expanded #create-item-btn { padding: 0 10px; font-size: 11px; }
+}
+
+/* Home is the directory itself; drawer and reading preferences apply to detail pages. */
+html[data-route="home"] .workspace { grid-template-columns: minmax(0, 1fr); }
+html[data-route="home"] .workspace > .sidebar {
+    display: flex; position: relative; inset: auto; width: min(1100px, 100%); height: 100%;
+    margin: 0 auto; padding: 30px 36px 0; border: 0; background: var(--bg);
+    transform: none; visibility: visible; transition: none;
+}
+html[data-route="home"] .workspace > .main-panel, html[data-route="home"] .context-panel,
+html[data-route="home"] .directory-tools, html[data-route="home"] .directory-resizer { display: none; }
+html[data-route="home"] .home-directory-heading { display: block; margin-bottom: 22px; }
+.home-directory-heading h2 { margin: 0; font-family: "STIX Two Text", "Noto Serif CJK SC", Georgia, serif; font-size: 32px; font-weight: 500; }
+.home-directory-heading p { margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+html[data-route="home"] .search-panel { flex-direction: row; gap: 12px !important; }
+html[data-route="home"] .accent-panel { margin-top: 20px; }
+html[data-route="home"] .sidebar-scroll { min-height: 0; padding: 0; }
+html[data-route="home"] .list-card { gap: 0; }
+html[data-route="home"] .problem-row { height: auto; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; }
+html[data-route="home"] .problem-row-link { padding: 18px 12px; }
+html[data-route="home"] .problem-row-text { padding-right: 64px; }
+html[data-route="home"] .problem-row h3 { display: block; overflow: visible; -webkit-line-clamp: unset; font-size: 18px; }
+html[data-route="home"] .row-secondary { margin-top: 6px; font-size: 11px; }
+html[data-route="home"] .problem-row-actions { top: 16px; right: 8px; flex-direction: row; opacity: 1; }
+.directory-empty { display: block; padding: 28px 8px; }
+.directory-empty .modal-note { margin-bottom: 0; line-height: 1.6; }
+@media (max-width: 760px) {
+    html[data-route="home"] .workspace > .sidebar { padding: 22px 16px 0; }
+    html[data-route="home"] .home-directory-heading { margin-bottom: 18px; }
+    .home-directory-heading h2 { font-size: 28px; }
+    .home-directory-heading p { font-size: 12px; }
+    html[data-route="home"] .search-panel { gap: 8px !important; }
+    html[data-route="home"] #create-item-btn { padding: 0 10px; font-size: 12px; }
+    html[data-route="home"] .problem-row-link { padding: 16px 4px; }
+    html[data-route="home"] .problem-row h3 { font-size: 17px; }
+    html[data-route="home"] .problem-row-text { padding-right: 28px; }
+    html[data-route="home"] .problem-row-actions { flex-direction: column; top: 12px; right: 0; }
 }
