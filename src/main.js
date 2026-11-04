@@ -523,7 +523,7 @@ class ResearchQaApp {
         this.listLimit = 100;
         this.libraryFilter = 'all';
         this.libraryTag = '';
-        this.contextVisible = window.matchMedia('(min-width: 1201px)').matches;
+        this.contextVisible = false;
         this.editorView = 'source';
         this.saving = false;
         this.sharing = false;
@@ -859,14 +859,14 @@ class ResearchQaApp {
 
     applyNotebookLanguage() {
         const labels = {
-            'filters-label': ['Filters & tags', '筛选与标签'],
+            'filters-label': ['Filters', '筛选'],
             'expand-directory-btn': ['Expand directory', '展开目录'],
             'directory-title': ['Problem directory', '问题目录'],
             'home-directory-title': ['Problem directory', '问题目录'],
             'home-directory-description': ['Browse your questions and choose one to read its statement and research notes.', '浏览问题列表，点击一个问题查看题目和研究笔记。'],
             'close-directory-btn': ['Back to reading', '返回阅读'],
             'workspace-menu-label': ['Workspace', '工作区'], 'tags-label': ['Tags', '标签'],
-            'breadcrumb-home-btn': ['Problem library', '问题库'], 'breadcrumb-current': ['Notebook', '研究手账'],
+            'breadcrumb-home-btn': ['← Problems', '← 问题目录'], 'breadcrumb-current': ['Notebook', '研究手账'],
             'reader-mode-label': ['Reading', '阅读'], 'open-item-tab-btn': ['Open in new tab', '在新标签页打开']
         };
         for (const [id, words] of Object.entries(labels)) document.getElementById(id).textContent = this.literal(...words);
@@ -914,6 +914,10 @@ class ResearchQaApp {
     }
 
     bindEvents() {
+        document.addEventListener('click', event => {
+            const action = event.target.closest('.topbar-actions button, .item-menu-content button');
+            if (action) action.closest('details').open = false;
+        });
         document.getElementById('library-toggle-btn').addEventListener('click', () => this.directory.toggle());
         document.getElementById('library-scrim').addEventListener('click', () => this.setLibraryOpen(false));
         document.getElementById('breadcrumb-home-btn').addEventListener('click', () => this.goHome());
@@ -945,7 +949,7 @@ class ResearchQaApp {
                 if (!this.elements.authScreen.classList.contains('hidden')) return;
                 if (!this.elements.configModal.classList.contains('hidden')) { this.closeConfigModal(); return; }
                 if (this.elements.workspace.classList.contains('library-open')) { this.setLibraryOpen(false); return; }
-                if (window.matchMedia('(max-width: 1200px)').matches && this.contextVisible) { this.contextVisible = false; this.renderContext(); return; }
+                if (this.contextVisible) { this.contextVisible = false; this.renderContext(); return; }
                 const menus = [...document.querySelectorAll('details[open]')];
                 if (menus.length) { menus.forEach(menu => { menu.open = false; }); return; }
                 if (this.composerState.open) this.closeComposer();
@@ -2274,8 +2278,9 @@ class ResearchQaApp {
             const haystack = [entry.title, entry.desc, ...(entry.answers || []).map((note) => note.text)].join(' ').toLowerCase();
             return haystack.includes(term);
         });
-        document.getElementById('directory-results').textContent = this.literal(
-            `${items.length} of ${collection.length} results`, `${items.length} / ${collection.length} 项结果`);
+        const results = document.getElementById('directory-results');
+        results.textContent = `${items.length} / ${collection.length}`;
+        results.setAttribute('aria-label', this.literal(`${items.length} of ${collection.length} results`, `${items.length} / ${collection.length} 项结果`));
 
         if (!items.length) {
             const filtered = Boolean(term || (this.viewMode === 'active' && (this.libraryFilter !== 'all' || this.libraryTag)));
@@ -2331,11 +2336,12 @@ class ResearchQaApp {
         const active = String(entry.id) === String(this.currentId);
         const title = entry.type === 'note' ? this.text('archivedNoteTitle', { title: entry.parentTitle }) : (entry.title || this.text('defaultUntitledProblem'));
         const noteCount = entry.answers?.length || 0;
+        const secondary = entry.type === 'note' ? this.text('archivedNote') : [noteCount ? this.text('notesCount', { count: noteCount }) : '', entry.shareId ? this.text('sharedBadge') : ''].filter(Boolean).join(' · ');
         const url = escapeHtml(this.buildRouteUrl({ pageMode: 'detail', viewMode: this.viewMode, itemId: entry.id }).toString());
         const id = escapeHtml(entry.id);
         const draggable = options.reorderEnabled ? ` draggable="true" data-draggable="true" data-pin-group="${entry.isPinned ? 'pinned' : 'regular'}"` : '';
         return `<article class="problem-row ${active ? 'active' : ''} ${this.viewMode === 'trash' ? 'trash' : ''}" data-item-id="${id}"${draggable}>
-            <a class="problem-row-link" href="${url}" title="${escapeHtml(title)}" ${active ? 'aria-current="page"' : ''}><span class="problem-icon" aria-hidden="true">${entry.isPinned ? '⌖' : '▤'}</span><span class="problem-row-text"><h3>${escapeHtml(title)}</h3><span class="row-secondary">${entry.type === 'note' ? this.text('archivedNote') : this.text('notesCount', {count: noteCount})}${entry.shareId ? ' · ' + this.text('sharedBadge') : ''}</span></span></a>
+            <a class="problem-row-link" href="${url}" title="${escapeHtml(title)}" ${active ? 'aria-current="page"' : ''}><span class="problem-icon" aria-hidden="true">${entry.isPinned ? '⌖' : '▤'}</span><span class="problem-row-text"><h3>${escapeHtml(title)}</h3>${secondary ? `<span class="row-secondary">${escapeHtml(secondary)}</span>` : ''}</span></a>
             <div class="problem-row-actions"><button type="button" class="row-icon-btn" data-list-action="open-tab" data-item-id="${id}" aria-label="${this.literal('Open in new tab', '在新标签页打开')}" title="${this.literal('Open in new tab', '在新标签页打开')}">↗</button>${this.viewMode === 'active' ? `<button type="button" class="row-icon-btn ${entry.isPinned ? 'is-active' : ''}" data-list-action="pin" data-item-id="${id}" aria-label="${entry.isPinned ? this.text('unpin') : this.text('pin')}" title="${entry.isPinned ? this.text('unpin') : this.text('pin')}">⌖</button>` : ''}</div>
         </article>`;
     }
@@ -2484,7 +2490,7 @@ class ResearchQaApp {
 
         if (!notes.length) {
             setRenderedHtml(this.elements.noteList, { html: `
-                <article class="note-card">
+                <article class="note-card note-empty">
                     <div class="note-card-head">
                         <div>
                             <div class="eyebrow">${this.text('noNotesEyebrow')}</div>
@@ -2655,7 +2661,8 @@ class ResearchQaApp {
         this.scheduleComposerPreview(this.currentItem.desc, true);
         this.refreshDraftStatus();
         this.renderList();
-        window.setTimeout(() => this.editor.focus(), 40);
+        // A deferred focus can steal a field the user selects after opening.
+        this.editor.focus();
     }
 
     openNoteEditor(noteId = null) {
@@ -2677,7 +2684,7 @@ class ResearchQaApp {
         this.scheduleComposerPreview(note ? note.text : '', true);
         this.refreshDraftStatus();
         this.renderList();
-        window.setTimeout(() => this.editor.focus(), 40);
+        this.editor.focus();
     }
 
     hasUnsavedComposer() {

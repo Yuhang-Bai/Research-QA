@@ -835,7 +835,8 @@ test('expanded directory shows full titles, searches all batches and returns to 
     await p.locator('#expand-directory-btn').click(); await p.locator('#search-input').fill('note-only-directory-marker');
     await until(async () => JSON.stringify(await visibleIds(p)) === '["directory-9"]');
     await p.locator('#search-input').fill('synthetic-absent-token'); await until(async () => (await visibleIds(p)).length === 0);
-    assert.ok((await p.locator('#directory-results').innerText()).startsWith('0 of 230'));
+    assert.equal(await p.locator('#directory-results').innerText(), '0 / 230');
+    assert.equal(await p.locator('#directory-results').getAttribute('aria-label'), '0 of 230 results');
     await p.locator('#close-directory-btn').click(); assert.ok((await p.locator('#detail-title').innerText()).includes('229'));
     await assertNoHorizontalOverflow(p);
 });
@@ -1039,4 +1040,93 @@ test('browser Back to the home directory protects an unsaved draft', async t => 
     assert.equal(await p.locator('#home-directory-title').isVisible(), true);
     assert.equal(await p.locator('#composer').isVisible(), false);
     assert.equal((await read(p)).items[0].title, 'Original A');
+});
+
+test('the compact directory gives most of the viewport to questions and filters do not move the list', async t => {
+    const c = await context(t);
+    await seed(c, Array.from({ length: 50 }, (_, i) => problem('compact-' + i, `Synthetic question ${i + 1}: structural bounds and examples`)));
+    const p = await open(c); const before = await read(p);
+    for (const viewport of [{ width: 1440, height: 900 }, { width: 1180, height: 757 }, { width: 390, height: 844 }, { width: 320, height: 568 }]) {
+        await p.setViewportSize(viewport);
+        const list = await p.locator('#problem-list').boundingBox();
+        assert.ok(list.y <= (viewport.width > 760 ? 115 : 145), JSON.stringify({ viewport, list }));
+        assert.ok(list.height / viewport.height >= (viewport.width === 320 ? 0.75 : 0.82), JSON.stringify({ viewport, list }));
+        assert.equal(await p.locator('#search-input').isVisible(), true);
+        assert.equal(await p.locator('#create-item-btn').isVisible(), true);
+        await p.locator('#library-filter-panel > summary').click();
+        assert.equal(await p.locator('[data-library-filter="pinned"]').isVisible(), true);
+        const panel = await p.locator('.filter-scroll').boundingBox();
+        assert.ok(panel.x >= 0 && panel.x + panel.width <= viewport.width + 1, JSON.stringify(panel));
+        const opened = await p.locator('#problem-list').boundingBox();
+        assert.equal(opened.y, list.y); assert.equal(opened.height, list.height);
+        await p.keyboard.press('Escape');
+        assert.equal(await p.locator('#library-filter-panel').evaluate(filter => filter.open), false);
+        await assertNoHorizontalOverflow(p);
+    }
+    assert.deepEqual(await read(p), before); assert.equal(await read(p, dbKey + ':dirty'), false);
+});
+
+test('mobile reading and editing start below the compact bar without hidden sidebar rows', async t => {
+    const title = 'Synthetic question: Rainbow spanning trees under degree constraints';
+    const c = await context(t, null, { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    await seed(c, [{ ...problem('a', title), desc: 'Synthetic statement with enough content to inspect the reading area.\n\nA second paragraph stays in the same document.' }]);
+    const p = await open(c, '?item=a'); const before = await read(p);
+    for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 568 }]) {
+        await p.setViewportSize(viewport);
+        const main = await p.locator('.main-panel').boundingBox(), statement = await p.locator('#problem-render').boundingBox();
+        assert.ok(main.y <= 45 && main.height >= viewport.height - 45, JSON.stringify({ main, viewport }));
+        assert.ok(statement.y < 280, JSON.stringify(statement));
+        assert.equal(await p.locator('#context-panel').isVisible(), false);
+        await p.locator('#library-toggle-btn').click(); await p.keyboard.press('Escape');
+        assert.equal((await p.locator('.main-panel').boundingBox()).y, main.y);
+        await p.locator('#edit-problem-btn').click();
+        const editor = await p.locator('#editor-host').boundingBox(), saveButton = await p.locator('#save-composer-btn').boundingBox();
+        assert.ok(editor.height >= viewport.height * 0.4, JSON.stringify({ editor, viewport }));
+        assert.ok(saveButton.y >= 0 && saveButton.y + saveButton.height <= viewport.height + 1, JSON.stringify(saveButton));
+        await p.locator('#cancel-composer-btn').click(); await assertNoHorizontalOverflow(p);
+    }
+    assert.deepEqual(await read(p), before); assert.equal(await read(p, dbKey + ':dirty'), false);
+});
+
+test('auxiliary context is closed by default and opening it does not reduce the document width', async t => {
+    const c = await context(t); await seed(c, [problem()]); const p = await open(c, '?item=a');
+    for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+        await p.setViewportSize(viewport);
+        const before = await p.locator('.main-panel').boundingBox();
+        assert.equal(await p.locator('#context-panel').isVisible(), false);
+        if (viewport.width === 1440) assert.ok(before.width / viewport.width >= 0.75, JSON.stringify(before));
+        await p.locator('#context-toggle-btn').click();
+        assert.equal(await p.locator('#context-panel').isVisible(), true);
+        assert.equal((await p.locator('.main-panel').boundingBox()).width, before.width);
+        await p.locator('[data-close-context]').click();
+        assert.equal(await p.locator('#context-panel').isVisible(), false);
+        await p.locator('#context-toggle-btn').click(); await p.keyboard.press('Escape');
+        assert.equal(await p.locator('#context-panel').isVisible(), false);
+        await assertNoHorizontalOverflow(p);
+    }
+    assert.equal(await read(p, dbKey + ':dirty'), false);
+});
+
+test('opening an editor does not steal focus after the user chooses another field', async t => {
+    const c = await context(t); await seed(c, [problem()]); const p = await open(c, '?item=a');
+    const before = await read(p);
+    await p.evaluate(() => {
+        document.querySelector('#edit-problem-btn').click();
+        document.querySelector('#composer-preamble-input').focus();
+    });
+    await p.waitForTimeout(100);
+    assert.equal(await p.locator('#composer-preamble-input').evaluate(input => input === document.activeElement), true);
+    await p.locator('#composer-preamble-input').fill('\\newcommand{\\R}{\\mathbb{R}}');
+    assert.equal(await p.locator('.cm-content').innerText(), 'Original statement');
+    assert.equal(await p.locator('#composer-preamble-input').inputValue(), '\\newcommand{\\R}{\\mathbb{R}}');
+    assert.deepEqual(await read(p), before);
+    p.once('dialog', dialog => dialog.accept());
+    await p.locator('#cancel-composer-btn').click();
+    await p.evaluate(() => {
+        document.querySelector('#new-note-btn').click();
+        document.querySelector('button[data-editor-view="preview"]').focus();
+    });
+    await p.waitForTimeout(100);
+    assert.equal(await p.locator('button[data-editor-view="preview"]').evaluate(button => button === document.activeElement), true);
+    assert.deepEqual(await read(p), before);
 });

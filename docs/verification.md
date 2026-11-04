@@ -207,3 +207,78 @@ and merge after CI passes. The existing `deploy-pages.yml` builds, runs unit and
 browser tests, and deploys GitHub Pages on a push to `main`. Live Gist sync,
 external fonts/MathJax resources, other browser engines, and live deployment were
 not tested by this local run.
+
+## Content-first layout verification — 2026-11-04
+
+Local branch `feat/content-first-layout` starts from clean published main
+`f22fd5289c1946be903bd87ff771f7450b12ef31`. This revision gives the homepage a
+compact control bar followed by the question list. The large introduction,
+duplicate library heading, repeated zero-note labels, and permanent status footer
+no longer consume list space. Search, New, Problems/Trash, result counts, and the
+filter/tag disclosure remain available. Filters open over the content without
+moving the list. Storage/sync information is available in the workspace menu and
+the save/sync status remains visible in the top bar.
+
+Reading uses a compact title and action row, with the statement immediately
+below. References and related content open on demand as an overlay instead of a
+permanent third column. The mobile drawer now has enough selector specificity to
+remain fixed: the previous hidden, in-flow sidebar created an empty grid row that
+pushed reading below the first screen and squeezed the editor. Workspace and
+problem action menus close after an action so they do not cover the compact
+toolbar on return. The existing editor, draft protection, navigation, and sync
+implementation remain in place.
+
+The following before/after measurements use the same 50 synthetic questions and
+fresh Chromium contexts. Every external request is blocked. List share means
+the list's scroll region height divided by the complete viewport height; visible
+questions counts only fully visible rows. These are fixture measurements, not
+guarantees for arbitrary title lengths or user devices.
+
+| Viewport | List share before → after | Fully visible questions | Statement starts before → after | Editor height before → after |
+| --- | --- | --- | --- | --- |
+| 1440×900 | 51.1% → 88.4% | 5 → 16 | 381px → 211px | 468px → 595px |
+| 1180×757 | 41.9% → 86.3% | 3 → 13 | 362px → 246px | 325px → 452px |
+| 390×844 | 48.4% → 83.9% | 3 → 9 | 821px → 253px | 53px → 513px |
+| 320×568 | 23.3% → 76.1% | 1 → 4 | 652px → 253px | 2px → 237px |
+
+At 1440px, the reading panel grows from 844px to 1100px because auxiliary context
+is closed by default. Explicit directory width/collapse preferences are retained.
+No horizontal overflow was observed in these home, reading, or editing captures.
+
+- `node --test`: **30/30 passed**.
+- `node --run build`: **passed**, with the existing large-chunk advisory.
+- Chromium **151.0.7922.34**: **56/56 browser regressions passed**.
+- The three new cases check usable list area and non-moving filters, mobile
+  reading/editor geometry with Save in view, and context overlays that preserve
+  document width. Existing persistence, draft, sharing, and simulated sync cases
+  also pass.
+- `git diff --check`: passed.
+
+Before/after screenshots, raw geometry, the measurement helper, comparison JSON,
+and final test/build logs are in `../verification/content-layout/`. Home and
+reading screenshots at 1440px and 390px were visually inspected, along with the
+mobile editor. The measurement helper serves only local `dist`, seeds isolated
+browser databases with synthetic records, and blocks all external requests.
+
+Supplemental captures in `after-typeset/` load the actual public fonts and MathJax
+at 1440×900 and 390×844. Rendered formula containers were checked, the reading
+screenshots were visually inspected, and no horizontal overflow was measured.
+This optional run permits only GETs to the existing MathJax 3 static resource
+path and Google Fonts hosts; GitHub/Gist and every other external request remain
+blocked. The comparison table above continues to use the controlled, fully
+blocked before/after runs.
+
+No actual problem data, Gist, credential, existing browser profile, or sync
+configuration was read or modified. Data adapters, renderer/editor modules,
+dependency manifests, and deployment workflows are unchanged. Generated root
+HTML/assets are refreshed locally from the verified build. These results were
+recorded before release authorization, while the revision was uncommitted and
+had not been pushed, merged, or published. Real Gist sync,
+non-Chromium engines, and physical mobile devices were not tested.
+
+Release validation also reproduced a delayed editor-focus callback that could
+override a field selected immediately after opening. Both problem and note
+editors now focus synchronously when opened, preserving subsequent user focus.
+A new regression checks preamble and note-editor controls without saving data;
+the final local browser suite passes **57/57** cases. The production build and
+`git diff --check` also pass after this fix.
