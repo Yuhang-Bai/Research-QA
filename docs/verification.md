@@ -275,3 +275,10 @@ HTML/assets are refreshed locally from the verified build. These results were
 recorded before release authorization, while the revision was uncommitted and
 had not been pushed, merged, or published. Real Gist sync,
 non-Chromium engines, and physical mobile devices were not tested.
+
+Release validation also reproduced a delayed editor-focus callback that could
+override a field selected immediately after opening. Both problem and note
+editors now focus synchronously when opened, preserving subsequent user focus.
+A new regression checks preamble and note-editor controls without saving data;
+the final local browser suite passes **57/57** cases. The production build and
+`git diff --check` also pass after this fix.

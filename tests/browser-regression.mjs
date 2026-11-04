@@ -1106,3 +1106,27 @@ test('auxiliary context is closed by default and opening it does not reduce the 
     }
     assert.equal(await read(p, dbKey + ':dirty'), false);
 });
+
+test('opening an editor does not steal focus after the user chooses another field', async t => {
+    const c = await context(t); await seed(c, [problem()]); const p = await open(c, '?item=a');
+    const before = await read(p);
+    await p.evaluate(() => {
+        document.querySelector('#edit-problem-btn').click();
+        document.querySelector('#composer-preamble-input').focus();
+    });
+    await p.waitForTimeout(100);
+    assert.equal(await p.locator('#composer-preamble-input').evaluate(input => input === document.activeElement), true);
+    await p.locator('#composer-preamble-input').fill('\\newcommand{\\R}{\\mathbb{R}}');
+    assert.equal(await p.locator('.cm-content').innerText(), 'Original statement');
+    assert.equal(await p.locator('#composer-preamble-input').inputValue(), '\\newcommand{\\R}{\\mathbb{R}}');
+    assert.deepEqual(await read(p), before);
+    p.once('dialog', dialog => dialog.accept());
+    await p.locator('#cancel-composer-btn').click();
+    await p.evaluate(() => {
+        document.querySelector('#new-note-btn').click();
+        document.querySelector('button[data-editor-view="preview"]').focus();
+    });
+    await p.waitForTimeout(100);
+    assert.equal(await p.locator('button[data-editor-view="preview"]').evaluate(button => button === document.activeElement), true);
+    assert.deepEqual(await read(p), before);
+});

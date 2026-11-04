@@ -2661,7 +2661,8 @@ class ResearchQaApp {
         this.scheduleComposerPreview(this.currentItem.desc, true);
         this.refreshDraftStatus();
         this.renderList();
-        window.setTimeout(() => this.editor.focus(), 40);
+        // A deferred focus can steal a field the user selects after opening.
+        this.editor.focus();
     }
 
     openNoteEditor(noteId = null) {
@@ -2683,7 +2684,7 @@ class ResearchQaApp {
         this.scheduleComposerPreview(note ? note.text : '', true);
         this.refreshDraftStatus();
         this.renderList();
-        window.setTimeout(() => this.editor.focus(), 40);
+        this.editor.focus();
     }
 
     hasUnsavedComposer() {
