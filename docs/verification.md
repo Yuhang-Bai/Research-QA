@@ -154,3 +154,56 @@ every external request was intercepted. No real research data, Gist, credential,
 or existing browser profile was accessed. External fonts and live MathJax CDN
 rendering, real network sync, other browser engines, PDF output and deployment
 were not verified by this run.
+
+## Home problem directory verification — 2026-11-04
+
+Local branch `feat/home-problem-directory` starts from clean main
+`10c6798f62f769bbc9cdd32f667ff00fbf21a74d`. The homepage now presents the problem
+directory across the available width, with complete wrapping titles, search,
+existing filters/tags, bounded result batches, and New problem. Selecting a row
+opens the existing detail workspace in the same tab. The breadcrumb and browser
+Back return to the directory with its search, filters, loaded batch, and scroll
+position retained. Keyboard focus follows the selected problem or the directory
+search field. Reading-sidebar width/collapse preferences do not hide the homepage,
+including on mobile, and remain unchanged for reading.
+
+An empty library, empty trash, and searches or filters with no results have
+distinct messages. The existing draft, editing, sharing, import/export, and sync
+flows remain in place. No data adapters, renderer/editor implementation, portable
+data format, dependency manifests, or deployment configuration changed. No
+`AGENTS.md` or `.agents/skills` directory was present. The initial local workspace
+was empty and the checkout was clean; there were no user changes to overwrite.
+
+- `node --test`: **30/30 passed**.
+- `node --run build`: **passed**, with the existing large-chunk advisory.
+- Test Chromium **151.0.7922.34**: **53/53 browser regressions passed**, including
+  six new homepage cases and the existing persistence/simulated sync checks.
+- Layout assertions cover **1440, 1180, 761, 760, 390, and 320px** without
+  horizontal overflow. Desktop and mobile screenshots were visually inspected.
+- `git diff --check`: passed.
+
+The system does not expose npm on PATH. A temporary pnpm lock was imported from
+the existing `package-lock.json` to install its locked versions with install
+scripts disabled. All 14 direct dependency versions were checked against that
+lock. The temporary pnpm lock was removed; package manifests are unchanged.
+Windows sandbox realpath and localhost restrictions required approved local
+execution for dependency setup, building, and browser tests. Installed desktop
+Chrome closed before testing; the already-installed test Chromium completed the
+suite. Tests used fresh temporary browser contexts, fake configuration, synthetic
+records, and intercepted every external request. No actual problem data, Gist,
+credential, sync configuration, or existing browser profile was accessed.
+
+Screenshots and geometry JSON are in `../verification/`: `05-home-desktop` shows
+the directory at 1180×900 (1028px list width), and `06-home-mobile` shows it at
+390×844 (358px list width). The four existing reading/expanded-directory captures
+are retained there too. Browser and build logs accompany the screenshots.
+Root `index.html` and generated assets were refreshed from the verified build for
+compatibility with branch-root Pages releases. These verification results were
+recorded before release authorization, while all work was local and uncommitted.
+No push, pull request, merge, or deployment had been performed at that stage.
+
+After release authorization, commit and push this branch, open a pull request,
+and merge after CI passes. The existing `deploy-pages.yml` builds, runs unit and
+browser tests, and deploys GitHub Pages on a push to `main`. Live Gist sync,
+external fonts/MathJax resources, other browser engines, and live deployment were
+not tested by this local run.

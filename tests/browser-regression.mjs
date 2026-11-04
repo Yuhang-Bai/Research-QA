@@ -735,7 +735,7 @@ for (const filled of [false, true]) {
         await p.locator('#library-filter-panel > summary').click();
         for (const width of [1586, 1100, 390]) {
             await p.setViewportSize({ width, height: 1000 });
-            if (width === 390) {
+            if (width === 390 && filled) {
                 await p.locator('#library-toggle-btn').click();
                 assert.equal(await p.locator('#library-toggle-btn').getAttribute('aria-expanded'), 'true');
             }
@@ -909,4 +909,134 @@ test('mobile expanded directory keeps full titles, modal focus and reversible dr
     await p.keyboard.press('Escape'); await p.locator('#library-sidebar').waitFor({ state: 'hidden' });
     assert.equal(await p.locator('#library-sidebar').isVisible(), false);
     assert.equal(await p.locator('.main-panel').evaluate(panel => panel.inert), false);
+});
+
+test('home is a full-width problem directory at desktop and mobile breakpoints', async t => {
+    const c = await context(t); await seed(c, directoryItems()); const p = await open(c);
+    const before = await read(p);
+    for (const width of [1440, 1180, 761, 760, 390, 320]) {
+        await p.setViewportSize({ width, height: width < 760 ? 844 : 900 });
+        assert.equal(await p.locator('#home-directory-title').isVisible(), true);
+        assert.equal(await p.locator('.main-panel').isVisible(), false);
+        assert.equal(await p.locator('#library-toggle-btn').isVisible(), false);
+        assert.equal(await p.locator('#expand-directory-btn').isVisible(), false);
+        assert.equal(await p.locator('#library-sidebar').evaluate(sidebar => sidebar.inert), false);
+        const box = await p.locator('#library-sidebar').boundingBox();
+        assert.ok(box.width >= Math.min(width, 1100) - 1, JSON.stringify(box));
+        assert.equal(await p.locator('.problem-row').count(), 100);
+        const title = row(p, 'directory-7').locator('h3');
+        assert.equal(await title.innerText(), longDirectoryTitle);
+        assert.equal(await title.evaluate(h => h.scrollHeight <= h.clientHeight + 1 && h.scrollWidth <= h.clientWidth + 1), true);
+        await assertNoHorizontalOverflow(p);
+        if (width === 1180 || width === 390) {
+            await p.locator('#problem-list').evaluate(list => { list.scrollTop = 0; });
+            await directoryScreenshot(p, width === 1180 ? '05-home-desktop' : '06-home-mobile');
+        }
+    }
+    assert.deepEqual(await read(p), before); assert.equal(await read(p, dbKey + ':dirty'), false);
+});
+
+test('home stays accessible with a collapsed reading sidebar and preserves its device preferences', async t => {
+    const c = await context(t);
+    const preferences = { width: 500, collapsed: true };
+    await c.addInitScript(value => {
+        if (location.protocol === 'http:') localStorage.setItem('rq_v2_directory_layout', JSON.stringify(value));
+    }, preferences);
+    await seed(c, [problem(), problem('b', 'Original B')]); const p = await open(c);
+    assert.equal(await p.locator('#library-sidebar').isVisible(), true);
+    await row(p, 'a').locator('a.problem-row-link').focus(); await p.keyboard.press('Enter');
+    await until(async () => new URL(p.url()).searchParams.get('item') === 'a');
+    assert.equal(await p.locator('#detail-title').evaluate(title => title === document.activeElement), true);
+    assert.equal(await p.locator('#library-sidebar').isVisible(), false);
+    await p.locator('#breadcrumb-home-btn').click();
+    assert.equal(await p.locator('#home-directory-title').isVisible(), true);
+    assert.equal(await p.locator('#search-input').evaluate(input => input === document.activeElement), true);
+    await p.reload(); await p.locator('#home-directory-title').waitFor();
+    assert.equal(await p.locator('#library-sidebar').evaluate(sidebar => sidebar.inert), false);
+    assert.deepEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('rq_v2_directory_layout'))), preferences);
+    await selectRow(p, 'b'); assert.equal(await p.locator('#library-sidebar').isVisible(), false);
+    await p.locator('#library-toggle-btn').click();
+    assert.equal(Math.round((await p.locator('#library-sidebar').boundingBox()).width), 500);
+});
+
+test('home search, filters, batches and scroll survive selection and return navigation', async t => {
+    const c = await context(t); const items = directoryItems(); items[229].isPinned = true;
+    await seed(c, items); const p = await open(c); const before = await read(p);
+    await p.locator('[data-load-more]').click(); assert.equal(await p.locator('.problem-row').count(), 200);
+    await row(p, 'directory-90').scrollIntoViewIfNeeded();
+    const homeScroll = await p.locator('#problem-list').evaluate(list => list.scrollTop);
+    await selectRow(p, 'directory-90'); await p.goBack();
+    assert.equal(await p.locator('#search-input').evaluate(input => input === document.activeElement), true);
+    assert.ok(Math.abs(await p.locator('#problem-list').evaluate(list => list.scrollTop) - homeScroll) <= 1);
+    await p.goForward(); await p.locator('#breadcrumb-home-btn').click();
+    assert.equal(await p.locator('.problem-row').count(), 200);
+    assert.ok(Math.abs(await p.locator('#problem-list').evaluate(list => list.scrollTop) - homeScroll) <= 1);
+    await p.locator('#search-input').fill('needle-at-the-end');
+    await until(async () => JSON.stringify(await visibleIds(p)) === '["directory-229"]');
+    await p.locator('#library-filter-panel > summary').click(); await p.locator('[data-library-filter="pinned"]').click();
+    await selectRow(p, 'directory-229'); assert.ok((await p.locator('#detail-title').innerText()).includes('229'));
+    await p.goBack(); assert.equal(await p.locator('#home-directory-title').isVisible(), true);
+    assert.equal(await p.locator('#search-input').inputValue(), 'needle-at-the-end');
+    assert.deepEqual(await visibleIds(p), ['directory-229']);
+    await p.goForward(); assert.ok((await p.locator('#detail-title').innerText()).includes('229'));
+    await p.locator('#breadcrumb-home-btn').click();
+    assert.equal(await p.locator('[data-library-filter="pinned"]').getAttribute('aria-pressed'), 'true');
+    await p.locator('#search-input').fill('absent-directory-query');
+    await until(async () => (await visibleIds(p)).length === 0);
+    assert.ok((await p.locator('.directory-empty').innerText()).includes('change the filters'));
+    assert.deepEqual(await read(p), before); assert.equal(await read(p, dbKey + ':dirty'), false);
+});
+
+test('empty home supports new, cancel and save, and distinguishes empty filters and trash', async t => {
+    const c = await context(t); await seed(c, []); const p = await open(c);
+    assert.ok((await p.locator('.directory-empty').textContent()).includes('No problems yet'));
+    await p.locator('#create-item-btn').click(); assert.equal(await p.locator('#composer').isVisible(), true);
+    await p.locator('#cancel-composer-btn').click(); await clickAction(p, '#back-home-btn');
+    assert.equal((await read(p)).items.length, 0);
+    await p.locator('[data-view-mode="trash"]').click();
+    assert.ok((await p.locator('.directory-empty').textContent()).includes('Trash is empty'));
+    await p.locator('[data-view-mode="active"]').click(); await p.locator('#create-item-btn').click();
+    await p.locator('#composer-title-input').fill('Synthetic question from home');
+    await p.locator('.cm-content').fill('Synthetic statement $x + y = 1$'); await save(p);
+    await p.locator('#breadcrumb-home-btn').click(); assert.equal(await p.locator('.problem-row').count(), 1);
+    assert.ok((await p.locator('.problem-row h3').innerText()).includes('Synthetic question from home'));
+    await p.locator('#library-filter-panel > summary').click(); await p.locator('[data-library-filter="pinned"]').click();
+    assert.ok((await p.locator('.directory-empty').textContent()).includes('No Match'));
+    assert.ok(!(await p.locator('.directory-empty').textContent()).includes('No problems yet'));
+    assert.equal((await read(p)).items.length, 1);
+});
+
+test('mobile home opens details without a drawer and returns to the searchable list', async t => {
+    const c = await context(t, null, { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    await seed(c, [problem(), problem('b', 'Original B')]); const p = await open(c);
+    for (let i = 0; i < 3; i++) {
+        await selectRow(p, 'b'); await p.locator('#library-sidebar').waitFor({ state: 'hidden' });
+        assert.equal(await p.locator('.main-panel').evaluate(panel => panel.inert), false);
+        assert.equal(await p.locator('#library-scrim').isVisible(), false);
+        await p.locator('#breadcrumb-home-btn').click();
+        assert.equal(await p.locator('#library-sidebar').isVisible(), true);
+        assert.equal(await p.locator('#library-sidebar').evaluate(sidebar => sidebar.inert), false);
+        await p.keyboard.press('Escape'); assert.equal(await p.locator('#library-sidebar').isVisible(), true);
+        await assertNoHorizontalOverflow(p);
+    }
+    await p.locator('#search-input').fill('Original B');
+    await until(async () => JSON.stringify(await visibleIds(p)) === '["b"]');
+    await p.setViewportSize({ width: 320, height: 568 }); await assertNoHorizontalOverflow(p);
+    await selectRow(p, 'b'); await p.locator('#breadcrumb-home-btn').click();
+    assert.deepEqual(await visibleIds(p), ['b']); assert.equal(await read(p, dbKey + ':dirty'), false);
+});
+
+test('browser Back to the home directory protects an unsaved draft', async t => {
+    const c = await context(t); await seed(c, [problem()]); const p = await open(c);
+    await selectRow(p, 'a'); await beginEdit(p, 'Synthetic protected home draft');
+    let discard = false, prompts = 0;
+    p.on('dialog', dialog => { prompts++; return discard ? dialog.accept() : dialog.dismiss(); });
+    await p.goBack(); await until(() => prompts === 1);
+    assert.equal(new URL(p.url()).searchParams.get('item'), 'a');
+    assert.equal(await p.locator('#composer-title-input').inputValue(), 'Synthetic protected home draft');
+    assert.equal((await read(p)).items[0].title, 'Original A');
+    discard = true; await p.goBack(); await until(() => prompts === 2);
+    assert.equal(await p.locator('#home-directory-title').isVisible(), true);
+    assert.equal(await p.locator('#composer').isVisible(), false);
+    assert.equal((await read(p)).items[0].title, 'Original A');
 });

@@ -862,6 +862,8 @@ class ResearchQaApp {
             'filters-label': ['Filters & tags', '筛选与标签'],
             'expand-directory-btn': ['Expand directory', '展开目录'],
             'directory-title': ['Problem directory', '问题目录'],
+            'home-directory-title': ['Problem directory', '问题目录'],
+            'home-directory-description': ['Browse your questions and choose one to read its statement and research notes.', '浏览问题列表，点击一个问题查看题目和研究笔记。'],
             'close-directory-btn': ['Back to reading', '返回阅读'],
             'workspace-menu-label': ['Workspace', '工作区'], 'tags-label': ['Tags', '标签'],
             'breadcrumb-home-btn': ['Problem library', '问题库'], 'breadcrumb-current': ['Notebook', '研究手账'],
@@ -1251,7 +1253,9 @@ class ResearchQaApp {
         this.elements.workspace.classList.toggle('route-detail', !homeRoute);
         this.elements.backHomeButton.classList.toggle('hidden', homeRoute || Boolean(this.visitorGistId));
         this.elements.workspace.classList.toggle('visitor-workspace', Boolean(this.visitorGistId));
-        document.getElementById('library-toggle-btn').classList.toggle('hidden', Boolean(this.visitorGistId));
+        document.getElementById('library-toggle-btn').classList.toggle('hidden', homeRoute || Boolean(this.visitorGistId));
+        this.elements.createItemButton.textContent = homeRoute ? this.text('newProblemButton') : '+ ' + this.text('new');
+        this.directory.refresh();
     }
 
     reconcileRouteSelection({ replaceRoute = false } = {}) {
@@ -1292,6 +1296,7 @@ class ResearchQaApp {
         }
 
         if (!this.closeComposer()) return;
+        this.directory.closeExpanded({ restoreFocus: false });
         ++this.selectionToken;
         this.pageMode = 'home';
         this.currentId = null;
@@ -1299,13 +1304,17 @@ class ResearchQaApp {
         this.currentSummary = null;
         this.syncRouteState({ replace });
         this.renderAll();
+        this.elements.list.scrollTop = this.homeListScroll || 0;
+        this.elements.searchInput.focus({ preventScroll: true });
     }
 
     async openItemPage(itemId, { replace = false } = {}) {
         if (!itemId || this.saving) return;
         if (String(itemId) === String(this.currentId) && this.pageMode === 'detail') { this.directory.closeExpanded(); this.setLibraryOpen(false); return; }
         if (!this.closeComposer()) return;
-        const fromDirectory = this.directory.expanded;
+        const fromHome = this.pageMode === 'home';
+        if (fromHome) this.homeListScroll = this.elements.list.scrollTop;
+        const fromDirectory = this.directory.expanded || fromHome;
         this.directory.closeExpanded({ restoreFocus: false });
         this.setLibraryOpen(false);
         document.querySelector('.main-panel').scrollTop = 0;
@@ -1353,6 +1362,8 @@ class ResearchQaApp {
         this.currentItem = null;
         this.currentSummary = null;
         this.renderAll();
+        this.elements.list.scrollTop = this.homeListScroll || 0;
+        this.elements.searchInput.focus({ preventScroll: true });
     }
 
     updateViewModeButtons() {
@@ -2267,10 +2278,11 @@ class ResearchQaApp {
             `${items.length} of ${collection.length} results`, `${items.length} / ${collection.length} 项结果`);
 
         if (!items.length) {
+            const filtered = Boolean(term || (this.viewMode === 'active' && (this.libraryFilter !== 'all' || this.libraryTag)));
             const emptyHtml = `
-                <div class="sidebar-panel">
-                    <div class="eyebrow">${this.text('noMatch')}</div>
-                    <p class="modal-note">${term ? this.text('noResults') : this.text('noProblems')}</p>
+                <div class="sidebar-panel directory-empty">
+                    <div class="eyebrow">${filtered ? this.text('noMatch') : this.viewMode === 'trash' ? this.literal('Trash is empty', '回收站为空') : this.text('noProblems')}</div>
+                    <p class="modal-note">${filtered ? this.literal('No results. Try another search or change the filters.', '没有匹配结果，请尝试其他关键词或调整筛选。') : this.viewMode === 'trash' ? this.literal('Deleted problems and notes will appear here.', '删除的问题和笔记会显示在这里。') : this.literal('Create a new problem to start your directory.', '新建一个问题，开始整理你的问题目录。')}</p>
                 </div>
             `;
             if (this.lastListHtml === emptyHtml) {

@@ -31,11 +31,13 @@ export function createProblemDirectory({ workspace, sidebar, searchInput, compos
         resizer.setAttribute('aria-valuetext', `${effective}px`);
     };
     const updateVisibility = () => {
-        const open = narrow.matches ? workspace.classList.contains('library-open') : !collapsed;
-        workspace.classList.toggle('library-collapsed', !narrow.matches && collapsed);
+        const home = workspace.classList.contains('route-home');
+        if (home) workspace.classList.remove('library-open');
+        const open = home || (narrow.matches ? workspace.classList.contains('library-open') : !collapsed);
+        workspace.classList.toggle('library-collapsed', !home && !narrow.matches && collapsed);
         toggle.setAttribute('aria-expanded', String(open || dialog.open));
         sidebar.inert = !open && !dialog.open;
-        const modalDrawer = narrow.matches && open;
+        const modalDrawer = !home && narrow.matches && open;
         scrim.classList.toggle('hidden', !modalDrawer);
         composer.inert = modalDrawer;
         document.querySelector('.main-panel').inert = modalDrawer;
@@ -44,12 +46,13 @@ export function createProblemDirectory({ workspace, sidebar, searchInput, compos
     const setOpen = open => {
         workspace.classList.toggle('library-open', narrow.matches && open);
         updateVisibility();
-        if (narrow.matches) {
+        if (narrow.matches && !workspace.classList.contains('route-home')) {
             if (open) searchInput.focus();
             else if (sidebar.contains(document.activeElement)) toggle.focus();
         }
     };
     const setCollapsed = value => {
+        if (workspace.classList.contains('route-home')) return;
         collapsed = value;
         updateVisibility(); save();
         if (value) toggle.focus();
@@ -66,7 +69,7 @@ export function createProblemDirectory({ workspace, sidebar, searchInput, compos
         if (restoreFocus) (sidebar.inert ? toggle : expandButton).focus();
     };
     const expand = () => {
-        if (dialog.open || workspace.classList.contains('visitor-workspace')) return;
+        if (dialog.open || workspace.classList.contains('visitor-workspace') || workspace.classList.contains('route-home')) return;
         const scroll = document.getElementById('problem-list').scrollTop;
         sidebar.before(placeholder);
         sidebar.classList.add('directory-expanded');
@@ -124,5 +127,5 @@ export function createProblemDirectory({ workspace, sidebar, searchInput, compos
     window.addEventListener('resize', () => { finishDrag(); applyWidth(); });
     narrow.addEventListener('change', () => { finishDrag(); setOpen(false); });
     applyWidth(); updateVisibility();
-    return { setOpen, expand, closeExpanded, get expanded() { return dialog.open; }, toggle() { narrow.matches ? setOpen(!workspace.classList.contains('library-open')) : setCollapsed(!collapsed); } };
+    return { setOpen, expand, closeExpanded, refresh: updateVisibility, get expanded() { return dialog.open; }, toggle() { narrow.matches ? setOpen(!workspace.classList.contains('library-open')) : setCollapsed(!collapsed); } };
 }
