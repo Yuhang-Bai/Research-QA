@@ -30,8 +30,8 @@
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
 
 
-  <script type="module" crossorigin src="./assets/index-F4Xf8GgN.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-CdTrEpIK.css">
+  <script type="module" crossorigin src="./assets/index-CgwuZxpb.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-C737X3HX.css">
 </head>
 <body>
     <div class="modal hidden auth-screen" id="auth-screen">
@@ -78,6 +78,7 @@
                 <button class="top-btn" id="export-btn">Export</button>
                 <button class="top-btn" id="import-btn">Import</button>
                 <button class="top-btn" id="config-btn">Settings</button>
+                <div class="workspace-storage"><span id="storage-label">Local-first</span><span id="sync-status" role="status">Not connected</span></div>
                 </div></details>
             </div>
         </header>
@@ -92,27 +93,28 @@
                     <button class="secondary-btn" id="expand-directory-btn" aria-haspopup="dialog" aria-controls="directory-dialog">Expand directory</button>
                     <button class="icon-btn" id="collapse-library-btn" aria-label="Collapse problem library" title="Collapse problem library">‹</button>
                 </div>
-                <div class="sidebar-panel search-panel">
-                    <label class="search-shell"><span>Search</span><input type="search" id="search-input" placeholder="Search problems…"></label>
-                    <button class="primary-btn" id="create-item-btn">New problem</button>
-                </div>
-                <div class="sidebar-panel accent-panel">
-                    <div class="panel-row"><h2>My problems</h2><span class="status-chip soft" id="view-status">Problems</span></div>
-                    <div class="segmented">
-                        <button class="segmented-btn active" data-view-mode="active">Problems</button>
-                        <button class="segmented-btn" data-view-mode="trash">Trash</button>
+                <div class="library-controls">
+                    <div class="sidebar-panel search-panel">
+                        <label class="search-shell"><span>Search</span><input type="search" id="search-input" placeholder="Search problems…"></label>
+                        <button class="primary-btn" id="create-item-btn">New problem</button>
                     </div>
-                </div>
-                <details class="directory-filters" id="library-filter-panel">
-                    <summary><span id="filters-label">Filters &amp; tags</span><span id="active-filter-label"></span></summary>
-                    <div class="filter-scroll">
-                        <nav class="library-filters" id="library-filters" aria-label="Filter problems"></nav>
-                        <section class="sidebar-panel tag-panel"><h2 id="tags-label">Tags</h2><div id="library-tags"></div></section>
+                    <div class="sidebar-panel accent-panel">
+                        <div class="panel-row"><h2>My problems</h2><span class="status-chip soft" id="view-status">Problems</span></div>
+                        <div class="segmented">
+                            <button class="segmented-btn active" data-view-mode="active">Problems</button>
+                            <button class="segmented-btn" data-view-mode="trash">Trash</button>
+                        </div>
+                        <div class="directory-results" id="directory-results" role="status" aria-live="polite"></div>
                     </div>
-                </details>
-                <div class="directory-results" id="directory-results" role="status" aria-live="polite"></div>
+                    <details class="directory-filters" id="library-filter-panel">
+                        <summary><span id="filters-label">Filters</span><span id="active-filter-label"></span></summary>
+                        <div class="filter-scroll">
+                            <nav class="library-filters" id="library-filters" aria-label="Filter problems"></nav>
+                            <section class="sidebar-panel tag-panel"><h2 id="tags-label">Tags</h2><div id="library-tags"></div></section>
+                        </div>
+                    </details>
+                </div>
                 <div class="sidebar-scroll" id="problem-list"></div>
-                <div class="sidebar-footer"><span id="storage-label">Local-first</span><span class="status-chip" id="sync-status" role="status">Not connected</span></div>
                 <div class="directory-resizer" id="directory-resizer" role="separator" tabindex="0" aria-label="Resize problem library" aria-orientation="vertical" aria-valuemin="280" aria-valuemax="520" aria-valuenow="340"></div>
             </aside>
             <main class="main-panel">
@@ -129,31 +131,34 @@
                     </div>
                 </section>
                 <section class="detail-view hidden" id="detail-view">
-                    <div class="notebook-breadcrumb"><button id="breadcrumb-home-btn">Problem library</button><span>/</span><span id="breadcrumb-current">Notebook</span><button class="icon-btn" id="context-toggle-btn" aria-label="Toggle context panel" aria-expanded="true">☷</button></div>
-                    <section class="hero-card">
-                        <div class="hero-meta">
-                            <span class="hero-chip" id="hero-kind">Problem</span>
-                            <span class="hero-chip muted" id="hero-updated">Not loaded</span>
-                            <span class="hero-chip muted" id="hero-remote">Local-first</span>
+                    <div class="notebook-breadcrumb">
+                        <button id="breadcrumb-home-btn">Problem library</button><span>/</span><span id="breadcrumb-current">Notebook</span>
+                        <div class="hero-actions">
+                            <span class="reader-mode" id="reader-mode-label">Reading</span>
+                            <button class="pill-btn" id="edit-problem-btn">Edit</button>
+                            <details class="item-menu"><summary id="item-menu-label" aria-label="Problem actions">•••</summary><div class="item-menu-content">
+                            <button class="pill-btn soft" id="pin-item-btn">Pin</button>
+                            <button class="pill-btn soft" id="share-item-btn">Share</button>
+                            <button class="pill-btn soft" id="pdf-item-btn">Export PDF</button>
+                            <button class="pill-btn" id="open-item-tab-btn">Open in new tab</button>
+                            <button class="pill-btn hidden" id="restore-item-btn">Restore</button>
+                            <button class="pill-btn warn hidden" id="destroy-item-btn">Delete permanently</button>
+                            <button class="pill-btn warn" id="delete-item-btn">Delete</button>
+                            </div></details>
                         </div>
+                        <button class="icon-btn" id="context-toggle-btn" aria-label="Toggle context panel" aria-expanded="false">☷</button>
+                    </div>
+                    <section class="hero-card">
                         <div class="hero-header">
                             <div>
                                 <h2 id="detail-title" tabindex="-1">No problem selected</h2>
                                 <p id="detail-subtitle">Pick a problem on the left to read the statement and research notes.</p>
                             </div>
-                            <div class="hero-actions">
-                                <span class="reader-mode" id="reader-mode-label">Reading</span>
-                                <button class="pill-btn" id="edit-problem-btn">Edit</button>
-                                <details class="item-menu"><summary id="item-menu-label" aria-label="Problem actions">•••</summary><div class="item-menu-content">
-                                    <button class="pill-btn soft" id="pin-item-btn">Pin</button>
-                                    <button class="pill-btn soft" id="share-item-btn">Share</button>
-                                    <button class="pill-btn soft" id="pdf-item-btn">Export PDF</button>
-                                    <button class="pill-btn" id="open-item-tab-btn">Open in new tab</button>
-                                    <button class="pill-btn hidden" id="restore-item-btn">Restore</button>
-                                    <button class="pill-btn warn hidden" id="destroy-item-btn">Delete permanently</button>
-                                    <button class="pill-btn warn" id="delete-item-btn">Delete</button>
-                                </div></details>
-                            </div>
+                        </div>
+                        <div class="hero-meta">
+                            <span class="hero-chip" id="hero-kind">Problem</span>
+                            <span class="hero-chip muted" id="hero-updated">Not loaded</span>
+                            <span class="hero-chip muted" id="hero-remote">Local-first</span>
                         </div>
                     </section>
                     <section class="reader-card" id="statement-section">
